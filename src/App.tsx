@@ -67,12 +67,12 @@ function App() {
         </p>
       </div>
 
-      <AcrylicPanel className="p-6 w-full max-w-2xl">
+      <AcrylicPanel className="p-6 w-full max-w-2xl bg-card/95">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {features.map(({ icon: Icon, title, description, color, bgColor }) => (
             <AcrylicPanel
               key={title}
-              className="transition-colors hover:bg-card/60 cursor-pointer border-0 shadow-none"
+              className="transition-colors hover:bg-card/95 cursor-pointer bg-card"
             >
               <CardHeader>
                 <div
