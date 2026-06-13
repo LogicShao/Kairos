@@ -58,11 +58,11 @@ function App() {
         )}
       </Button>
 
-      <div className="text-center mb-12">
-        <h1 className="text-5xl font-heading font-medium text-foreground tracking-tight">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-heading font-medium text-primary tracking-tight">
           Kairos
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
+        <p className="mt-1.5 text-base text-foreground/60">
           καιρός — 恰当时机
         </p>
       </div>
