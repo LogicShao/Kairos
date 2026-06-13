@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "@/hooks/use-theme"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
+import { TaskList } from "@/components/todo/TaskList"
 
 const features = [
   {
@@ -79,6 +80,40 @@ function App() {
     )
   }
 
+  if (activeFeature === "待办事项") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center p-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fixed top-4 left-4"
+          onClick={() => setActiveFeature(null)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          返回
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 rounded-full"
+          onClick={toggle}
+          aria-label="切换深浅色模式"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+
+        <div className="w-full pt-12">
+          <TaskList />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
       <Button
@@ -110,7 +145,7 @@ function App() {
             <AcrylicPanel
               key={title}
               className="transition-colors hover:bg-card/95 cursor-pointer bg-card p-4"
-              onClick={title === "番茄钟" ? () => setActiveFeature(title) : undefined}
+              onClick={title === "番茄钟" || title === "待办事项" ? () => setActiveFeature(title) : undefined}
             >
               <CardHeader>
                 <div

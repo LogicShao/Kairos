@@ -71,6 +71,10 @@ pub fn run() {
             commands::pomodoro::reset_pomodoro,
             commands::pomodoro::get_pomodoro_state,
             commands::pomodoro::update_pomodoro_config,
+            commands::tasks::get_all_tasks,
+            commands::tasks::create_task,
+            commands::tasks::update_task,
+            commands::tasks::delete_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
