@@ -72,7 +72,7 @@ function App() {
           {features.map(({ icon: Icon, title, description, color, bgColor }) => (
             <AcrylicPanel
               key={title}
-              className="transition-colors hover:bg-card/95 cursor-pointer bg-card"
+              className="transition-colors hover:bg-card/95 cursor-pointer bg-card p-4"
             >
               <CardHeader>
                 <div
