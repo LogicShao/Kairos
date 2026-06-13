@@ -1,4 +1,4 @@
-import { Timer, CheckSquare, BookOpen, Clock } from "lucide-react"
+import { Timer, CheckSquare, BookOpen, Clock, Sun, Moon } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -6,6 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useTheme } from "@/hooks/use-theme"
 
 const features = [
   {
@@ -39,8 +41,24 @@ const features = [
 ]
 
 function App() {
+  const { theme, toggle } = useTheme()
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed top-4 right-4 rounded-full"
+        onClick={toggle}
+        aria-label="切换深浅色模式"
+      >
+        {theme === "dark" ? (
+          <Sun className="h-5 w-5" />
+        ) : (
+          <Moon className="h-5 w-5" />
+        )}
+      </Button>
+
       <div className="text-center mb-12">
         <h1 className="text-5xl font-heading font-medium text-foreground tracking-tight">
           Kairos
