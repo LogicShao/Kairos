@@ -18,6 +18,14 @@
 
 ## Requirements
 
+### 0. 离线优先 — 硬约束 (CRITICAL)
+
+应用除 WebDAV 同步模块外，**禁止一切网络活动**：
+- **前端**：禁止任何外部 CDN 引用（JS/CSS/字体/图片），所有资源本地打包。`index.html` 不得含 `<link href="https?://...">` 或 `<script src="https?://...">`
+- **Rust 端**：除 `sync/` 模块中的 WebDAV 请求外，禁止任何 HTTP 出站调用。禁用 Tauri updater、telemetry、crash reporter
+- **审计算子**：每个 PR 完成后 grep `https?://` 检查 `src/` 和 `src-tauri/src/`（不含注释和 `Cargo.lock`），必须 0 匹配
+- **字体**：使用系统原生字体栈，不引入 Google Fonts 等外部字体服务
+
 ### 1. 番茄钟 (Pomodoro Timer)
 - 可配置的工作/休息时长（默认 25min 工作 / 5min 短休 / 15min 长休）
 - 可配置长休触发间隔（默认 4 个番茄后长休）
@@ -61,6 +69,8 @@
 - [ ] 考试列表显示倒计时天数，临近考试触发通知
 - [ ] WebDAV 同步可成功上传/下载数据，冲突时可手动选择
 - [ ] 系统托盘图标显示，右键菜单可操作
+- [ ] `grep -r 'https\?://' src/` 结果为空（不含注释）
+- [ ] `grep -r 'https\?://' src-tauri/src/` 结果为空（不含注释）
 - [ ] Windows 11 和 Arch+Hyprland 均可正常编译运行
 
 ## Definition of Done
@@ -70,6 +80,7 @@
 - SQLite schema 有 migration 机制
 - 前端组件有基本单元测试
 - Tauri 构建通过 (`cargo tauri build`)
+- 禁止任何外部网络调用（WebDAV sync 除外），grep 检查通过
 - 用户文档（README 含安装/配置说明）
 
 ## Technical Approach
