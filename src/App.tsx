@@ -1,13 +1,12 @@
 import { Timer, CheckSquare, BookOpen, Clock, Sun, Moon } from "lucide-react"
 import {
-  Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/hooks/use-theme"
+import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 
 const features = [
   {
@@ -68,22 +67,26 @@ function App() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
-        {features.map(({ icon: Icon, title, description, color, bgColor }) => (
-          <Card key={title} className="transition-colors hover:bg-accent/50">
-            <CardHeader>
-              <div
-                className={`w-10 h-10 rounded-lg ${bgColor} flex items-center justify-center mb-2`}
-              >
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
-            </CardHeader>
-            <CardContent />
-          </Card>
-        ))}
-      </div>
+      <AcrylicPanel className="p-6 w-full max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {features.map(({ icon: Icon, title, description, color, bgColor }) => (
+            <AcrylicPanel
+              key={title}
+              className="transition-colors hover:bg-card/60 cursor-pointer border-0 shadow-none"
+            >
+              <CardHeader>
+                <div
+                  className={`w-10 h-10 rounded-lg ${bgColor} flex items-center justify-center mb-2`}
+                >
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+                <CardTitle>{title}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </CardHeader>
+            </AcrylicPanel>
+          ))}
+        </div>
+      </AcrylicPanel>
 
       <p className="mt-12 text-sm text-muted-foreground">
         Kairos v0.1.0
