@@ -9,8 +9,8 @@ export function AcrylicPanel({ children, className }: AcrylicPanelProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-border/40",
-        "bg-card/40 backdrop-blur-xl backdrop-saturate-150",
+        "rounded-lg border border-border/60",
+        "bg-card/85 backdrop-blur-xl backdrop-saturate-150",
         "shadow-[0_4px_30px_rgba(0,0,0,0.3)]",
         className
       )}
