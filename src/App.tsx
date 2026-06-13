@@ -1,4 +1,5 @@
-import { Timer, CheckSquare, BookOpen, Clock, Sun, Moon } from "lucide-react"
+import { useState } from "react"
+import { Timer, CheckSquare, BookOpen, Clock, Sun, Moon, ArrowLeft } from "lucide-react"
 import {
   CardDescription,
   CardHeader,
@@ -7,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/hooks/use-theme"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
+import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
 
 const features = [
   {
@@ -41,6 +43,41 @@ const features = [
 
 function App() {
   const { theme, toggle } = useTheme()
+  const [activeFeature, setActiveFeature] = useState<string | null>(null)
+
+  if (activeFeature === "番茄钟") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fixed top-4 left-4"
+          onClick={() => setActiveFeature(null)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          返回
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 rounded-full"
+          onClick={toggle}
+          aria-label="切换深浅色模式"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+
+        <AcrylicPanel className="p-8 w-full max-w-md">
+          <PomodoroTimer />
+        </AcrylicPanel>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
@@ -73,6 +110,7 @@ function App() {
             <AcrylicPanel
               key={title}
               className="transition-colors hover:bg-card/95 cursor-pointer bg-card p-4"
+              onClick={title === "番茄钟" ? () => setActiveFeature(title) : undefined}
             >
               <CardHeader>
                 <div

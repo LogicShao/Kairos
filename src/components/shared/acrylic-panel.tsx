@@ -1,11 +1,7 @@
+import type { ComponentPropsWithoutRef } from "react"
 import { cn } from "@/lib/utils"
 
-interface AcrylicPanelProps {
-  children: React.ReactNode
-  className?: string
-}
-
-export function AcrylicPanel({ children, className }: AcrylicPanelProps) {
+export function AcrylicPanel({ children, className, ...props }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
       className={cn(
@@ -14,6 +10,7 @@ export function AcrylicPanel({ children, className }: AcrylicPanelProps) {
         "shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
         className
       )}
+      {...props}
     >
       {children}
     </div>

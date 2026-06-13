@@ -1,0 +1,170 @@
+import { useState, useEffect, useCallback } from "react"
+import { invoke } from "@tauri-apps/api/core"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+import type { PomodoroState } from "@/types/pomodoro"
+import { cn } from "@/lib/utils"
+import { Play, Pause, RotateCcw } from "lucide-react"
+
+const CIRCUMFERENCE = 2 * Math.PI * 120
+
+const PHASE_LABELS: Record<string, string> = {
+  work: "专注",
+  short_break: "短休",
+  long_break: "长休",
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+export function PomodoroTimer() {
+  const [state, setState] = useState<PomodoroState | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+
+    async function init() {
+      try {
+        const initial = await invoke<PomodoroState>("get_pomodoro_state")
+        setState(initial)
+      } catch {
+        setState({
+          phase: "work",
+          remaining_seconds: 1500,
+          total_seconds: 1500,
+          is_running: false,
+          completed_sessions: 0,
+        })
+        setError("Tauri 不可用 — 展示离线 UI")
+        return
+      }
+
+      try {
+        unlisten = await listen<PomodoroState>("pomodoro-tick", (event) => {
+          setState(event.payload)
+        })
+      } catch {
+        setError("无法监听计时器事件")
+      }
+    }
+
+    init()
+
+    return () => {
+      unlisten?.()
+    }
+  }, [])
+
+  const handleStartPause = useCallback(() => {
+    if (!state) return
+    if (state.is_running) {
+      invoke("pause_pomodoro").catch(console.error)
+    } else {
+      invoke("start_pomodoro").catch(console.error)
+    }
+  }, [state])
+
+  const handleReset = useCallback(() => {
+    invoke("reset_pomodoro").catch(console.error)
+  }, [])
+
+  if (!state) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  const progress =
+    state.total_seconds > 0
+      ? 1 - state.remaining_seconds / state.total_seconds
+      : 0
+  const offset = CIRCUMFERENCE * (1 - progress)
+  const isWork = state.phase === "work"
+
+  return (
+    <div className="flex flex-col items-center gap-6">
+      <div className="relative w-72 h-72">
+        <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90">
+          <circle
+            cx="150"
+            cy="150"
+            r="120"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="8"
+            className="text-muted/20"
+          />
+          <circle
+            cx="150"
+            cy="150"
+            r="120"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={CIRCUMFERENCE}
+            strokeDashoffset={offset}
+            className={cn(
+              isWork ? "text-primary" : "text-emerald-400",
+              "transition-[stroke-dashoffset] duration-1000 ease-linear",
+            )}
+          />
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-5xl font-mono font-medium tabular-nums tracking-tight text-foreground">
+            {formatTime(state.remaining_seconds)}
+          </span>
+          <span
+            className={cn(
+              "text-sm font-medium mt-1",
+              isWork ? "text-primary" : "text-emerald-400",
+            )}
+          >
+            {PHASE_LABELS[state.phase]}
+          </span>
+          {state.completed_sessions > 0 && (
+            <span className="text-xs text-muted-foreground mt-0.5">
+              🍅 × {state.completed_sessions}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-muted-foreground">{error}</p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleStartPause}
+          className={cn(
+            "inline-flex items-center justify-center rounded-full h-12 w-12 transition-colors",
+            isWork
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-emerald-500 text-white hover:bg-emerald-600",
+          )}
+          aria-label={state.is_running ? "暂停" : "开始"}
+        >
+          {state.is_running ? (
+            <Pause className="h-5 w-5" />
+          ) : (
+            <Play className="h-5 w-5" />
+          )}
+        </button>
+        <button
+          onClick={handleReset}
+          className="inline-flex items-center justify-center rounded-full h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label="重置"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
