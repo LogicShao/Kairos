@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+_ui_temp_figs/
 
 # Editor directories and files
 .vscode/*
