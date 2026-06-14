@@ -246,6 +246,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 | `console.log()` in production code | Remove before commit |
 | `setTimeout/setInterval` for timers | Rust-side timer via Tauri events |
 | Inline `{}` prop types | `interface XxxProps { ... }` |
+| Emoji characters (🍅 ✅ ❌ etc.) | Plain text labels — use Lucide icons for visual indicators |
 
 ---
 

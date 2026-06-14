@@ -82,6 +82,7 @@
 - Tauri 构建通过 (`cargo tauri build`)
 - 禁止任何外部网络调用（WebDAV sync 除外），grep 检查通过
 - 用户文档（README 含安装/配置说明）
+- 源代码中零 emoji 字符（用 Lucide 图标替代视觉效果，用纯文本替代计数/状态）
 
 ## Technical Approach
 

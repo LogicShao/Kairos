@@ -148,7 +148,7 @@ export function PomodoroTimer() {
           </span>
           {state.completed_sessions > 0 && (
             <span className="text-xs text-muted-foreground mt-0.5">
-              🍅 × {state.completed_sessions}
+              {state.completed_sessions} 次完成
             </span>
           )}
         </div>
