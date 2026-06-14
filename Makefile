@@ -7,7 +7,7 @@ dev: ## Start Tauri dev server (hot reload)
 	cargo tauri dev
 
 build: ## Production build
-	cargo tauri build
+	NO_STRIP=1 cargo tauri build
 
 check: ## Type-check both Rust and TypeScript
 	$(CARGO) check --manifest-path $(MANIFEST)
