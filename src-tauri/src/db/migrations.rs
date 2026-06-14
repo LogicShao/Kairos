@@ -73,6 +73,20 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             );
             ",
         ),
+        (
+            2,
+            "sync_config",
+            "
+            CREATE TABLE IF NOT EXISTS sync_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                server_url TEXT NOT NULL DEFAULT '',
+                username TEXT NOT NULL DEFAULT '',
+                password TEXT NOT NULL DEFAULT '',
+                auto_sync INTEGER NOT NULL DEFAULT 0,
+                last_sync_at TEXT
+            );
+            ",
+        ),
     ];
 
     let current_version: i32 = conn
@@ -126,7 +140,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 5);
+        assert_eq!(table_count, 6);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -165,10 +179,10 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should still only have one migration record
+        // Should have exactly two migration records (v1 + v2) applied once each
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 1);
+        assert_eq!(count, 2);
     }
 }

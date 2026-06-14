@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod sync;
 pub mod timer;
 
 use std::sync::{Arc, Mutex};
@@ -83,6 +84,10 @@ pub fn run() {
             commands::exams::create_exam,
             commands::exams::update_exam,
             commands::exams::delete_exam,
+            commands::sync::get_sync_config,
+            commands::sync::update_sync_config,
+            commands::sync::test_sync_connection,
+            commands::sync::sync_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Timer, CheckSquare, BookOpen, Clock, Sun, Moon, ArrowLeft } from "lucide-react"
+import { Timer, CheckSquare, BookOpen, Clock, Cloud, Sun, Moon, ArrowLeft } from "lucide-react"
 import {
   CardDescription,
   CardHeader,
@@ -12,6 +12,7 @@ import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
 import { TaskList } from "@/components/todo/TaskList"
 import { CourseSchedule } from "@/components/courses/CourseSchedule"
 import { ExamList } from "@/components/exams/ExamList"
+import { SyncSettings } from "@/components/sync/SyncSettings"
 
 const features = [
   {
@@ -184,8 +185,52 @@ function App() {
     )
   }
 
+  if (activeFeature === "同步") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fixed top-4 left-4"
+          onClick={() => setActiveFeature(null)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          返回
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 rounded-full"
+          onClick={toggle}
+          aria-label="切换深浅色模式"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+
+        <div className="w-full pt-12">
+          <SyncSettings />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed top-4 left-4 rounded-full"
+        onClick={() => setActiveFeature("同步")}
+        aria-label="同步设置"
+      >
+        <Cloud className="h-5 w-5" />
+      </Button>
+
       <Button
         variant="ghost"
         size="icon"

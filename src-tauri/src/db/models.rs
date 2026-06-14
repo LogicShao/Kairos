@@ -134,3 +134,13 @@ pub struct UpdateExamRequest {
     pub notes: String,
     pub course_id: Option<i64>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncConfig {
+    pub id: i64,
+    pub server_url: String,
+    pub username: String,
+    pub password: String,
+    pub auto_sync: bool,
+    pub last_sync_at: Option<String>,
+}

@@ -3,6 +3,7 @@ pub mod exams;
 pub mod migrations;
 pub mod models;
 pub mod pomodoro;
+pub mod sync;
 pub mod tasks;
 
 use rusqlite::{Connection, Result};
