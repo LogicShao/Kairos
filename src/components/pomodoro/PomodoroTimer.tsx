@@ -24,7 +24,12 @@ export function PomodoroTimer() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined
+    let unlistenTick: UnlistenFn | undefined
+    let unlistenPhase: UnlistenFn | undefined
+
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission()
+    }
 
     async function init() {
       try {
@@ -43,8 +48,20 @@ export function PomodoroTimer() {
       }
 
       try {
-        unlisten = await listen<PomodoroState>("pomodoro-tick", (event) => {
+        unlistenTick = await listen<PomodoroState>("pomodoro-tick", (event) => {
           setState(event.payload)
+        })
+
+        unlistenPhase = await listen<string>("pomodoro-phase-change", (event) => {
+          const phase = event.payload
+          const label = PHASE_LABELS[phase] ?? phase
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            new Notification("Kairos", {
+              body: phase === "work"
+                ? `休息结束，开始新的${label}`
+                : `${label}时间到！`,
+            })
+          }
         })
       } catch {
         setError("无法监听计时器事件")
@@ -54,7 +71,8 @@ export function PomodoroTimer() {
     init()
 
     return () => {
-      unlisten?.()
+      unlistenTick?.()
+      unlistenPhase?.()
     }
   }, [])
 
