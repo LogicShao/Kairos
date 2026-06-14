@@ -335,4 +335,94 @@ mod tests {
         let engine = PomodoroEngine::new(config);
         assert_eq!(engine.remaining_seconds, 0);
     }
+
+    #[test]
+    fn every_session_long_break_when_threshold_one() {
+        let config = PomodoroConfig {
+            id: 1,
+            work_seconds: 2,
+            short_break_seconds: 1,
+            long_break_seconds: 3,
+            sessions_before_long_break: 1,
+        };
+        let mut engine = PomodoroEngine::new(config);
+        engine.start();
+
+        engine.tick();
+        engine.tick();
+        assert_eq!(engine.phase, TimerPhase::LongBreak);
+        assert_eq!(engine.remaining_seconds, 3);
+        assert_eq!(engine.completed_sessions, 1);
+    }
+
+    #[test]
+    fn reset_during_break_restores_break_duration() {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+        engine.tick();
+        engine.tick();
+        engine.tick();
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert_eq!(engine.remaining_seconds, 1);
+
+        engine.reset();
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert_eq!(engine.remaining_seconds, 1);
+        assert!(!engine.is_running);
+    }
+
+    #[test]
+    fn multiple_cycles_track_correct_count() {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+        for _ in 0..50 {
+            engine.tick();
+        }
+        assert!(engine.completed_sessions >= 6);
+    }
+
+    #[test]
+    fn tick_at_zero_no_double_advance() {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+        engine.tick();
+        engine.tick();
+        engine.tick();
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert_eq!(engine.remaining_seconds, 1);
+    }
+
+    #[test]
+    fn pause_during_break_and_resume() {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+        engine.tick();
+        engine.tick();
+        engine.tick();
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert_eq!(engine.remaining_seconds, 1);
+
+        engine.pause();
+        engine.tick();
+        assert_eq!(engine.remaining_seconds, 1);
+        assert!(!engine.is_running);
+
+        engine.start();
+        engine.tick();
+        assert_eq!(engine.phase, TimerPhase::Work);
+        assert_eq!(engine.remaining_seconds, 3);
+    }
+
+    #[test]
+    fn get_state_reflects_current_phase() {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+
+        let state = engine.get_state();
+        assert_eq!(state.phase, "work");
+        assert_eq!(state.remaining_seconds, 3);
+        assert_eq!(state.total_seconds, 3);
+        assert!(state.is_running);
+        assert_eq!(state.completed_sessions, 0);
+    }
 }
