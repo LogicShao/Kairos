@@ -10,6 +10,8 @@ import { useTheme } from "@/hooks/use-theme"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
 import { TaskList } from "@/components/todo/TaskList"
+import { CourseSchedule } from "@/components/courses/CourseSchedule"
+import { ExamList } from "@/components/exams/ExamList"
 
 const features = [
   {
@@ -114,6 +116,74 @@ function App() {
     )
   }
 
+  if (activeFeature === "课程表") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fixed top-4 left-4 z-20"
+          onClick={() => setActiveFeature(null)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          返回
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 rounded-full z-20"
+          onClick={toggle}
+          aria-label="切换深浅色模式"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+
+        <div className="w-full pt-12">
+          <CourseSchedule />
+        </div>
+      </div>
+    )
+  }
+
+  if (activeFeature === "考试倒计时") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="fixed top-4 left-4"
+          onClick={() => setActiveFeature(null)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          返回
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 rounded-full"
+          onClick={toggle}
+          aria-label="切换深浅色模式"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+
+        <div className="w-full pt-12">
+          <ExamList />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
       <Button
@@ -145,7 +215,7 @@ function App() {
             <AcrylicPanel
               key={title}
               className="transition-colors hover:bg-card/95 cursor-pointer bg-card p-4"
-              onClick={title === "番茄钟" || title === "待办事项" ? () => setActiveFeature(title) : undefined}
+              onClick={() => setActiveFeature(title)}
             >
               <CardHeader>
                 <div
