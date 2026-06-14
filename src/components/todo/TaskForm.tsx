@@ -5,7 +5,7 @@ import { Save, X } from "lucide-react"
 
 interface TaskFormProps {
   task?: Task | null
-  onSave: (task: CreateTaskRequest | UpdateTaskRequest) => Promise<void>
+  onSave: (task: CreateTaskRequest | UpdateTaskRequest) => void
   onCancel: () => void
 }
 

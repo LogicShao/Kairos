@@ -83,13 +83,13 @@ export function TaskList() {
     return () => { cancelled = true }
   }, [statusFilter, priorityFilter])
 
-  async function handleCreate(data: Parameters<typeof invoke>[1]) {
+  async function handleCreate(data: Record<string, unknown>) {
     await invoke("create_task", { cmd: data })
     setShowForm(false)
     await fetchTasks()
   }
 
-  async function handleUpdate(data: Parameters<typeof invoke>[1]) {
+  async function handleUpdate(data: Record<string, unknown>) {
     if (!editingTask) return
     await invoke("update_task", { id: editingTask.id, cmd: data })
     setEditingTask(null)
@@ -135,7 +135,7 @@ export function TaskList() {
       {showForm && (
         <TaskForm
           onSave={(data) => {
-            void handleCreate(data)
+            void handleCreate(data as unknown as Record<string, unknown>)
           }}
           onCancel={() => setShowForm(false)}
         />
@@ -145,7 +145,7 @@ export function TaskList() {
         <TaskForm
           task={editingTask}
           onSave={(data) => {
-            void handleUpdate(data)
+            void handleUpdate(data as unknown as Record<string, unknown>)
           }}
           onCancel={() => setEditingTask(null)}
         />
