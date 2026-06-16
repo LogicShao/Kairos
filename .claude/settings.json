@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allowedPrompts": [
+      {
+        "tool": "Bash",
+        "prompt": "python3 ./.trellis/scripts/task.py*"
+      },
+      {
+        "tool": "Bash",
+        "prompt": "python3 ./.trellis/scripts/get_context.py*"
+      },
+      {
+        "tool": "Bash",
+        "prompt": "python3 ./.trellis/scripts/get_developer.py*"
+      },
+      {
+        "tool": "Bash",
+        "prompt": "python3 ./.trellis/scripts/add_session.py*"
+      }
+    ]
+  }
+}
