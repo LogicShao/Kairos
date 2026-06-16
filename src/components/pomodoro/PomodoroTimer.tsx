@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import type { PomodoroState } from "@/types/pomodoro"
 import { cn } from "@/lib/utils"
-import { Play, Pause, RotateCcw } from "lucide-react"
+import { Button } from "@fluentui/react-components"
+import { Play24Regular, Pause24Regular, ArrowClockwise24Regular } from "@fluentui/react-icons"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
 
@@ -159,29 +160,21 @@ export function PomodoroTimer() {
       )}
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
+          appearance="primary"
+          shape="circular"
+          size="large"
           onClick={handleStartPause}
-          className={cn(
-            "inline-flex items-center justify-center rounded-full h-12 w-12 transition-colors",
-            isWork
-              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-              : "bg-emerald-500 text-white hover:bg-emerald-600",
-          )}
+          icon={state.is_running ? <Pause24Regular /> : <Play24Regular />}
           aria-label={state.is_running ? "暂停" : "开始"}
-        >
-          {state.is_running ? (
-            <Pause className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5" />
-          )}
-        </button>
-        <button
+        />
+        <Button
+          appearance="subtle"
+          shape="circular"
           onClick={handleReset}
-          className="inline-flex items-center justify-center rounded-full h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          icon={<ArrowClockwise24Regular />}
           aria-label="重置"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
+        />
       </div>
     </div>
   )

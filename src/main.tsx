@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { applyTheme } from './hooks/use-theme'
+import { FluentProvider } from './providers/FluentProvider'
 
 // Apply theme before React hydrates — prevents flash
 const initial = localStorage.getItem("kairos-theme")
@@ -14,6 +15,8 @@ if (initial === "dark" || initial === "light") {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <FluentProvider>
+      <App />
+    </FluentProvider>
   </StrictMode>,
 )

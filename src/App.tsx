@@ -1,11 +1,17 @@
 import { useState } from "react"
-import { Timer, CheckSquare, BookOpen, Clock, Cloud, Sun, Moon, ArrowLeft } from "lucide-react"
+import { Timer, CheckSquare, BookOpen, Clock } from "lucide-react"
 import {
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button } from "@fluentui/react-components"
+import {
+  WeatherMoon24Regular,
+  WeatherSunny24Regular,
+  ArrowLeft24Regular,
+  Cloud24Regular
+} from "@fluentui/react-icons"
 import { useTheme } from "@/hooks/use-theme"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
@@ -53,28 +59,23 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
         <Button
-          variant="ghost"
-          size="sm"
+          appearance="subtle"
+          size="small"
           className="fixed top-4 left-4"
           onClick={() => setActiveFeature(null)}
+          icon={<ArrowLeft24Regular />}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
           返回
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 rounded-full"
+          appearance="subtle"
+          shape="circular"
+          className="fixed top-4 right-4"
           onClick={toggle}
+          icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
           aria-label="切换深浅色模式"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </Button>
+        />
 
         <AcrylicPanel className="p-8 w-full max-w-md">
           <PomodoroTimer />
@@ -87,28 +88,23 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center p-8">
         <Button
-          variant="ghost"
-          size="sm"
+          appearance="subtle"
+          size="small"
           className="fixed top-4 left-4"
           onClick={() => setActiveFeature(null)}
+          icon={<ArrowLeft24Regular />}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
           返回
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 rounded-full"
+          appearance="subtle"
+          shape="circular"
+          className="fixed top-4 right-4"
           onClick={toggle}
+          icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
           aria-label="切换深浅色模式"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </Button>
+        />
 
         <div className="w-full pt-12">
           <TaskList />
@@ -121,28 +117,23 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
         <Button
-          variant="ghost"
-          size="sm"
+          appearance="subtle"
+          size="small"
           className="fixed top-4 left-4 z-20"
           onClick={() => setActiveFeature(null)}
+          icon={<ArrowLeft24Regular />}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
           返回
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 rounded-full z-20"
+          appearance="subtle"
+          shape="circular"
+          className="fixed top-4 right-4 z-20"
           onClick={toggle}
+          icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
           aria-label="切换深浅色模式"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </Button>
+        />
 
         <div className="w-full pt-12">
           <CourseSchedule />
@@ -155,28 +146,23 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
         <Button
-          variant="ghost"
-          size="sm"
+          appearance="subtle"
+          size="small"
           className="fixed top-4 left-4"
           onClick={() => setActiveFeature(null)}
+          icon={<ArrowLeft24Regular />}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
           返回
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 rounded-full"
+          appearance="subtle"
+          shape="circular"
+          className="fixed top-4 right-4"
           onClick={toggle}
+          icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
           aria-label="切换深浅色模式"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </Button>
+        />
 
         <div className="w-full pt-12">
           <ExamList />
@@ -189,28 +175,23 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center p-4 sm:p-8">
         <Button
-          variant="ghost"
-          size="sm"
+          appearance="subtle"
+          size="small"
           className="fixed top-4 left-4"
           onClick={() => setActiveFeature(null)}
+          icon={<ArrowLeft24Regular />}
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
           返回
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 rounded-full"
+          appearance="subtle"
+          shape="circular"
+          className="fixed top-4 right-4"
           onClick={toggle}
+          icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
           aria-label="切换深浅色模式"
-        >
-          {theme === "dark" ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </Button>
+        />
 
         <div className="w-full pt-12">
           <SyncSettings />
@@ -222,28 +203,22 @@ function App() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
       <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 rounded-full"
+        appearance="subtle"
+        shape="circular"
+        className="fixed top-4 left-4"
         onClick={() => setActiveFeature("同步")}
+        icon={<Cloud24Regular />}
         aria-label="同步设置"
-      >
-        <Cloud className="h-5 w-5" />
-      </Button>
+      />
 
       <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 right-4 rounded-full"
+        appearance="subtle"
+        shape="circular"
+        className="fixed top-4 right-4"
         onClick={toggle}
+        icon={theme === "dark" ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
         aria-label="切换深浅色模式"
-      >
-        {theme === "dark" ? (
-          <Sun className="h-5 w-5" />
-        ) : (
-          <Moon className="h-5 w-5" />
-        )}
-      </Button>
+      />
 
       <div className="text-center mb-8">
         <h1 className="text-3xl font-heading font-medium text-primary tracking-tight">

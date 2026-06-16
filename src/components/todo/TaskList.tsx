@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { Task, TaskFilterParams, TaskStatus, TaskPriority } from "@/types/task"
-import { Button } from "@/components/ui/button"
+import { Button } from "@fluentui/react-components"
+import { Add24Regular, Delete24Regular } from "@fluentui/react-icons"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
-import { Plus, Trash2, ChevronDown, Calendar, Circle, CircleDot, CheckCircle2 } from "lucide-react"
+import { Calendar, Circle, CircleDot, CheckCircle2, ChevronDown } from "lucide-react"
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
   high: { label: "高", className: "bg-red-500/15 text-red-400 border-red-500/30" },
@@ -123,11 +124,12 @@ export function TaskList() {
           待办事项
         </h2>
         <Button
-          size="sm"
+          appearance="primary"
+          size="small"
           onClick={() => { setShowForm(true); setEditingTask(null) }}
           disabled={showForm}
+          icon={<Add24Regular />}
         >
-          <Plus className="h-4 w-4 mr-1" />
           新建
         </Button>
       </div>
@@ -270,16 +272,15 @@ export function TaskList() {
                     </div>
                   </div>
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    appearance="subtle"
+                    size="small"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation()
                       void handleDelete(task.id)
                     }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                    icon={<Delete24Regular />}
+                  />
                 </div>
               </AcrylicPanel>
             )

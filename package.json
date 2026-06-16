@@ -11,6 +11,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fluentui/react-components": "^9.74.1",
+    "@fluentui/react-icons": "^2.0.330",
     "@fontsource-variable/geist": "^5.2.9",
     "@tauri-apps/api": "^2.11.0",
     "class-variance-authority": "^0.7.1",

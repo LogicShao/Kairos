@@ -26,6 +26,8 @@ export function applyTheme(theme: "dark" | "light") {
     root.classList.remove("dark")
   }
   localStorage.setItem(THEME_KEY, theme)
+  // 触发自定义事件通知 FluentProvider
+  window.dispatchEvent(new Event('theme-change'))
 }
 
 export function useTheme() {
