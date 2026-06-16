@@ -1,0 +1,8 @@
+# Codex Trellis Configuration
+# See .trellis/config.yaml for project-level Trellis settings
+
+[codex]
+# Dispatch mode: "inline" (main agent edits code directly) or "sub-agent"
+# (main agent spawns trellis-implement / trellis-check sub-agents).
+# Default: "inline" — matches Codex's fork_turns="none" isolation model.
+dispatch_mode = "inline"

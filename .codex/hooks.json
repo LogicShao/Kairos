@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -X utf8 \".trellis/scripts/get_context.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -X utf8 \".trellis/scripts/get_context.py\" --mode phase",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
