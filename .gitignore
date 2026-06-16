@@ -13,6 +13,9 @@ dist-ssr
 *.local
 _ui_temp_figs/
 
+# Trellis per-developer workspace (personal journals)
+.trellis/workspace/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

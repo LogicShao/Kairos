@@ -1,0 +1,21 @@
+# Trellis workflow infrastructure — vendored, not application code
+.trellis/scripts/** linguist-vendored
+.trellis/spec/** linguist-documentation
+.trellis/workflow.md linguist-documentation
+.trellis/tasks/** linguist-documentation
+.agents/** linguist-vendored
+
+# AI platform integrations — vendored tooling config
+.opencode/plugins/** linguist-vendored
+.opencode/lib/** linguist-vendored
+.opencode/agents/** linguist-vendored
+.opencode/skills/** linguist-vendored
+.opencode/commands/** linguist-vendored
+.claude/hooks/** linguist-vendored
+.claude/agents/** linguist-vendored
+.claude/skills/** linguist-vendored
+.claude/commands/** linguist-vendored
+.codex/hooks/** linguist-vendored
+.codex/agents/** linguist-vendored
+.codex/skills/** linguist-vendored
+.codex/commands/** linguist-vendored
