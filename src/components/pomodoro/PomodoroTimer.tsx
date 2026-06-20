@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import type { PomodoroState } from "@/types/pomodoro"
 import { cn } from "@/lib/utils"
-import { Button } from "@fluentui/react-components"
-import { Play24Regular, Pause24Regular, ArrowClockwise24Regular } from "@fluentui/react-icons"
+import { Button } from "@/components/ui/button"
+import { Play, Pause, RotateCcw } from "lucide-react"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
 
@@ -132,6 +132,9 @@ export function PomodoroTimer() {
               isWork ? "text-primary" : "text-emerald-400",
               "transition-[stroke-dashoffset] duration-1000 ease-linear",
             )}
+            style={{
+              filter: `drop-shadow(0 0 7px ${isWork ? "oklch(0.62 0.16 275 / 0.55)" : "oklch(0.72 0.15 160 / 0.55)"})`,
+            }}
           />
         </svg>
 
@@ -161,20 +164,22 @@ export function PomodoroTimer() {
 
       <div className="flex items-center gap-3">
         <Button
-          appearance="primary"
-          shape="circular"
-          size="large"
+          size="icon-lg"
+          className="rounded-full shadow-lg shadow-primary/25"
           onClick={handleStartPause}
-          icon={state.is_running ? <Pause24Regular /> : <Play24Regular />}
           aria-label={state.is_running ? "暂停" : "开始"}
-        />
+        >
+          {state.is_running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+        </Button>
         <Button
-          appearance="subtle"
-          shape="circular"
+          variant="ghost"
+          size="icon"
+          className="rounded-full"
           onClick={handleReset}
-          icon={<ArrowClockwise24Regular />}
           aria-label="重置"
-        />
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )

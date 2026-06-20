@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react"
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskPriority, TaskStatus } from "@/types/task"
 import { Button } from "@/components/ui/button"
-import { Save, X } from "lucide-react"
+import { Save } from "lucide-react"
 
 interface TaskFormProps {
   task?: Task | null
@@ -68,19 +68,8 @@ export function TaskForm({ task, onSave, onCancel }: TaskFormProps) {
     }
   }
 
-  const isEditing = Boolean(task)
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border/60 bg-card/60">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">
-          {isEditing ? "编辑任务" : "新建任务"}
-        </h3>
-        <Button type="button" variant="ghost" size="icon" onClick={onCancel} className="h-7 w-7">
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">

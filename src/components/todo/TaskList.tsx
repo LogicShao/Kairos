@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { Task, TaskFilterParams, TaskStatus, TaskPriority } from "@/types/task"
-import { Button } from "@fluentui/react-components"
-import { Add24Regular, Delete24Regular } from "@fluentui/react-icons"
+import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
+import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
-import { Calendar, Circle, CircleDot, CheckCircle2, ChevronDown } from "lucide-react"
+import { Calendar, Circle, CircleDot, CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react"
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
   high: { label: "高", className: "bg-red-500/15 text-red-400 border-red-500/30" },
@@ -118,40 +118,47 @@ export function TaskList() {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4">
+    <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-heading font-medium text-foreground">
           待办事项
         </h2>
         <Button
-          appearance="primary"
-          size="small"
+          size="sm"
           onClick={() => { setShowForm(true); setEditingTask(null) }}
           disabled={showForm}
-          icon={<Add24Regular />}
         >
+          <Plus className="h-4 w-4 mr-1" />
           新建
         </Button>
       </div>
 
-      {showForm && (
-        <TaskForm
-          onSave={(data) => {
-            void handleCreate(data as unknown as Record<string, unknown>)
-          }}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
-
-      {editingTask && (
+      <Modal
+        open={showForm || editingTask !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowForm(false)
+            setEditingTask(null)
+          }
+        }}
+        title={editingTask ? "编辑任务" : "新建任务"}
+        description="填写任务标题、优先级、截止日期等信息"
+      >
         <TaskForm
           task={editingTask}
           onSave={(data) => {
-            void handleUpdate(data as unknown as Record<string, unknown>)
+            if (editingTask) {
+              void handleUpdate(data as unknown as Record<string, unknown>)
+            } else {
+              void handleCreate(data as unknown as Record<string, unknown>)
+            }
           }}
-          onCancel={() => setEditingTask(null)}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingTask(null)
+          }}
         />
-      )}
+      </Modal>
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -211,7 +218,7 @@ export function TaskList() {
               <AcrylicPanel
                 key={task.id}
                 className={cn(
-                  "p-3 cursor-pointer transition-colors hover:bg-card/95 bg-card",
+                  "p-3 cursor-pointer transition-all bg-card hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
                   task.status === "done" && "opacity-60"
                 )}
                 onClick={() => { setEditingTask(task); setShowForm(false) }}
@@ -272,15 +279,16 @@ export function TaskList() {
                     </div>
                   </div>
                   <Button
-                    appearance="subtle"
-                    size="small"
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation()
                       void handleDelete(task.id)
                     }}
-                    icon={<Delete24Regular />}
-                  />
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </AcrylicPanel>
             )

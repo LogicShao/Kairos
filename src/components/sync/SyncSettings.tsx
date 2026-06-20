@@ -95,7 +95,7 @@ export function SyncSettings() {
   const passwordMasked = showPassword ? "●".repeat(Math.min(password.length, 12)) : ""
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-md mx-auto">
+    <div className="flex flex-col gap-6 w-full max-w-md mx-auto animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       <AcrylicPanel className="p-6">
         <h2 className="text-lg font-heading font-medium text-foreground mb-4">
           WebDAV 同步设置
