@@ -4,13 +4,15 @@ use super::models::{Course, CreateCourseRequest, UpdateCourseRequest};
 
 pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64> {
     conn.execute(
-        "INSERT INTO courses (name, day_of_week, start_time, end_time, location, teacher, color, semester, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+        "INSERT INTO courses (name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
         params![
             req.name,
             req.day_of_week,
             req.start_time,
             req.end_time,
+            req.week_pattern,
+            req.semester_start_date,
             req.location,
             req.teacher,
             req.color,
@@ -23,7 +25,7 @@ pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64
 
 pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
     conn.query_row(
-        "SELECT id, name, day_of_week, start_time, end_time, location, teacher, color, semester, created_at, updated_at
+        "SELECT id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at
          FROM courses WHERE id = ?1",
         params![id],
         |row| {
@@ -33,12 +35,14 @@ pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
                 day_of_week: row.get(2)?,
                 start_time: row.get(3)?,
                 end_time: row.get(4)?,
-                location: row.get(5)?,
-                teacher: row.get(6)?,
-                color: row.get(7)?,
-                semester: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                week_pattern: row.get(5)?,
+                semester_start_date: row.get(6)?,
+                location: row.get(7)?,
+                teacher: row.get(8)?,
+                color: row.get(9)?,
+                semester: row.get(10)?,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
             })
         },
     )
@@ -46,7 +50,7 @@ pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
 
 pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<Course>> {
     let mut sql = String::from(
-        "SELECT id, name, day_of_week, start_time, end_time, location, teacher, color, semester, created_at, updated_at
+        "SELECT id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at
          FROM courses",
     );
     let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -57,7 +61,8 @@ pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<
     }
     sql.push_str(" ORDER BY day_of_week, start_time");
 
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+        params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
 
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
@@ -67,12 +72,14 @@ pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<
             day_of_week: row.get(2)?,
             start_time: row.get(3)?,
             end_time: row.get(4)?,
-            location: row.get(5)?,
-            teacher: row.get(6)?,
-            color: row.get(7)?,
-            semester: row.get(8)?,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            week_pattern: row.get(5)?,
+            semester_start_date: row.get(6)?,
+            location: row.get(7)?,
+            teacher: row.get(8)?,
+            color: row.get(9)?,
+            semester: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
         })
     })?;
 
@@ -83,13 +90,16 @@ pub fn update_course(conn: &Connection, id: i64, req: &UpdateCourseRequest) -> R
     conn.execute(
         "UPDATE courses
          SET name = ?1, day_of_week = ?2, start_time = ?3, end_time = ?4,
-             location = ?5, teacher = ?6, color = ?7, semester = ?8, updated_at = ?9
-         WHERE id = ?10",
+             week_pattern = ?5, semester_start_date = ?6, location = ?7, teacher = ?8,
+             color = ?9, semester = ?10, updated_at = ?11
+         WHERE id = ?12",
         params![
             req.name,
             req.day_of_week,
             req.start_time,
             req.end_time,
+            req.week_pattern,
+            req.semester_start_date,
             req.location,
             req.teacher,
             req.color,
@@ -126,6 +136,8 @@ mod tests {
             day_of_week: 1,
             start_time: String::from("08:00"),
             end_time: String::from("09:30"),
+            week_pattern: String::from("1-16"),
+            semester_start_date: String::from("2026-02-24"),
             location: String::from("Room 101"),
             teacher: String::from("Prof. Smith"),
             color: String::from("#3B82F6"),
@@ -145,6 +157,7 @@ mod tests {
         assert_eq!(course.name, "Math 101");
         assert_eq!(course.day_of_week, 1);
         assert_eq!(course.start_time, "08:00");
+        assert_eq!(course.week_pattern, "1-16");
         assert_eq!(course.color, "#3B82F6");
     }
 
@@ -167,6 +180,8 @@ mod tests {
             day_of_week: 3,
             start_time: String::from("10:00"),
             end_time: String::from("11:30"),
+            week_pattern: String::from("2-18双"),
+            semester_start_date: String::from("2026-02-24"),
             location: String::from("Lab B"),
             teacher: String::from("Dr. Jones"),
             color: String::from("#EF4444"),
@@ -177,6 +192,7 @@ mod tests {
         let course = get_course(&conn, id).expect("Failed to get updated course");
         assert_eq!(course.name, "Physics 201");
         assert_eq!(course.day_of_week, 3);
+        assert_eq!(course.week_pattern, "2-18双");
         assert_eq!(course.color, "#EF4444");
     }
 
@@ -202,6 +218,8 @@ mod tests {
             day_of_week: 1,
             start_time: String::from("08:00"),
             end_time: String::from("09:00"),
+            week_pattern: String::from("1-16"),
+            semester_start_date: String::from("2026-02-24"),
             location: String::new(),
             teacher: String::new(),
             color: String::new(),
@@ -212,6 +230,8 @@ mod tests {
             day_of_week: 2,
             start_time: String::from("10:00"),
             end_time: String::from("11:00"),
+            week_pattern: String::from("1-16"),
+            semester_start_date: String::from("2026-02-24"),
             location: String::new(),
             teacher: String::new(),
             color: String::new(),
@@ -224,13 +244,11 @@ mod tests {
         let all = get_all_courses(&conn, None).expect("Failed to get all courses");
         assert_eq!(all.len(), 2);
 
-        let s1 = get_all_courses(&conn, Some("2024S1"))
-            .expect("Failed to filter by semester");
+        let s1 = get_all_courses(&conn, Some("2024S1")).expect("Failed to filter by semester");
         assert_eq!(s1.len(), 1);
         assert_eq!(s1[0].name, "Course A");
 
-        let s2 = get_all_courses(&conn, Some("2024S2"))
-            .expect("Failed to filter by semester");
+        let s2 = get_all_courses(&conn, Some("2024S2")).expect("Failed to filter by semester");
         assert_eq!(s2.len(), 1);
         assert_eq!(s2[0].name, "Course B");
     }

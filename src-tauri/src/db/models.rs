@@ -73,6 +73,8 @@ pub struct Course {
     pub day_of_week: i64,
     pub start_time: String,
     pub end_time: String,
+    pub week_pattern: String,
+    pub semester_start_date: String,
     pub location: String,
     pub teacher: String,
     pub color: String,
@@ -87,6 +89,8 @@ pub struct CreateCourseRequest {
     pub day_of_week: i64,
     pub start_time: String,
     pub end_time: String,
+    pub week_pattern: String,
+    pub semester_start_date: String,
     pub location: String,
     pub teacher: String,
     pub color: String,
@@ -99,6 +103,8 @@ pub struct UpdateCourseRequest {
     pub day_of_week: i64,
     pub start_time: String,
     pub end_time: String,
+    pub week_pattern: String,
+    pub semester_start_date: String,
     pub location: String,
     pub teacher: String,
     pub color: String,
@@ -110,9 +116,11 @@ pub struct Exam {
     pub id: i64,
     pub course_name: String,
     pub exam_datetime: String,
+    pub exam_end_datetime: String,
     pub location: String,
     pub notes: String,
     pub course_id: Option<i64>,
+    pub semester: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -121,18 +129,22 @@ pub struct Exam {
 pub struct CreateExamRequest {
     pub course_name: String,
     pub exam_datetime: String,
+    pub exam_end_datetime: String,
     pub location: String,
     pub notes: String,
     pub course_id: Option<i64>,
+    pub semester: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateExamRequest {
     pub course_name: String,
     pub exam_datetime: String,
+    pub exam_end_datetime: String,
     pub location: String,
     pub notes: String,
     pub course_id: Option<i64>,
+    pub semester: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,5 +1,7 @@
 pub mod commands;
 pub mod db;
+pub mod importers;
+pub mod schedule;
 pub mod sync;
 pub mod timer;
 
@@ -25,17 +27,13 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
-            std::fs::create_dir_all(&app_data_dir)
-                .expect("failed to create app data dir");
+            std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
 
             let db_path = app_data_dir.join("kairos.db");
-            let conn = db::get_connection(
-                db_path.to_str().expect("invalid db path"),
-            )
-            .expect("failed to open database connection");
+            let conn = db::get_connection(db_path.to_str().expect("invalid db path"))
+                .expect("failed to open database connection");
 
-            let config = db::pomodoro::get_config(&conn)
-                .expect("failed to load pomodoro config");
+            let config = db::pomodoro::get_config(&conn).expect("failed to load pomodoro config");
 
             let engine = Arc::new(Mutex::new(PomodoroEngine::new(config)));
             let db_conn = Arc::new(Mutex::new(conn));
@@ -80,10 +78,13 @@ pub fn run() {
             commands::courses::create_course,
             commands::courses::update_course,
             commands::courses::delete_course,
+            commands::courses::import_courses_from_text,
             commands::exams::get_all_exams,
             commands::exams::create_exam,
             commands::exams::update_exam,
             commands::exams::delete_exam,
+            commands::exams::import_exams_from_text,
+            commands::schedule::get_week_schedule,
             commands::sync::get_sync_config,
             commands::sync::update_sync_config,
             commands::sync::test_sync_connection,

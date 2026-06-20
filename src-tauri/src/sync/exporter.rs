@@ -87,7 +87,7 @@ fn export_tasks(conn: &Connection) -> Result<Vec<Task>> {
 
 fn export_courses(conn: &Connection) -> Result<Vec<Course>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, day_of_week, start_time, end_time, location, teacher, color, semester, created_at, updated_at
+        "SELECT id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at
          FROM courses ORDER BY id",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -97,12 +97,14 @@ fn export_courses(conn: &Connection) -> Result<Vec<Course>> {
             day_of_week: row.get(2)?,
             start_time: row.get(3)?,
             end_time: row.get(4)?,
-            location: row.get(5)?,
-            teacher: row.get(6)?,
-            color: row.get(7)?,
-            semester: row.get(8)?,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            week_pattern: row.get(5)?,
+            semester_start_date: row.get(6)?,
+            location: row.get(7)?,
+            teacher: row.get(8)?,
+            color: row.get(9)?,
+            semester: row.get(10)?,
+            created_at: row.get(11)?,
+            updated_at: row.get(12)?,
         })
     })?;
     rows.collect()
@@ -110,7 +112,7 @@ fn export_courses(conn: &Connection) -> Result<Vec<Course>> {
 
 fn export_exams(conn: &Connection) -> Result<Vec<Exam>> {
     let mut stmt = conn.prepare(
-        "SELECT id, course_name, exam_datetime, location, notes, course_id, created_at, updated_at
+        "SELECT id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at
          FROM exams ORDER BY id",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -118,11 +120,13 @@ fn export_exams(conn: &Connection) -> Result<Vec<Exam>> {
             id: row.get(0)?,
             course_name: row.get(1)?,
             exam_datetime: row.get(2)?,
-            location: row.get(3)?,
-            notes: row.get(4)?,
-            course_id: row.get(5)?,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            exam_end_datetime: row.get(3)?,
+            location: row.get(4)?,
+            notes: row.get(5)?,
+            course_id: row.get(6)?,
+            semester: row.get(7)?,
+            created_at: row.get(8)?,
+            updated_at: row.get(9)?,
         })
     })?;
     rows.collect()
@@ -151,9 +155,7 @@ fn merge_tasks(conn: &Connection, remote: &[Task]) -> Result<usize> {
     let mut stmt = conn.prepare("SELECT updated_at FROM tasks WHERE id = ?1")?;
 
     for task in remote {
-        let local_updated: Option<String> = stmt
-            .query_row(params![task.id], |row| row.get(0))
-            .ok();
+        let local_updated: Option<String> = stmt.query_row(params![task.id], |row| row.get(0)).ok();
 
         match local_updated {
             None => {
@@ -208,21 +210,22 @@ fn merge_courses(conn: &Connection, remote: &[Course]) -> Result<usize> {
     let mut stmt = conn.prepare("SELECT updated_at FROM courses WHERE id = ?1")?;
 
     for course in remote {
-        let local_updated: Option<String> = stmt
-            .query_row(params![course.id], |row| row.get(0))
-            .ok();
+        let local_updated: Option<String> =
+            stmt.query_row(params![course.id], |row| row.get(0)).ok();
 
         match local_updated {
             None => {
                 conn.execute(
-                    "INSERT INTO courses (id, name, day_of_week, start_time, end_time, location, teacher, color, semester, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                    "INSERT INTO courses (id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     params![
                         course.id,
                         course.name,
                         course.day_of_week,
                         course.start_time,
                         course.end_time,
+                        course.week_pattern,
+                        course.semester_start_date,
                         course.location,
                         course.teacher,
                         course.color,
@@ -238,14 +241,16 @@ fn merge_courses(conn: &Connection, remote: &[Course]) -> Result<usize> {
                     conn.execute(
                         "UPDATE courses
                          SET name = ?1, day_of_week = ?2, start_time = ?3, end_time = ?4,
-                             location = ?5, teacher = ?6, color = ?7, semester = ?8,
-                             created_at = ?9, updated_at = ?10
-                         WHERE id = ?11",
+                             week_pattern = ?5, semester_start_date = ?6, location = ?7, teacher = ?8,
+                             color = ?9, semester = ?10, created_at = ?11, updated_at = ?12
+                         WHERE id = ?13",
                         params![
                             course.name,
                             course.day_of_week,
                             course.start_time,
                             course.end_time,
+                            course.week_pattern,
+                            course.semester_start_date,
                             course.location,
                             course.teacher,
                             course.color,
@@ -270,22 +275,22 @@ fn merge_exams(conn: &Connection, remote: &[Exam]) -> Result<usize> {
     let mut stmt = conn.prepare("SELECT updated_at FROM exams WHERE id = ?1")?;
 
     for exam in remote {
-        let local_updated: Option<String> = stmt
-            .query_row(params![exam.id], |row| row.get(0))
-            .ok();
+        let local_updated: Option<String> = stmt.query_row(params![exam.id], |row| row.get(0)).ok();
 
         match local_updated {
             None => {
                 conn.execute(
-                    "INSERT INTO exams (id, course_name, exam_datetime, location, notes, course_id, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT INTO exams (id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                     params![
                         exam.id,
                         exam.course_name,
                         exam.exam_datetime,
+                        exam.exam_end_datetime,
                         exam.location,
                         exam.notes,
                         exam.course_id,
+                        exam.semester,
                         exam.created_at,
                         exam.updated_at,
                     ],
@@ -296,15 +301,17 @@ fn merge_exams(conn: &Connection, remote: &[Exam]) -> Result<usize> {
                 if exam.updated_at > local_ts {
                     conn.execute(
                         "UPDATE exams
-                         SET course_name = ?1, exam_datetime = ?2, location = ?3,
-                             notes = ?4, course_id = ?5, created_at = ?6, updated_at = ?7
-                         WHERE id = ?8",
+                         SET course_name = ?1, exam_datetime = ?2, exam_end_datetime = ?3, location = ?4,
+                             notes = ?5, course_id = ?6, semester = ?7, created_at = ?8, updated_at = ?9
+                         WHERE id = ?10",
                         params![
                             exam.course_name,
                             exam.exam_datetime,
+                            exam.exam_end_datetime,
                             exam.location,
                             exam.notes,
                             exam.course_id,
+                            exam.semester,
                             exam.created_at,
                             exam.updated_at,
                             exam.id,
@@ -525,6 +532,8 @@ mod tests {
             day_of_week: 1,
             start_time: "08:00".to_string(),
             end_time: "09:30".to_string(),
+            week_pattern: "1-16".to_string(),
+            semester_start_date: "2026-02-24".to_string(),
             location: "Room 101".to_string(),
             teacher: "Prof. Smith".to_string(),
             color: "#3B82F6".to_string(),
@@ -537,9 +546,11 @@ mod tests {
             id: 1,
             course_name: "Math 101".to_string(),
             exam_datetime: "2024-06-15T10:00:00Z".to_string(),
+            exam_end_datetime: "2024-06-15T12:00:00Z".to_string(),
             location: "Hall A".to_string(),
             notes: "".to_string(),
             course_id: Some(1),
+            semester: "2024S1".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
@@ -559,7 +570,9 @@ mod tests {
         let exported = export_all(&conn).expect("Failed to re-export");
         assert_eq!(exported.courses.len(), 1);
         assert_eq!(exported.courses[0].name, "Math 101");
+        assert_eq!(exported.courses[0].week_pattern, "1-16");
         assert_eq!(exported.exams.len(), 1);
         assert_eq!(exported.exams[0].course_name, "Math 101");
+        assert_eq!(exported.exams[0].exam_end_datetime, "2024-06-15T12:00:00Z");
     }
 }

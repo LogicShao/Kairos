@@ -4,14 +4,16 @@ use super::models::{CreateExamRequest, Exam, UpdateExamRequest};
 
 pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
     conn.execute(
-        "INSERT INTO exams (course_name, exam_datetime, location, notes, course_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+        "INSERT INTO exams (course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
         params![
             req.course_name,
             req.exam_datetime,
+            req.exam_end_datetime,
             req.location,
             req.notes,
             req.course_id,
+            req.semester,
             super::chrono_now(),
         ],
     )?;
@@ -20,7 +22,7 @@ pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
 
 pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
     conn.query_row(
-        "SELECT id, course_name, exam_datetime, location, notes, course_id, created_at, updated_at
+        "SELECT id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at
          FROM exams WHERE id = ?1",
         params![id],
         |row| {
@@ -28,11 +30,13 @@ pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
                 id: row.get(0)?,
                 course_name: row.get(1)?,
                 exam_datetime: row.get(2)?,
-                location: row.get(3)?,
-                notes: row.get(4)?,
-                course_id: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
+                exam_end_datetime: row.get(3)?,
+                location: row.get(4)?,
+                notes: row.get(5)?,
+                course_id: row.get(6)?,
+                semester: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
             })
         },
     )
@@ -40,7 +44,7 @@ pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
 
 pub fn get_all_exams(conn: &Connection) -> Result<Vec<Exam>> {
     let mut stmt = conn.prepare(
-        "SELECT id, course_name, exam_datetime, location, notes, course_id, created_at, updated_at
+        "SELECT id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at
          FROM exams
          ORDER BY exam_datetime ASC",
     )?;
@@ -50,11 +54,13 @@ pub fn get_all_exams(conn: &Connection) -> Result<Vec<Exam>> {
             id: row.get(0)?,
             course_name: row.get(1)?,
             exam_datetime: row.get(2)?,
-            location: row.get(3)?,
-            notes: row.get(4)?,
-            course_id: row.get(5)?,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            exam_end_datetime: row.get(3)?,
+            location: row.get(4)?,
+            notes: row.get(5)?,
+            course_id: row.get(6)?,
+            semester: row.get(7)?,
+            created_at: row.get(8)?,
+            updated_at: row.get(9)?,
         })
     })?;
 
@@ -64,14 +70,17 @@ pub fn get_all_exams(conn: &Connection) -> Result<Vec<Exam>> {
 pub fn update_exam(conn: &Connection, id: i64, req: &UpdateExamRequest) -> Result<()> {
     conn.execute(
         "UPDATE exams
-         SET course_name = ?1, exam_datetime = ?2, location = ?3, notes = ?4, course_id = ?5, updated_at = ?6
-         WHERE id = ?7",
+         SET course_name = ?1, exam_datetime = ?2, exam_end_datetime = ?3, location = ?4,
+             notes = ?5, course_id = ?6, semester = ?7, updated_at = ?8
+         WHERE id = ?9",
         params![
             req.course_name,
             req.exam_datetime,
+            req.exam_end_datetime,
             req.location,
             req.notes,
             req.course_id,
+            req.semester,
             super::chrono_now(),
             id,
         ],
@@ -102,9 +111,11 @@ mod tests {
         CreateExamRequest {
             course_name: name.to_string(),
             exam_datetime: String::from("2024-12-15T09:00:00Z"),
+            exam_end_datetime: String::from("2024-12-15T11:00:00Z"),
             location: String::from("Hall A"),
             notes: String::new(),
             course_id: None,
+            semester: String::from("2024S1"),
         }
     }
 
@@ -119,6 +130,7 @@ mod tests {
         let exam = get_exam(&conn, id).expect("Failed to get exam");
         assert_eq!(exam.course_name, "Calculus Final");
         assert_eq!(exam.exam_datetime, "2024-12-15T09:00:00Z");
+        assert_eq!(exam.exam_end_datetime, "2024-12-15T11:00:00Z");
         assert_eq!(exam.location, "Hall A");
         assert_eq!(exam.course_id, None);
     }
@@ -139,13 +151,15 @@ mod tests {
             day_of_week: 2,
             start_time: String::from("10:00"),
             end_time: String::from("11:30"),
+            week_pattern: String::from("1-16"),
+            semester_start_date: String::from("2026-02-24"),
             location: String::new(),
             teacher: String::new(),
             color: String::new(),
             semester: String::from("2024S1"),
         };
-        let course_id = crate::db::courses::create_course(&conn, &course_req)
-            .expect("Failed to create course");
+        let course_id =
+            crate::db::courses::create_course(&conn, &course_req).expect("Failed to create course");
 
         let req = sample_exam("Physics Final");
         let id = create_exam(&conn, &req).expect("Failed to create exam");
@@ -153,14 +167,17 @@ mod tests {
         let update = UpdateExamRequest {
             course_name: String::from("Physics Final (Updated)"),
             exam_datetime: String::from("2024-12-20T14:00:00Z"),
+            exam_end_datetime: String::from("2024-12-20T16:00:00Z"),
             location: String::from("Hall B"),
             notes: String::from("Bring calculator"),
             course_id: Some(course_id),
+            semester: String::from("2024S1"),
         };
         update_exam(&conn, id, &update).expect("Failed to update exam");
 
         let exam = get_exam(&conn, id).expect("Failed to get updated exam");
         assert_eq!(exam.course_name, "Physics Final (Updated)");
+        assert_eq!(exam.exam_end_datetime, "2024-12-20T16:00:00Z");
         assert_eq!(exam.location, "Hall B");
         assert_eq!(exam.notes, "Bring calculator");
         assert_eq!(exam.course_id, Some(course_id));
@@ -186,16 +203,20 @@ mod tests {
         let e1 = CreateExamRequest {
             course_name: String::from("Exam A"),
             exam_datetime: String::from("2024-12-15T09:00:00Z"),
+            exam_end_datetime: String::from("2024-12-15T11:00:00Z"),
             location: String::new(),
             notes: String::new(),
             course_id: None,
+            semester: String::from("2024S1"),
         };
         let e2 = CreateExamRequest {
             course_name: String::from("Exam B"),
             exam_datetime: String::from("2024-12-10T09:00:00Z"),
+            exam_end_datetime: String::from("2024-12-10T11:00:00Z"),
             location: String::new(),
             notes: String::new(),
             course_id: None,
+            semester: String::from("2024S1"),
         };
 
         create_exam(&conn, &e1).expect("Failed to create e1");
