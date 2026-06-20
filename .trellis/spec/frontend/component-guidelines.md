@@ -263,6 +263,36 @@ export function cn(...inputs: ClassValue[]) {
 </Button>
 ```
 
+### 4. 复杂导入/解析逻辑放到 `src/lib/` 纯函数
+
+**规则**：当组件需要处理剪贴板文本、表格复制文本、批量导入映射等复杂规则时，组件只负责 UI 状态和调用流程，解析逻辑必须抽到 `src/lib/` 的纯函数里。
+
+```tsx
+// ✅ 正确：组件负责编排，解析规则在 lib 中
+import { parseCourseImportText } from "@/lib/course-import"
+
+async function handleImport() {
+  const drafts = parseCourseImportText(importText, semester)
+  for (const draft of drafts) {
+    await invoke("create_course", { cmd: draft })
+  }
+}
+```
+
+```tsx
+// ❌ 错误：把多行表格解析、时间映射、去重签名全塞进组件
+export function CourseSchedule() {
+  function parseRawText(text: string) {
+    // 200+ 行字符串解析逻辑
+  }
+}
+```
+
+**原因**：
+- 解析逻辑更容易做样例验证和复用
+- 页面组件可以维持在“状态 + 交互”职责边界内
+- 批量导入规则变化时，不会把 UI 文件变成难以维护的混合体
+
 ---
 
 ## Accessibility

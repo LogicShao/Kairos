@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"课程表页面将新增导入面板和交互按钮，需要遵循组件结构、表单和无障碍规范。"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"剪贴板解析和批量导入会新增前端类型与纯函数，需要保持严格类型安全。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"新增异步剪贴板读取、导入状态和错误反馈，需要满足前端质量要求。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"复杂解析逻辑应抽离为共享工具，避免堆进页面组件造成重复和漂移。"}

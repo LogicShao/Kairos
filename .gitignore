@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 _ui_temp_figs/
+_TEMP/
 
 # Trellis per-developer workspace (personal journals)
 .trellis/workspace/
