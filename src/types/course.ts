@@ -4,6 +4,8 @@ export interface Course {
   day_of_week: number
   start_time: string
   end_time: string
+  week_pattern: string
+  semester_start_date: string
   location: string
   teacher: string
   color: string
@@ -17,6 +19,8 @@ export interface CreateCourseRequest {
   day_of_week: number
   start_time: string
   end_time: string
+  week_pattern?: string
+  semester_start_date?: string
   location?: string
   teacher?: string
   color?: string
@@ -28,6 +32,8 @@ export interface UpdateCourseRequest {
   day_of_week?: number
   start_time?: string
   end_time?: string
+  week_pattern?: string
+  semester_start_date?: string
   location?: string
   teacher?: string
   color?: string

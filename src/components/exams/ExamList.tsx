@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { Exam, CreateExamRequest, UpdateExamRequest } from "@/types/exam"
+import type { ImportTextResult } from "@/types/course-import"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
+import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
-import { Plus, Trash2, Pencil, X, Save, Clock, MapPin, FileText } from "lucide-react"
+import { Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
+
+const FIELD_CLASS =
+  "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
 
 function computeDaysUntil(datetimeStr: string): number {
   const target = new Date(datetimeStr)
@@ -29,6 +34,7 @@ function daysLabel(days: number): string {
 
 function formatDate(datetimeStr: string): string {
   const d = new Date(datetimeStr)
+  if (Number.isNaN(d.getTime())) return ""
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
@@ -37,11 +43,19 @@ function formatDate(datetimeStr: string): string {
   return `${year}-${month}-${day} ${hour}:${min}`
 }
 
+function formatTimeOnly(datetimeStr: string): string {
+  const d = new Date(datetimeStr)
+  if (Number.isNaN(d.getTime())) return ""
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
 interface ExamFormData {
   course_name: string
   exam_datetime: string
+  exam_end_datetime: string
   location: string
   notes: string
+  semester: string
   course_id: number | null
 }
 
@@ -49,8 +63,10 @@ function emptyForm(): ExamFormData {
   return {
     course_name: "",
     exam_datetime: "",
+    exam_end_datetime: "",
     location: "",
     notes: "",
+    semester: "",
     course_id: null,
   }
 }
@@ -59,15 +75,17 @@ function examToForm(e: Exam): ExamFormData {
   return {
     course_name: e.course_name,
     exam_datetime: e.exam_datetime,
+    exam_end_datetime: e.exam_end_datetime,
     location: e.location,
     notes: e.notes,
+    semester: e.semester,
     course_id: e.course_id,
   }
 }
 
 function formatDatetimeForInput(isoStr: string): string {
   const d = new Date(isoStr)
-  if (isNaN(d.getTime())) return ""
+  if (Number.isNaN(d.getTime())) return ""
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
@@ -85,12 +103,16 @@ export function ExamList() {
   const [form, setForm] = useState<ExamFormData>(emptyForm())
   const [saving, setSaving] = useState(false)
 
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState("")
+  const [importSemester, setImportSemester] = useState("")
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importFeedback, setImportFeedback] = useState<ImportTextResult | null>(null)
+
   async function fetchExams() {
     const result = await invoke<Exam[]>("get_all_exams")
-    const enriched = result.map((e) => ({
-      ...e,
-      days_until: computeDaysUntil(e.exam_datetime),
-    }))
+    const enriched = result.map((e) => ({ ...e, days_until: computeDaysUntil(e.exam_datetime) }))
     setExams(enriched)
     setError(null)
   }
@@ -100,26 +122,21 @@ export function ExamList() {
     async function load() {
       try {
         const result = await invoke<Exam[]>("get_all_exams")
-        const enriched = result.map((e) => ({
-          ...e,
-          days_until: computeDaysUntil(e.exam_datetime),
-        }))
+        const enriched = result.map((e) => ({ ...e, days_until: computeDaysUntil(e.exam_datetime) }))
         if (!cancelled) {
           setExams(enriched)
           setError(null)
         }
       } catch {
-        if (!cancelled) {
-          setError("Tauri 不可用 — 展示离线 UI")
-        }
+        if (!cancelled) setError("Tauri 不可用 — 展示离线 UI")
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       }
     }
     void load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function openCreateForm() {
@@ -134,6 +151,13 @@ export function ExamList() {
     setShowForm(true)
   }
 
+  function openImportPanel() {
+    setImportError(null)
+    setImportFeedback(null)
+    setImportText("")
+    setShowImport(true)
+  }
+
   async function handleSave() {
     if (!form.course_name.trim() || !form.exam_datetime) return
 
@@ -143,8 +167,10 @@ export function ExamList() {
         const payload: UpdateExamRequest = {
           course_name: form.course_name,
           exam_datetime: form.exam_datetime,
+          exam_end_datetime: form.exam_end_datetime,
           location: form.location,
           notes: form.notes,
+          semester: form.semester,
           course_id: form.course_id,
         }
         await invoke("update_exam", { id: editingExam.id, cmd: payload })
@@ -152,8 +178,10 @@ export function ExamList() {
         const payload: CreateExamRequest = {
           course_name: form.course_name,
           exam_datetime: form.exam_datetime,
+          exam_end_datetime: form.exam_end_datetime || undefined,
           location: form.location || undefined,
           notes: form.notes || undefined,
+          semester: form.semester || undefined,
           course_id: form.course_id || undefined,
         }
         await invoke("create_exam", { cmd: payload })
@@ -171,188 +199,297 @@ export function ExamList() {
     await fetchExams()
   }
 
+  async function handleReadClipboard() {
+    setImportError(null)
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) {
+        setImportError("剪贴板为空，请先从教务系统复制考试安排表格。")
+        return
+      }
+      setImportText(text)
+    } catch {
+      setImportError("读取剪贴板失败，请手动粘贴考试文本后再导入。")
+    }
+  }
+
+  async function handleImport() {
+    if (!importText.trim()) {
+      setImportError("请先粘贴或读取考试文本。")
+      return
+    }
+
+    setImporting(true)
+    setImportError(null)
+    setImportFeedback(null)
+    try {
+      const result = await invoke<ImportTextResult>("import_exams_from_text", {
+        cmd: { text: importText, semester: importSemester.trim() },
+      })
+      setImportFeedback(result)
+      await fetchExams()
+    } catch (e) {
+      setImportError(typeof e === "string" ? e : "导入失败，请检查考试文本格式。")
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const upcomingExams = exams.filter((e) => (e.days_until ?? 0) >= 0)
   const pastExams = exams.filter((e) => (e.days_until ?? 0) < 0)
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4">
+    <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-heading font-medium text-foreground">
-          考试倒计时
-        </h2>
-        <Button size="sm" onClick={openCreateForm} disabled={showForm}>
-          <Plus className="h-4 w-4 mr-1" />
-          添加考试
-        </Button>
+        <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing}>
+            <ClipboardPaste className="mr-1 h-4 w-4" />
+            从剪贴板导入
+          </Button>
+          <Button size="sm" onClick={openCreateForm}>
+            <Plus className="mr-1 h-4 w-4" />
+            添加考试
+          </Button>
+        </div>
       </div>
-
-      {showForm && (
-        <AcrylicPanel className="p-4 bg-card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-foreground">
-              {editingExam ? "编辑考试" : "新建考试"}
-            </h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => { setShowForm(false); setEditingExam(null) }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                考试名称 <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.course_name}
-                onChange={(e) => setForm({ ...form, course_name: e.target.value })}
-                required
-                placeholder="e.g. 高数期末考试"
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                考试时间 <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={form.exam_datetime ? formatDatetimeForInput(form.exam_datetime) : ""}
-                onChange={(e) => setForm({ ...form, exam_datetime: e.target.value ? new Date(e.target.value).toISOString() : "" })}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">地点</label>
-              <input
-                type="text"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="考场/教室"
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">备注</label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="考试注意事项（可选）"
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring resize-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3">
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setShowForm(false); setEditingExam(null) }}>
-              取消
-            </Button>
-            <Button type="button" size="sm" disabled={saving || !form.course_name.trim() || !form.exam_datetime} onClick={handleSave}>
-              <Save className="h-3.5 w-3.5 mr-1" />
-              {saving ? "保存中..." : "保存"}
-            </Button>
-          </div>
-        </AcrylicPanel>
-      )}
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       )}
 
       {!loading && error && exams.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground py-8">{error}</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{error}</p>
       )}
 
       {!loading && exams.length === 0 && !error && (
         <AcrylicPanel className="p-8 text-center">
           <p className="text-sm text-muted-foreground">暂无考试</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            点击"添加考试"按钮添加第一个考试
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground/60">点击"添加考试"按钮添加第一个考试</p>
         </AcrylicPanel>
       )}
 
       {!loading && upcomingExams.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">即将到来</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">即将到来</h3>
           {upcomingExams.map((exam) => (
-            <ExamCard
-              key={exam.id}
-              exam={exam}
-              onEdit={() => openEditForm(exam)}
-              onDelete={() => void handleDelete(exam.id)}
-            />
+            <ExamCard key={exam.id} exam={exam} onEdit={() => openEditForm(exam)} onDelete={() => void handleDelete(exam.id)} />
           ))}
         </div>
       )}
 
       {!loading && pastExams.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-6">已结束</h3>
+          <h3 className="mt-6 text-xs font-medium uppercase tracking-wider text-muted-foreground">已结束</h3>
           {pastExams.map((exam) => (
-            <ExamCard
-              key={exam.id}
-              exam={exam}
-              onEdit={() => openEditForm(exam)}
-              onDelete={() => void handleDelete(exam.id)}
-            />
+            <ExamCard key={exam.id} exam={exam} onEdit={() => openEditForm(exam)} onDelete={() => void handleDelete(exam.id)} />
           ))}
         </div>
       )}
+
+      {/* 考试编辑/新建模态 */}
+      <Modal
+        open={showForm}
+        onOpenChange={(open) => {
+          setShowForm(open)
+          if (!open) setEditingExam(null)
+        }}
+        title={editingExam ? "编辑考试" : "新建考试"}
+        description="填写考试名称、时间与地点等信息"
+        className="max-w-xl"
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              考试名称 <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.course_name}
+              onChange={(e) => setForm({ ...form, course_name: e.target.value })}
+              required
+              placeholder="e.g. 高数期末考试"
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              开始时间 <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="datetime-local"
+              value={form.exam_datetime ? formatDatetimeForInput(form.exam_datetime) : ""}
+              onChange={(e) =>
+                setForm({ ...form, exam_datetime: e.target.value ? new Date(e.target.value).toISOString() : "" })
+              }
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">结束时间</label>
+            <input
+              type="datetime-local"
+              value={form.exam_end_datetime ? formatDatetimeForInput(form.exam_end_datetime) : ""}
+              onChange={(e) =>
+                setForm({ ...form, exam_end_datetime: e.target.value ? new Date(e.target.value).toISOString() : "" })
+              }
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">地点</label>
+            <input
+              type="text"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              placeholder="考场/教室"
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
+            <input
+              type="text"
+              value={form.semester}
+              onChange={(e) => setForm({ ...form, semester: e.target.value })}
+              placeholder="e.g. 2026S1"
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">备注</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="考试注意事项（可选）"
+              rows={2}
+              className="w-full resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setShowForm(false)
+              setEditingExam(null)
+            }}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={saving || !form.course_name.trim() || !form.exam_datetime}
+            onClick={handleSave}
+          >
+            <Save className="mr-1 h-3.5 w-3.5" />
+            {saving ? "保存中..." : "保存"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* 导入模态 */}
+      <Modal
+        open={showImport}
+        onOpenChange={(open) => {
+          setShowImport(open)
+          if (!open) {
+            setImportError(null)
+            setImportFeedback(null)
+          }
+        }}
+        title="从剪贴板导入考试"
+        description="从教务系统网页复制考试安排表格后粘贴或读取剪贴板"
+        className="max-w-2xl"
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              考试文本 <span className="text-destructive">*</span>
+            </label>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="从教务系统复制考试安排表格后粘贴到这里。"
+              rows={8}
+              className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            />
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
+              <input
+                type="text"
+                value={importSemester}
+                onChange={(e) => setImportSemester(e.target.value)}
+                placeholder="e.g. 2026S1"
+                className={FIELD_CLASS}
+              />
+            </div>
+            <div className="rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground space-y-1">
+              <p>解析与去重在后端完成。</p>
+              <p>重复考试会被自动跳过。</p>
+            </div>
+          </div>
+        </div>
+
+        {importError && <p className="mt-3 text-sm text-destructive">{importError}</p>}
+        {importFeedback && <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>}
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => void handleReadClipboard()}>
+            <ClipboardPaste className="mr-1 h-3.5 w-3.5" />
+            读取剪贴板
+          </Button>
+          <Button type="button" size="sm" disabled={importing || !importText.trim()} onClick={() => void handleImport()}>
+            <Upload className="mr-1 h-3.5 w-3.5" />
+            {importing ? "导入中..." : "开始导入"}
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
 
-function ExamCard({
-  exam,
-  onEdit,
-  onDelete,
-}: {
-  exam: Exam
-  onEdit: () => void
-  onDelete: () => void
-}) {
+function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; onDelete: () => void }) {
   const days = exam.days_until ?? 0
   const isPast = days < 0
+  const endTime = exam.exam_end_datetime ? formatTimeOnly(exam.exam_end_datetime) : ""
 
   return (
     <AcrylicPanel
       className={cn(
-        "p-3 bg-card transition-colors hover:bg-card/95",
-        isPast && "opacity-50"
+        "bg-card p-3 transition-all hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
+        isPast && "opacity-50",
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "inline-flex items-center shrink-0 rounded-md border px-2 py-1 text-xs font-semibold tabular-nums",
-            daysBadgeClass(days)
+            "inline-flex shrink-0 items-center rounded-md border px-2 py-1 text-xs font-semibold tabular-nums",
+            daysBadgeClass(days),
           )}
         >
           {daysLabel(days)}
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground truncate">
-              {exam.course_name}
-            </span>
+            <span className="truncate text-sm font-medium text-foreground">{exam.course_name}</span>
+            {exam.semester && <span className="shrink-0 text-[10px] text-muted-foreground/50">{exam.semester}</span>}
           </div>
 
-          <div className="flex items-center gap-3 mt-1">
+          <div className="mt-1 flex items-center gap-3">
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
               <Clock className="h-3 w-3" />
               {formatDate(exam.exam_datetime)}
+              {endTime && `–${endTime}`}
             </span>
             {exam.location && (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -363,20 +500,15 @@ function ExamCard({
           </div>
 
           {exam.notes && (
-            <div className="flex items-start gap-1 mt-1">
-              <FileText className="h-3 w-3 text-muted-foreground/50 mt-0.5 shrink-0" />
+            <div className="mt-1 flex items-start gap-1">
+              <FileText className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/50" />
               <p className="text-xs text-muted-foreground/70">{exam.notes}</p>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={onEdit}
-          >
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
