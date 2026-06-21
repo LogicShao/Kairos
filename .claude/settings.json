@@ -1,22 +1,94 @@
 {
+  "env": {
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"
+  },
+  "skipWebFetchPreflight": true,
   "permissions": {
     "allowedPrompts": [
       {
         "tool": "Bash",
-        "prompt": "python3 ./.trellis/scripts/task.py*"
+        "prompt": "python ./.trellis/scripts/task.py*"
       },
       {
         "tool": "Bash",
-        "prompt": "python3 ./.trellis/scripts/get_context.py*"
+        "prompt": "python ./.trellis/scripts/get_context.py*"
       },
       {
         "tool": "Bash",
-        "prompt": "python3 ./.trellis/scripts/get_developer.py*"
+        "prompt": "python ./.trellis/scripts/get_developer.py*"
       },
       {
         "tool": "Bash",
-        "prompt": "python3 ./.trellis/scripts/add_session.py*"
+        "prompt": "python ./.trellis/scripts/add_session.py*"
       }
     ]
-  }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/inject-subagent-context.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/inject-subagent-context.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/inject-workflow-state.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {}
 }
