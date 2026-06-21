@@ -162,7 +162,6 @@ export function CourseSchedule() {
   const [weekRefresh, setWeekRefresh] = useState(0)
   const [mobileDayIndex, setMobileDayIndex] = useState(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1)
   const didAutoJumpRef = useRef(false)
-  const touchStartXRef = useRef(0)
 
   const [showForm, setShowForm] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
@@ -205,7 +204,6 @@ export function CourseSchedule() {
     function handleClick(e: MouseEvent) {
       if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) {
         setShowOverflowMenu(false)
-        setShowSemesterSubmenu(false)
       }
     }
     document.addEventListener("mousedown", handleClick)
@@ -435,16 +433,6 @@ export function CourseSchedule() {
     }
   }
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX
-  }
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const delta = e.changedTouches[0].clientX - touchStartXRef.current
-    if (Math.abs(delta) < 50) return
-    if (delta > 0) handlePrevWeek()
-    else handleNextWeek()
-  }
-
   const handleBlockClick = (item: WeekScheduleItem) => {
     if (item.kind !== "course") return
     const course = courses.find((c) => c.id === item.id)
@@ -467,8 +455,8 @@ export function CourseSchedule() {
       setShowResetDate(false)
       setResetDate("")
       refreshAll()
-    } catch (e) {
-      console.error("Failed to reset semester start dates:", e)
+    } catch {
+      setWeekError("重置学期起始日失败")
     } finally {
       setResetting(false)
     }
@@ -675,7 +663,7 @@ export function CourseSchedule() {
       </div>
 
       {/* ─── Content area ─── */}
-      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4">
         {/* Week view */}
         {viewMode === "week" && (
           <>

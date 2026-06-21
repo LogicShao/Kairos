@@ -206,7 +206,7 @@ export function PomodoroTimer() {
               "transition-[stroke-dashoffset] duration-1000 ease-linear",
             )}
             style={{
-              filter: `drop-shadow(0 0 7px ${isWork ? "oklch(0.62 0.16 275 / 0.55)" : "oklch(0.72 0.15 160 / 0.55)"})`,
+              filter: `drop-shadow(0 0 7px ${isWork ? "oklch(0.66 0.15 235 / 0.55)" : "oklch(0.72 0.15 160 / 0.55)"})`,
             }}
           />
         </svg>

@@ -88,6 +88,7 @@ pub fn run() {
             commands::exams::delete_exam,
             commands::exams::import_exams_from_text,
             commands::schedule::get_week_schedule,
+            commands::schedule::get_calendar_week,
             commands::sync::get_sync_config,
             commands::sync::update_sync_config,
             commands::sync::test_sync_connection,

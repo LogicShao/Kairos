@@ -4,12 +4,14 @@ import { AppShell } from "@/components/shared/AppShell"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
 import { TaskList } from "@/components/todo/TaskList"
+import { CalendarView } from "@/components/calendar/CalendarView"
 import { CourseSchedule } from "@/components/courses/CourseSchedule"
 import { ExamList } from "@/components/exams/ExamList"
+import { KairosHub } from "@/components/kairos/KairosHub"
 import { SyncSettings } from "@/components/sync/SyncSettings"
 
 function App() {
-  const [active, setActive] = useState("pomodoro")
+  const [active, setActive] = useState("calendar")
 
   return (
     <>
@@ -23,6 +25,8 @@ function App() {
           </div>
         )}
         {active === "todo" && <TaskList />}
+        {active === "calendar" && <CalendarView onNavigate={setActive} />}
+        {active === "kairos" && <KairosHub onNavigate={setActive} />}
         {active === "courses" && <CourseSchedule />}
         {active === "exams" && <ExamList />}
         {active === "sync" && <SyncSettings />}
