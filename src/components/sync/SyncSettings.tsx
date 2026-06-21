@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils"
 
 function inputClass(hasError: boolean): string {
   return cn(
-    "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-colors",
-    "placeholder:text-muted-foreground/60",
+    "w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm outline-none transition-colors",
+    "placeholder:text-muted-foreground/45",
+    "focus:ring-2 focus:ring-primary/30",
     hasError
-      ? "border-destructive/60 focus:border-destructive"
+      ? "border-destructive/60 focus:border-destructive focus:ring-destructive/20"
       : "border-border focus:border-primary",
   )
 }
@@ -95,15 +96,15 @@ export function SyncSettings() {
   const passwordMasked = showPassword ? "●".repeat(Math.min(password.length, 12)) : ""
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-md mx-auto animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <AcrylicPanel className="p-4 sm:p-6">
-        <h2 className="text-lg font-heading font-medium text-foreground mb-4">
+    <div className="flex flex-col gap-6 w-full max-w-md mx-auto mt-4 md:mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+      <AcrylicPanel className="p-4 sm:p-6 border-primary/15">
+        <h2 className="text-lg font-semibold text-foreground mb-4">
           WebDAV 同步设置
         </h2>
 
         <div className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">
+          <div className="mb-3">
+            <label className="block text-sm text-muted-foreground mb-0.5">
               服务器地址
             </label>
             <input
@@ -116,8 +117,8 @@ export function SyncSettings() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">
+          <div className="mb-3">
+            <label className="block text-sm text-muted-foreground mb-0.5">
               用户名
             </label>
             <input
@@ -130,8 +131,8 @@ export function SyncSettings() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1.5">
+          <div className="mb-3">
+            <label className="block text-sm text-muted-foreground mb-0.5">
               密码
             </label>
             <input
@@ -157,48 +158,48 @@ export function SyncSettings() {
               className={cn(
                 "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                autoSync ? "bg-primary" : "bg-muted",
+                autoSync ? "bg-primary" : "bg-muted-foreground/25",
               )}
             >
               <span
                 className={cn(
-                  "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-sm ring-0 transition-transform",
+                  "pointer-events-none block h-5 w-5 rounded-full bg-card shadow-sm ring-0 transition-transform",
                   autoSync ? "translate-x-5" : "translate-x-0",
                 )}
               />
             </button>
           </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testStatus === "loading" || !serverUrl}
+              className="flex-1 border-primary/40 text-primary hover:bg-primary/5 min-h-11 md:min-h-0"
+            >
+              {testStatus === "loading" ? (
+                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+              ) : testStatus === "ok" ? (
+                <Check className="h-4 w-4 mr-1 text-emerald-400" />
+              ) : testStatus === "fail" ? (
+                <X className="h-4 w-4 mr-1 text-destructive" />
+              ) : null}
+              测试连接
+            </Button>
+
+            <Button
+              onClick={handleSyncNow}
+              disabled={syncStatus === "loading" || !serverUrl}
+              className="flex-1 min-h-11 md:min-h-0"
+            >
+              {syncStatus === "loading" ? (
+                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+              ) : null}
+              立即同步
+            </Button>
+          </div>
         </div>
       </AcrylicPanel>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button
-          variant="outline"
-          onClick={handleTestConnection}
-          disabled={testStatus === "loading" || !serverUrl}
-          className="flex-1"
-        >
-          {testStatus === "loading" ? (
-            <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-          ) : testStatus === "ok" ? (
-            <Check className="h-4 w-4 mr-1 text-emerald-400" />
-          ) : testStatus === "fail" ? (
-            <X className="h-4 w-4 mr-1 text-destructive" />
-          ) : null}
-          测试连接
-        </Button>
-
-        <Button
-          onClick={handleSyncNow}
-          disabled={syncStatus === "loading" || !serverUrl}
-          className="flex-1"
-        >
-          {syncStatus === "loading" ? (
-            <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-          ) : null}
-          立即同步
-        </Button>
-      </div>
 
       {testMessage && (
         <p

@@ -42,27 +42,27 @@ function NavButton({
         "flex flex-col items-center justify-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors rounded-lg",
         "md:flex-row md:gap-2.5 md:px-2.5 md:py-2 md:text-sm md:rounded-lg",
         active
-          ? "text-primary md:bg-primary/[0.12]"
+          ? "text-primary bg-primary/10 md:bg-primary/[0.12]"
           : "text-muted-foreground hover:text-foreground md:hover:bg-muted/60",
       )}
     >
-      <Icon className="h-5 w-5 shrink-0 md:h-4 md:w-4" />
+      <Icon className={cn("h-5 w-5 shrink-0 transition-transform md:h-4 md:w-4", active && "scale-110")} />
       {label}
     </button>
   )
 }
 
-/** 应用外壳：桌面侧边栏 + 移动端底部 Tab Bar。统一承载主题切换与同步入口，消除各功能页重复头部。 */
+/** 应用外壳：桌面侧边栏 + 移动端底部 Tab Bar。Android 安全区域由 MainActivity insets 处理。 */
 export function AppShell({ active, onNavigate, children }: AppShellProps) {
   const { theme, toggle } = useTheme()
 
   return (
     <div className="relative z-0 flex flex-col h-screen overflow-hidden">
       {/* 移动端顶部栏：仅在 <md 时显示 */}
-      <header className="flex md:hidden shrink-0 items-center gap-2 h-12 px-3 border-b border-border/50 bg-card/40 backdrop-blur-xl">
+      <header className="flex md:hidden shrink-0 items-center gap-2 h-12 px-4 border-b border-border/50 bg-card/40 backdrop-blur-xl">
         <img src="/favicon.svg" alt="Kairos" className="h-7 w-7 shrink-0 rounded-lg" />
         <div className="min-w-0 flex-1">
-          <div className="font-heading text-sm font-medium leading-none text-foreground">Kairos</div>
+          <div className="font-heading text-sm font-medium leading-none text-primary">Kairos</div>
         </div>
         <button
           type="button"
@@ -89,7 +89,7 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
           <div className="flex items-center gap-2 px-2 pb-5">
             <img src="/favicon.svg" alt="Kairos" className="h-8 w-8 shrink-0 rounded-lg" />
             <div className="min-w-0">
-              <div className="font-heading text-sm font-medium leading-none text-foreground">Kairos</div>
+              <div className="font-heading text-sm font-medium leading-none text-primary">Kairos</div>
               <div className="mt-1 truncate text-[10px] text-muted-foreground">καιρός · 恰当时机</div>
             </div>
           </div>

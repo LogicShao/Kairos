@@ -116,7 +116,7 @@ export function PomodoroTimer() {
             fill="none"
             stroke="currentColor"
             strokeWidth="8"
-            className="text-muted/20"
+            className="text-muted/30"
           />
           <circle
             cx="150"
@@ -162,10 +162,12 @@ export function PomodoroTimer() {
         <p className="text-xs text-muted-foreground">{error}</p>
       )}
 
-      <div className="flex items-center gap-3 w-full justify-center">
+      <div className="grid grid-cols-3 items-center w-full max-w-[18rem] mx-auto">
+        {/* 左侧占位 — 保持播放按钮视觉居中 */}
+        <div />
         <Button
           size="icon-lg"
-          className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0"
+          className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
           onClick={handleStartPause}
           aria-label={state.is_running ? "暂停" : "开始"}
         >
@@ -174,7 +176,7 @@ export function PomodoroTimer() {
         <Button
           variant="ghost"
           size="icon"
-          className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0"
+          className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
           onClick={handleReset}
           aria-label="重置"
         >

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { readText } from "@tauri-apps/plugin-clipboard-manager"
 import type { Exam, CreateExamRequest, UpdateExamRequest } from "@/types/exam"
 import type { ImportTextResult } from "@/types/course-import"
 import { Button } from "@/components/ui/button"
@@ -202,7 +203,7 @@ export function ExamList() {
   async function handleReadClipboard() {
     setImportError(null)
     try {
-      const text = await navigator.clipboard.readText()
+      const text = await readText()
       if (!text.trim()) {
         setImportError("剪贴板为空，请先从教务系统复制考试安排表格。")
         return
