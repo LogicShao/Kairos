@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { readText } from "@tauri-apps/plugin-clipboard-manager"
 import type { Course, CreateCourseRequest, UpdateCourseRequest, CourseFilterParams } from "@/types/course"
@@ -18,30 +18,31 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
-  CalendarDays,
-  List,
+  EllipsisVertical,
 } from "lucide-react"
 
 const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-const HOUR_HEIGHT = 56
+const DAY_SHORT = ["一", "二", "三", "四", "五", "六", "日"]
+const HOUR_HEIGHT = 44
 const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HOURS = END_HOUR - START_HOUR
-const DRAG_THRESHOLD = 56
 
 const FIELD_CLASS =
   "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
 
 const COLOR_OPTIONS = [
-  { value: "#7C8CC0", label: "Periwinkle" },
-  { value: "#3B82F6", label: "蓝色" },
-  { value: "#EF4444", label: "红色" },
-  { value: "#10B981", label: "绿色" },
-  { value: "#F59E0B", label: "琥珀" },
-  { value: "#8B5CF6", label: "紫色" },
-  { value: "#EC4899", label: "粉色" },
-  { value: "#06B6D4", label: "青色" },
+  { value: "#B8C9E8", label: "雾蓝" },
+  { value: "#C5E0D8", label: "薄荷" },
+  { value: "#F0D5D8", label: "豆沙粉" },
+  { value: "#E8D5F0", label: "香芋紫" },
+  { value: "#F5E6C8", label: "鹅黄" },
+  { value: "#D5E8F0", label: "浅海蓝" },
+  { value: "#F0E0D0", label: "暖杏" },
+  { value: "#D8E8D0", label: "嫩绿" },
 ]
+
+const SEMESTER_OPTIONS = ["2024S1", "2024S2", "2025S1", "2026S1"]
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number)
@@ -62,11 +63,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   }
 }
 
-function contrastingTextColor(hex: string): string {
+function isDarkColor(hex: string): boolean {
   const rgb = hexToRgb(hex)
-  if (!rgb) return "#1e1e2e"
+  if (!rgb) return false
   const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255
-  return luminance > 0.55 ? "#1e1e2e" : "#ffffff"
+  return luminance <= 0.55
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -124,7 +125,7 @@ function emptyForm(): CourseFormData {
     semester_start_date: "",
     location: "",
     teacher: "",
-    color: "#7C8CC0",
+    color: "#B8C9E8",
     semester: "",
   }
 }
@@ -148,7 +149,12 @@ export function CourseSchedule() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [semesterFilter, setSemesterFilter] = useState("")
+  const [semesterFilter, setSemesterFilter] = useState(() => {
+    const now = new Date()
+    const y = now.getFullYear()
+    // Feb–Jul → S1 (春季), Aug–Jan → S2 (秋季)
+    return now.getMonth() >= 1 && now.getMonth() <= 6 ? `${y}S1` : `${y}S2`
+  })
 
   const [viewMode, setViewMode] = useState<"week" | "list">("week")
   const [weekIndex, setWeekIndex] = useState(1)
@@ -172,9 +178,38 @@ export function CourseSchedule() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importFeedback, setImportFeedback] = useState<ImportTextResult | null>(null)
 
-  // 拖拽切周状态
-  const dragStartRef = useRef<number | null>(null)
-  const dragDeltaRef = useRef(0)
+  const [showWeekPicker, setShowWeekPicker] = useState(false)
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false)
+  const [showSemesterSubmenu, setShowSemesterSubmenu] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
+  const [detailCourse, setDetailCourse] = useState<Course | null>(null)
+  const weekPickerRef = useRef<HTMLDivElement>(null)
+  const overflowMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close week picker on outside click
+  useEffect(() => {
+    if (!showWeekPicker) return
+    function handleClick(e: MouseEvent) {
+      if (weekPickerRef.current && !weekPickerRef.current.contains(e.target as Node)) {
+        setShowWeekPicker(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showWeekPicker])
+
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!showOverflowMenu) return
+    function handleClick(e: MouseEvent) {
+      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) {
+        setShowOverflowMenu(false)
+        setShowSemesterSubmenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showOverflowMenu])
 
   async function getCourses(targetSemester: string): Promise<Course[]> {
     const filters: CourseFilterParams = {}
@@ -366,302 +401,400 @@ export function CourseSchedule() {
     }
   }
 
-  function goPrevWeek() {
+  // ── Inline navigation handlers ──
+  const handlePrevWeek = () => {
     setWeekIndex((w) => Math.max(1, w - 1))
+    setViewMode("week")
   }
 
-  function goNextWeek() {
+  const handleNextWeek = () => {
     setWeekIndex((w) => w + 1)
+    setViewMode("week")
   }
 
-  function goCurrentWeek() {
-    if (weekData?.semester_start_date) {
+  const handleSelectWeek = (w: number) => {
+    setWeekIndex(w)
+    setShowWeekPicker(false)
+    setViewMode("week")
+  }
+
+  const handleDayClick = (dayIndex: number, dateKey: string) => {
+    setMobileDayIndex(dayIndex)
+    setViewMode("week")
+    const today = todayKey()
+    if (dateKey === today && weekData?.semester_start_date) {
       setWeekIndex(computeCurrentWeek(weekData.semester_start_date))
     }
   }
 
-  function goPrevDay() {
-    setMobileDayIndex((d) => (d === 0 ? 6 : d - 1))
-  }
-
-  function goNextDay() {
-    setMobileDayIndex((d) => (d === 6 ? 0 : d + 1))
-  }
-
-  function goToday() {
-    const today = new Date().getDay()
-    setMobileDayIndex(today === 0 ? 6 : today - 1)
-    goCurrentWeek()
-  }
-
-  function handlePointerDown(e: ReactPointerEvent) {
-    dragStartRef.current = e.clientX
-    dragDeltaRef.current = 0
-  }
-
-  function handlePointerMove(e: ReactPointerEvent) {
-    if (dragStartRef.current === null) return
-    dragDeltaRef.current = e.clientX - dragStartRef.current
-  }
-
-  function handlePointerUp() {
-    if (dragStartRef.current === null) return
-    const delta = dragDeltaRef.current
-    dragStartRef.current = null
-    if (delta > DRAG_THRESHOLD) goPrevWeek()
-    else if (delta < -DRAG_THRESHOLD) goNextWeek()
-  }
-
-  function handleBlockClick(item: WeekScheduleItem) {
-    if (Math.abs(dragDeltaRef.current) > 8) return // 拖拽中忽略点击
+  const handleBlockClick = (item: WeekScheduleItem) => {
     if (item.kind !== "course") return
     const course = courses.find((c) => c.id === item.id)
-    if (course) openEditForm(course)
+    if (course) {
+      setDetailCourse(course)
+      setShowDetail(true)
+    }
+  }
+
+  const handleShowAllCourses = () => {
+    setViewMode("list")
+    setShowOverflowMenu(false)
+    setShowSemesterSubmenu(false)
+  }
+
+  const handleSelectSemester = (semester: string) => {
+    setSemesterFilter(semester)
+    setShowOverflowMenu(false)
+    setShowSemesterSubmenu(false)
   }
 
   const today = todayKey()
+  const currentWeek = weekData?.semester_start_date
+    ? computeCurrentWeek(weekData.semester_start_date)
+    : null
+  const isCurrentWeek = currentWeek !== null && currentWeek === weekIndex
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-heading font-medium text-foreground">课程表</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 视图切换 */}
-          <div className="inline-flex rounded-lg border border-border/60 bg-card/60 p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("week")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                viewMode === "week"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <CalendarDays className="h-3.5 w-3.5" />
-              周视图
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                viewMode === "list"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <List className="h-3.5 w-3.5" />
-              全部课程
-            </button>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* ─── Header: week nav + overflow ─── */}
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={handlePrevWeek}
+          aria-label="上一周"
+          className="shrink-0"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
 
-          <div className="relative">
-            <select
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              className="h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-6 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-            >
-              <option value="">全部学期</option>
-              <option value="2024S1">2024S1</option>
-              <option value="2024S2">2024S2</option>
-              <option value="2025S1">2025S1</option>
-              <option value="2026S1">2026S1</option>
-            </select>
-            <ChevronRight className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rotate-90 text-muted-foreground" />
-          </div>
+        {/* Week dropdown */}
+        <div className="relative" ref={weekPickerRef}>
+          <button
+            type="button"
+            onClick={() => setShowWeekPicker(!showWeekPicker)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors h-8",
+              "text-foreground hover:bg-muted/60",
+              showWeekPicker && "bg-muted",
+            )}
+          >
+            <span className="tabular-nums">
+              第 {weekIndex} 周
+            </span>
+            {isCurrentWeek && (
+              <span className="text-[11px] text-muted-foreground font-normal">(本周)</span>
+            )}
+            <span className={cn("text-[10px] text-muted-foreground transition-transform", showWeekPicker && "rotate-180")}>▼</span>
+          </button>
+          {showWeekPicker && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top">
+              {Array.from({ length: 20 }, (_, i) => i + 1).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => handleSelectWeek(w)}
+                  className={cn(
+                    "w-full text-left rounded-md px-3 py-1.5 text-sm transition-colors tabular-nums",
+                    w === weekIndex
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  第 {w} 周
+                  {w === currentWeek && w !== weekIndex && (
+                    <span className="ml-1 text-[11px] opacity-70">(本周)</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
-            <ClipboardPaste className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">从剪贴板导入</span>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={handleNextWeek}
+          aria-label="下一周"
+          className="shrink-0"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <div className="flex-1" />
+
+        {/* Overflow menu */}
+        <div className="relative" ref={overflowMenuRef}>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="更多选项"
+            onClick={() => setShowOverflowMenu(!showOverflowMenu)}
+            className={cn(showOverflowMenu && "bg-muted")}
+          >
+            <EllipsisVertical className="h-4 w-4" />
           </Button>
-          <Button size="sm" onClick={openCreateForm} className="px-2.5 sm:px-3">
-            <Plus className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">添加课程</span>
-          </Button>
+          {showOverflowMenu && (
+            <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-lg border border-border bg-card p-2 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top-right">
+              <button
+                type="button"
+                onClick={() => {
+                  openImportPanel()
+                  setShowOverflowMenu(false)
+                }}
+                className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
+              >
+                导入课表
+              </button>
+
+              {/* 切换学期 submenu */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowSemesterSubmenu(!showSemesterSubmenu)}
+                  className={cn(
+                    "w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors flex items-center justify-between",
+                    showSemesterSubmenu && "bg-muted/60",
+                  )}
+                >
+                  切换学期
+                  <span className={cn("text-[10px] text-muted-foreground transition-transform", showSemesterSubmenu && "rotate-180")}>▼</span>
+                </button>
+                {showSemesterSubmenu && (
+                  <div className="ml-2 mt-0.5 space-y-0.5 border-l border-border/40 pl-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSemester("")}
+                      className={cn(
+                        "w-full text-left rounded-md px-3 py-1.5 text-xs transition-colors",
+                        !semesterFilter
+                          ? "bg-primary text-primary-foreground"
+                          : "text-foreground hover:bg-muted/60",
+                      )}
+                    >
+                      全部学期
+                    </button>
+                    {SEMESTER_OPTIONS.map((sem) => (
+                      <button
+                        key={sem}
+                        type="button"
+                        onClick={() => handleSelectSemester(sem)}
+                        className={cn(
+                          "w-full text-left rounded-md px-3 py-1.5 text-xs transition-colors",
+                          semesterFilter === sem
+                            ? "bg-primary text-primary-foreground"
+                            : "text-foreground hover:bg-muted/60",
+                        )}
+                      >
+                        {sem}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleShowAllCourses}
+                className={cn(
+                  "w-full text-left rounded-md px-3 py-2 text-sm transition-colors",
+                  viewMode === "list"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted/60",
+                )}
+              >
+                全部课程
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 周视图 */}
-      {viewMode === "week" && (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Button size="icon-sm" variant="outline" onClick={goPrevWeek} aria-label="上一周">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button size="icon-sm" variant="outline" onClick={goNextWeek} aria-label="下一周">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="ghost" onClick={goCurrentWeek} disabled={!weekData?.semester_start_date}>
-                本周
-              </Button>
-            </div>
-            <div className="text-xs text-muted-foreground tabular-nums">
-              第 {weekIndex} 周
-              {weekData?.week_start_date && (
-                <span className="ml-2 text-muted-foreground/70">
-                  {weekData.week_start_date} ~ {weekData.week_end_date}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* 移动端单日导航 */}
-          <div className="flex md:hidden items-center justify-between gap-2">
-            <Button size="icon-sm" variant="outline" onClick={goPrevDay} aria-label="前一天">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="text-center min-w-0">
-              <span className="text-sm font-medium text-foreground">
-                {DAY_LABELS[mobileDayIndex]}
-              </span>
-              {weekData && (
-                <span className="ml-2 text-xs text-muted-foreground tabular-nums">
-                  {dayCellKey(weekData.week_start_date, mobileDayIndex).slice(5).replace("-", "/")}
-                </span>
-              )}
-            </div>
-            <Button size="icon-sm" variant="outline" onClick={goNextDay} aria-label="后一天">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={goToday}
-              disabled={!weekData?.semester_start_date}
-            >
-              今天
-            </Button>
-          </div>
-
-          {weekError ? (
-            <AcrylicPanel className="p-8 text-center bg-card">
-              <p className="text-sm text-muted-foreground">{weekError}</p>
-              <p className="mt-1 text-xs text-muted-foreground/60">
-                请先导入课表（含学期开始日期），或在课程中填写"学期开始日期"。
-              </p>
-            </AcrylicPanel>
-          ) : (
-            <>
-              {/* 桌面端 7 列周视图 */}
-              <AcrylicPanel className="hidden md:block bg-card overflow-x-auto">
-                {weekLoading && (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  </div>
+      {/* ─── Date strip (desktop: aligned with 48px + 7fr grid) ─── */}
+      <div className="hidden md:block shrink-0 pb-1">
+        <div
+          className="grid select-none"
+          style={{ gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))", minWidth: "680px" }}
+        >
+          <div />
+          {DAY_SHORT.map((day, i) => {
+            const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
+            const dateNum = dateKey ? dateKey.slice(8) : ""
+            const isToday = dateKey === today
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleDayClick(i, dateKey)}
+                className={cn(
+                  "flex flex-col items-center justify-center h-12 text-center transition-colors",
+                  isToday ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted/40",
                 )}
-                {!weekLoading && (
+              >
+                <span className="text-[10px] leading-tight font-medium">{day}</span>
+                <span className="text-xs font-semibold leading-tight tabular-nums mt-0.5">{dateNum || "—"}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ─── Date strip (mobile: aligned with 32px + 7×44px grid) ─── */}
+      <div className="md:hidden shrink-0 pb-1 overflow-x-auto scrollbar-none">
+        <div
+          className="grid select-none"
+          style={{ gridTemplateColumns: "32px repeat(7, minmax(44px, 1fr))", minWidth: "348px" }}
+        >
+          <div />
+          {DAY_SHORT.map((day, i) => {
+            const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
+            const dateNum = dateKey ? dateKey.slice(8) : ""
+            const isToday = dateKey === today
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleDayClick(i, dateKey)}
+                className={cn(
+                  "flex flex-col items-center justify-center h-12 text-center transition-colors",
+                  isToday ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted/40",
+                )}
+              >
+                <span className="text-[10px] leading-tight font-medium">{day}</span>
+                <span className="text-xs font-semibold leading-tight tabular-nums mt-0.5">{dateNum || "—"}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ─── Content area ─── */}
+      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4">
+        {/* Week view */}
+        {viewMode === "week" && (
+          <>
+            {weekLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+
+            {!weekLoading && weekError && !weekData && (
+              <div className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">{weekError}</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  请先导入课表（含学期开始日期），或在课程中填写"学期开始日期"。
+                </p>
+              </div>
+            )}
+
+            {!weekLoading && !weekError && !weekData && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                暂无课表数据
+              </p>
+            )}
+
+            {!weekLoading && weekData && (
+              <>
+                {/* Desktop: 7-column grid */}
+                <div className="hidden md:block overflow-x-auto">
                   <div
                     className="grid select-none"
-                    style={{ gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))", minWidth: "680px" }}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerLeave={handlePointerUp}
+                    style={{
+                      gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))",
+                      minWidth: "680px",
+                    }}
                   >
-                    {/* 表头：星期 + 日期 */}
-                    <div className="h-12 border-b border-border/40" />
-                    {DAY_LABELS.map((label, i) => {
-                      const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
-                      const isToday = dateKey === today
-                      return (
-                        <div
-                          key={label}
-                          className={cn(
-                            "flex h-12 flex-col items-center justify-center border-b border-border/40 text-xs",
-                            isToday ? "text-primary" : "text-foreground",
-                          )}
-                        >
-                          <span className="font-medium">{label}</span>
-                          {dateKey && (
-                            <span
-                              className={cn(
-                                "mt-0.5 text-[10px] tabular-nums",
-                                isToday
-                                  ? "rounded-full bg-primary px-1.5 text-primary-foreground"
-                                  : "text-muted-foreground/60",
-                              )}
-                            >
-                              {dateKey.slice(5).replace("-", "/")}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {/* 时间轴列 */}
-                    <div className="relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
-                      {Array.from({ length: TOTAL_HOURS }, (_, i) => (
-                        <div
-                          key={i}
-                          className="absolute right-1.5 text-[10px] text-muted-foreground/60 tabular-nums"
-                          style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
-                        >
-                          {i > 0 ? `${String(START_HOUR + i).padStart(2, "0")}:00` : ""}
-                        </div>
-                      ))}
+                    {/* Time axis column */}
+                    <div className="relative bg-card" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
+                      {Array.from({ length: TOTAL_HOURS }, (_, i) => {
+                        if (i === 0) return <div key={i} style={{ height: `${HOUR_HEIGHT}px` }} />
+                        return (
+                          <div
+                            key={i}
+                            className="absolute right-1.5 text-[10px] text-muted-foreground/70 tabular-nums"
+                            style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
+                          >
+                            {`${String(START_HOUR + i).padStart(2, "0")}:00`}
+                          </div>
+                        )
+                      })}
                     </div>
 
-                    {/* 每日列 */}
-                    {DAY_LABELS.map((_, dayIdx) => {
+                    {/* 7 day columns */}
+                    {Array.from({ length: 7 }, (_, dayIdx) => {
                       const dateKey = weekData ? dayCellKey(weekData.week_start_date, dayIdx) : ""
-                      const isToday = dateKey === today
-                      const dayItems = (weekData?.items ?? []).filter((it) => it.day_of_week === dayIdx + 1)
+                      const isTodayCol = dateKey === today
+                      const isSelCol = dayIdx === mobileDayIndex
+                      const dayItems = (weekData.items ?? []).filter(
+                        (it) => it.day_of_week === dayIdx + 1,
+                      )
                       return (
                         <div
                           key={dayIdx}
                           className={cn(
-                            "relative border-l border-border/20",
-                            isToday && "bg-primary/[0.04]",
+                            "relative border-l border-border/25",
+                            isTodayCol && "bg-primary/[0.04]",
+                            isSelCol && !isTodayCol && "bg-primary/[0.02]",
                           )}
                           style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}
                         >
-                          {/* 小时网格线 */}
+                          {/* Hour grid lines */}
                           {Array.from({ length: TOTAL_HOURS }, (_, i) => (
                             <div
                               key={i}
-                              className="absolute inset-x-0 border-t border-border/15"
+                              className="absolute inset-x-0 border-t border-border/25"
                               style={{ top: `${i * HOUR_HEIGHT}px` }}
                             />
                           ))}
 
-                          {/* 课程/考试块 */}
+                          {/* Course / exam blocks */}
                           {dayItems.map((item) => {
                             const startMin = timeToMinutes(item.start_time)
                             const endMin = timeToMinutes(item.end_time)
                             const top = minutesToTop(startMin)
-                            const height = Math.max(22, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+                            const height = Math.max(
+                              24,
+                              ((endMin - startMin) / 60) * HOUR_HEIGHT - 2,
+                            )
                             const isExam = item.kind === "exam"
+                            const dark = isDarkColor(item.color)
+
                             return (
                               <button
                                 key={`${item.kind}-${item.id}`}
                                 type="button"
                                 onClick={() => handleBlockClick(item)}
                                 className={cn(
-                                  "absolute left-0.5 right-0.5 overflow-hidden rounded-md px-1.5 py-1 text-left transition-all",
+                                  "absolute left-0.5 right-0.5 overflow-hidden rounded-lg px-2 py-1.5 text-left transition-all",
                                   "hover:z-20 hover:shadow-lg",
-                                  isExam ? "border-2 border-dashed cursor-default" : "cursor-pointer hover:brightness-105",
+                                  isExam
+                                    ? "border-2 border-dashed cursor-default"
+                                    : "cursor-pointer hover:brightness-105",
+                                  dark ? "text-white" : "text-foreground",
                                 )}
                                 style={{
                                   top: `${top}px`,
                                   height: `${height}px`,
-                                  backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
+                                  backgroundColor: isExam
+                                    ? hexToRgba(item.color, 0.16)
+                                    : item.color,
                                   borderColor: isExam ? item.color : undefined,
-                                  color: isExam ? item.color : contrastingTextColor(item.color),
                                 }}
                               >
                                 <div className="flex items-center gap-1">
-                                  {isExam && <GraduationCap className="h-3 w-3 shrink-0" />}
-                                  <span className="truncate text-[11px] font-medium leading-tight">
+                                  {isExam && (
+                                    <GraduationCap className="h-3 w-3 shrink-0" />
+                                  )}
+                                  <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
                                     {item.title}
                                   </span>
                                 </div>
-                                <div className="truncate text-[9px] leading-tight opacity-80">
-                                  {item.start_time}-{item.end_time}
+                                <div className="text-[9px] leading-tight opacity-70">
+                                  {item.start_time}
                                 </div>
                                 {item.location && (
-                                  <div className="truncate text-[9px] leading-tight opacity-70">
+                                  <div className="truncate text-[10px] leading-tight opacity-70">
                                     {item.location}
                                   </div>
                                 )}
@@ -672,172 +805,287 @@ export function CourseSchedule() {
                       )
                     })}
                   </div>
-                )}
-              </AcrylicPanel>
+                </div>
 
-              {/* 移动端单日列视图 */}
-              {!weekLoading && weekData && (
-                <AcrylicPanel className="md:hidden bg-card">
-                  {(() => {
-                    const dayItems = (weekData.items ?? []).filter((it) => it.day_of_week === mobileDayIndex + 1)
-                    return (
-                      <div className="select-none" style={{ minHeight: `${TOTAL_HOURS * HOUR_HEIGHT + 20}px` }}>
-                        {/* 时间轴列 + 当日列 */}
-                        <div className="relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
-                          {/* 时间轴 */}
+                {/* Mobile: scrollable 7-column week grid */}
+                <div className="md:hidden overflow-x-auto">
+                  <div
+                    className="grid select-none"
+                    style={{
+                      gridTemplateColumns: "32px repeat(7, minmax(44px, 1fr))",
+                      minWidth: "348px",
+                    }}
+                  >
+                    {/* Time axis column (sticky left) */}
+                    <div className="relative bg-card" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
+                      {Array.from({ length: TOTAL_HOURS }, (_, i) => {
+                        if (i === 0) return <div key={i} style={{ height: `${HOUR_HEIGHT}px` }} />
+                        return (
+                          <div
+                            key={i}
+                            className="absolute right-1 text-[9px] text-muted-foreground/70 tabular-nums"
+                            style={{ top: `${i * HOUR_HEIGHT - 5}px` }}
+                          >
+                            {`${String(START_HOUR + i).padStart(2, "0")}`}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* 7 day columns */}
+                    {Array.from({ length: 7 }, (_, dayIdx) => {
+                      const dateKey = weekData ? dayCellKey(weekData.week_start_date, dayIdx) : ""
+                      const isTodayCol = dateKey === today
+                      const isSelCol = dayIdx === mobileDayIndex
+                      const dayItems = (weekData.items ?? []).filter((it) => it.day_of_week === dayIdx + 1)
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={cn(
+                            "relative border-l border-border/25",
+                            isTodayCol && "bg-primary/[0.06]",
+                            isSelCol && "bg-primary/[0.03]",
+                          )}
+                          style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}
+                        >
+                          {/* Hour grid lines */}
                           {Array.from({ length: TOTAL_HOURS }, (_, i) => (
                             <div
                               key={i}
-                              className="absolute left-0 text-[10px] text-muted-foreground/60 tabular-nums w-10 text-right pr-2"
-                              style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
-                            >
-                              {i > 0 ? `${String(START_HOUR + i).padStart(2, "0")}:00` : ""}
-                            </div>
+                              className="absolute inset-x-0 border-t border-border/25"
+                              style={{ top: `${i * HOUR_HEIGHT}px` }}
+                            />
                           ))}
 
-                          {/* 当日内容区域 */}
-                          <div className="ml-12 relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
-                            {/* 小时网格线 */}
-                            {Array.from({ length: TOTAL_HOURS }, (_, i) => (
-                              <div
-                                key={i}
-                                className="absolute inset-x-0 border-t border-border/15"
-                                style={{ top: `${i * HOUR_HEIGHT}px` }}
-                              />
-                            ))}
+                          {/* Course / exam blocks */}
+                          {dayItems.map((item) => {
+                            const startMin = timeToMinutes(item.start_time)
+                            const endMin = timeToMinutes(item.end_time)
+                            const top = minutesToTop(startMin)
+                            const height = Math.max(26, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+                            const isExam = item.kind === "exam"
+                            const dark = isDarkColor(item.color)
 
-                            {/* 课程/考试块 */}
-                            {dayItems.map((item) => {
-                              const startMin = timeToMinutes(item.start_time)
-                              const endMin = timeToMinutes(item.end_time)
-                              const top = minutesToTop(startMin)
-                              const height = Math.max(28, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
-                              const isExam = item.kind === "exam"
-                              return (
-                                <button
-                                  key={`m-${item.kind}-${item.id}`}
-                                  type="button"
-                                  onClick={() => handleBlockClick(item)}
-                                  className={cn(
-                                    "absolute left-1 right-1 overflow-hidden rounded-md px-2 py-1.5 text-left transition-all active:brightness-90",
-                                    isExam ? "border-2 border-dashed" : "",
-                                  )}
-                                  style={{
-                                    top: `${top}px`,
-                                    height: `${height}px`,
-                                    backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
-                                    borderColor: isExam ? item.color : undefined,
-                                    color: isExam ? item.color : contrastingTextColor(item.color),
-                                  }}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    {isExam && <GraduationCap className="h-3 w-3 shrink-0" />}
-                                    <span className="truncate text-sm font-medium leading-tight">
-                                      {item.title}
-                                    </span>
-                                  </div>
-                                  <div className="truncate text-xs leading-tight opacity-80">
-                                    {item.start_time}-{item.end_time}
-                                  </div>
-                                  {item.location && (
-                                    <div className="truncate text-xs leading-tight opacity-70">
-                                      {item.location}
-                                    </div>
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
+                            return (
+                              <button
+                                key={`m-${item.kind}-${item.id}`}
+                                type="button"
+                                onClick={() => handleBlockClick(item)}
+                                className={cn(
+                                  "absolute left-px right-px overflow-hidden rounded-lg px-2 py-1.5 text-left transition-all active:brightness-90",
+                                  isExam ? "border border-dashed" : "",
+                                  dark ? "text-white" : "text-foreground",
+                                )}
+                                style={{
+                                  top: `${top}px`,
+                                  height: `${height}px`,
+                                  backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
+                                  borderColor: isExam ? item.color : undefined,
+                                }}
+                              >
+                                <span className="block line-clamp-2 text-[10px] font-semibold leading-tight">
+                                  {item.title}
+                                </span>
+                                <span className="block text-[9px] leading-tight opacity-65">
+                                  {item.start_time}
+                                </span>
+                              </button>
+                            )
+                          })}
                         </div>
-                      </div>
-                    )
-                  })()}
-                </AcrylicPanel>
-              )}
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
 
-              {/* 移动端空状态 */}
-              {!weekLoading && !weekData && (
-                <p className="md:hidden py-8 text-center text-sm text-muted-foreground">
-                  {weekError ?? "暂无课表数据"}
+        {/* List view (全部课程) */}
+        {viewMode === "list" && (
+          <>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+
+            {!loading && error && courses.length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">{error}</p>
+            )}
+
+            {!loading && courses.length === 0 && !error && (
+              <div className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">暂无课程</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  点击右下角 + 按钮创建第一个课程
                 </p>
+              </div>
+            )}
+
+            {!loading && courses.length > 0 && (
+              <div className="space-y-2 p-2">
+                {courses.map((course) => (
+                  <AcrylicPanel
+                    key={course.id}
+                    className="flex items-center gap-3 bg-card p-3 transition-all hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md"
+                  >
+                    <div
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: course.color }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {course.name}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          {DAY_LABELS[course.day_of_week - 1]} {course.start_time}-
+                          {course.end_time}
+                        </span>
+                        {course.week_pattern && (
+                          <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                            {course.week_pattern}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        {course.teacher && (
+                          <span className="text-xs text-muted-foreground">
+                            {course.teacher}
+                          </span>
+                        )}
+                        {course.location && (
+                          <span className="text-xs text-muted-foreground/60">
+                            {course.location}
+                          </span>
+                        )}
+                        {course.semester && (
+                          <span className="text-[10px] text-muted-foreground/50">
+                            {course.semester}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
+                        aria-label={`编辑课程 ${course.name}`}
+                        onClick={() => openEditForm(course)}
+                      >
+                        <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
+                        aria-label={`删除课程 ${course.name}`}
+                        onClick={() => void handleDelete(course.id)}
+                      >
+                        <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                      </Button>
+                    </div>
+                  </AcrylicPanel>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ─── FAB: Add course ─── */}
+      <button
+        type="button"
+        onClick={openCreateForm}
+        aria-label="添加课程"
+        className={cn(
+          "fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40",
+          "h-14 w-14 rounded-full",
+          "bg-primary text-primary-foreground",
+          "shadow-lg shadow-primary/25",
+          "flex items-center justify-center",
+          "transition-transform active:scale-95 hover:scale-105",
+        )}
+      >
+        <Plus className="h-5 w-5" />
+      </button>
+
+      {/* ─── Course Detail Modal ─── */}
+      <Modal
+        open={showDetail}
+        onOpenChange={setShowDetail}
+        title="课程详情"
+        className="max-w-sm"
+      >
+        {detailCourse && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div
+                className="h-4 w-4 shrink-0 rounded"
+                style={{ backgroundColor: detailCourse.color }}
+              />
+              <h3 className="text-lg font-semibold text-foreground">{detailCourse.name}</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-muted-foreground">时间</div>
+                <div className="mt-0.5 font-medium tabular-nums">
+                  {DAY_LABELS[detailCourse.day_of_week - 1]} {detailCourse.start_time}-{detailCourse.end_time}
+                </div>
+              </div>
+              {detailCourse.location && (
+                <div>
+                  <div className="text-xs text-muted-foreground">地点</div>
+                  <div className="mt-0.5 font-medium">{detailCourse.location}</div>
+                </div>
               )}
-            </>
-          )}
-        </>
-      )}
-
-      {/* 全部课程列表 */}
-      {viewMode === "list" && (
-        <>
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              {detailCourse.teacher && (
+                <div>
+                  <div className="text-xs text-muted-foreground">教师</div>
+                  <div className="mt-0.5 font-medium">{detailCourse.teacher}</div>
+                </div>
+              )}
+              <div>
+                <div className="text-xs text-muted-foreground">学期</div>
+                <div className="mt-0.5 font-medium">{detailCourse.semester || "—"}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-xs text-muted-foreground">周次</div>
+                <div className="mt-0.5 font-medium">{detailCourse.week_pattern || "每 周"}</div>
+              </div>
             </div>
-          )}
-
-          {!loading && error && courses.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">{error}</p>
-          )}
-
-          {!loading && courses.length === 0 && !error && (
-            <AcrylicPanel className="p-8 text-center">
-              <p className="text-sm text-muted-foreground">暂无课程</p>
-              <p className="mt-1 text-xs text-muted-foreground/60">点击"添加课程"按钮创建第一个课程</p>
-            </AcrylicPanel>
-          )}
-
-          {!loading && courses.length > 0 && (
-            <div className="space-y-2">
-              {courses.map((course) => (
-                <AcrylicPanel
-                  key={course.id}
-                  className="flex items-center gap-3 bg-card p-3 transition-all hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md"
-                >
-                  <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">{course.name}</span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {DAY_LABELS[course.day_of_week - 1]} {course.start_time}-{course.end_time}
-                      </span>
-                      {course.week_pattern && (
-                        <span className="shrink-0 text-[10px] text-muted-foreground/60">{course.week_pattern}</span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      {course.teacher && <span className="text-xs text-muted-foreground">{course.teacher}</span>}
-                      {course.location && <span className="text-xs text-muted-foreground/60">{course.location}</span>}
-                      {course.semester && <span className="text-[10px] text-muted-foreground/50">{course.semester}</span>}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
-                      aria-label={`编辑课程 ${course.name}`}
-                      onClick={() => openEditForm(course)}
-                    >
-                      <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
-                      aria-label={`删除课程 ${course.name}`}
-                      onClick={() => void handleDelete(course.id)}
-                    >
-                      <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                    </Button>
-                  </div>
-                </AcrylicPanel>
-              ))}
+            <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowDetail(false)
+                  openEditForm(detailCourse)
+                }}
+              >
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                编辑
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  setShowDetail(false)
+                  handleDelete(detailCourse.id)
+                }}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                删除
+              </Button>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        )}
+      </Modal>
 
-      {/* 课程编辑/新建模态 */}
+      {/* ─── Course Form Modal ─── */}
       <Modal
         open={showForm}
         onOpenChange={(open) => {
@@ -919,7 +1167,9 @@ export function CourseSchedule() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">学期开始日期</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              学期开始日期
+            </label>
             <input
               type="date"
               value={form.semester_start_date}
@@ -971,14 +1221,19 @@ export function CourseSchedule() {
           >
             取消
           </Button>
-          <Button type="button" size="sm" disabled={saving || !form.name.trim()} onClick={handleSave}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={saving || !form.name.trim()}
+            onClick={handleSave}
+          >
             <Save className="mr-1 h-3.5 w-3.5" />
             {saving ? "保存中..." : "保存"}
           </Button>
         </div>
       </Modal>
 
-      {/* 导入模态 */}
+      {/* ─── Import Modal ─── */}
       <Modal
         open={showImport}
         onOpenChange={(open) => {
@@ -1017,7 +1272,9 @@ export function CourseSchedule() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">学期开始日期</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                学期开始日期
+              </label>
               <input
                 type="date"
                 value={importStartDate}
@@ -1033,15 +1290,29 @@ export function CourseSchedule() {
           </div>
         </div>
 
-        {importError && <p className="mt-3 text-sm text-destructive">{importError}</p>}
-        {importFeedback && <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>}
+        {importError && (
+          <p className="mt-3 text-sm text-destructive">{importError}</p>
+        )}
+        {importFeedback && (
+          <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>
+        )}
 
         <div className="mt-4 flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => void handleReadClipboard()}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleReadClipboard()}
+          >
             <ClipboardPaste className="mr-1 h-3.5 w-3.5" />
             读取剪贴板
           </Button>
-          <Button type="button" size="sm" disabled={importing || !importText.trim()} onClick={() => void handleImport()}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={importing || !importText.trim()}
+            onClick={() => void handleImport()}
+          >
             <Upload className="mr-1 h-3.5 w-3.5" />
             {importing ? "导入中..." : "开始导入"}
           </Button>
