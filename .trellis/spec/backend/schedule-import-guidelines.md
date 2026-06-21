@@ -16,6 +16,7 @@
 - `commands::courses::import_courses_from_text(db, cmd: ImportCoursesCmd) -> Result<ImportTextResult, String>`
 - `commands::exams::import_exams_from_text(db, cmd: ImportExamsCmd) -> Result<ImportTextResult, String>`
 - `commands::schedule::get_week_schedule(db, cmd: WeekScheduleCmd) -> Result<WeekScheduleResponse, String>`
+- `commands::schedule::get_calendar_week(db, cmd: CalendarWeekCmd) -> Result<CalendarWeekResponse, String>`
 - Migration v3 `course_week_and_exam_range` adds:
   - `courses.week_pattern TEXT NOT NULL DEFAULT ''`
   - `courses.semester_start_date TEXT NOT NULL DEFAULT ''`
@@ -46,6 +47,15 @@
   - `start_time` and `end_time` as local `HH:mm`
   - `course_id: Some(course.id)` for courses, exam-linked course id for exams
   - `week_pattern` populated for courses and empty for exams
+- `CalendarWeekCmd` supports a date-first calendar query:
+  - `semester: String` filters courses only.
+  - `week_index: i64` remains accepted for semester-week compatibility.
+  - `semester_start_date: Option<String>` optionally anchors course week calculation.
+  - `week_start_date: Option<String>` optionally selects a real `YYYY-MM-DD` week for vacation and cross-semester browsing.
+- `CalendarWeekResponse.events[]` returns `kind: "course" | "exam" | "task"`.
+  - Courses follow semester and week-pattern rules.
+  - Exams are date-scoped calendar events and must not be dropped only because `exam.semester` is empty or differs from the current course semester.
+  - Tasks with `due_date` inside the week appear as all-day/date-level events.
 
 ### 4. Validation & Error Matrix
 
@@ -53,6 +63,7 @@
 - Exam text contains no recognizable exam rows -> `Err("未识别到可导入的考试...")`.
 - Exam time cannot parse as `YYYY-MM-DD HH:mm--HH:mm`, `YYYY-MM-DD HH:mm-HH:mm`, or full end datetime -> `Err("无法解析考试时间字段...")`.
 - `week_index < 1` -> `Err("week_index 必须大于等于 1")`.
+- Invalid `CalendarWeekCmd.week_start_date` -> `Err("无法解析周起始日期: ...")`.
 - No usable semester start date from command or course data -> `Err("缺少学期开始日期，无法计算周视图。")`.
 - Duplicate imported rows are not errors. They increment `ImportTextResult.skipped`.
 - SQLite failures are converted at the command boundary with `.map_err(|e| e.to_string())`.
@@ -80,6 +91,8 @@
 - Schedule tests:
   - odd/even/full week patterns match correctly.
   - weekly response includes both course and exam items for the target week.
+  - calendar response includes date-matching exams even when `exam.semester` is empty or differs from the selected course semester.
+  - calendar response can show vacation-week tasks/exams without repeating semester courses outside their week pattern.
 
 ### 7. Wrong vs Correct
 
