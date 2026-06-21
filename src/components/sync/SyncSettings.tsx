@@ -96,7 +96,7 @@ export function SyncSettings() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-md mx-auto animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <AcrylicPanel className="p-6">
+      <AcrylicPanel className="p-4 sm:p-6">
         <h2 className="text-lg font-heading font-medium text-foreground mb-4">
           WebDAV 同步设置
         </h2>
@@ -171,7 +171,7 @@ export function SyncSettings() {
         </div>
       </AcrylicPanel>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Button
           variant="outline"
           onClick={handleTestConnection}

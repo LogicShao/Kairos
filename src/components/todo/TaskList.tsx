@@ -119,7 +119,7 @@ export function TaskList() {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-heading font-medium text-foreground">
           待办事项
         </h2>
@@ -128,8 +128,8 @@ export function TaskList() {
           onClick={() => { setShowForm(true); setEditingTask(null) }}
           disabled={showForm}
         >
-          <Plus className="h-4 w-4 mr-1" />
-          新建
+          <Plus className="h-4 w-4 md:mr-1" />
+          <span className="hidden md:inline">新建</span>
         </Button>
       </div>
 
@@ -160,32 +160,32 @@ export function TaskList() {
         />
       </Modal>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div className="relative flex-1">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            className="w-full h-9 sm:h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-sm sm:text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           >
             <option value="">全部状态</option>
             <option value="todo">待办</option>
             <option value="in_progress">进行中</option>
             <option value="done">已完成</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 sm:h-3 w-3.5 sm:w-3 text-muted-foreground" />
         </div>
         <div className="relative flex-1">
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="w-full h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            className="w-full h-9 sm:h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-sm sm:text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           >
             <option value="">全部优先级</option>
             <option value="high">高</option>
             <option value="medium">中</option>
             <option value="low">低</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 sm:h-3 w-3.5 sm:w-3 text-muted-foreground" />
         </div>
       </div>
 
@@ -281,13 +281,13 @@ export function TaskList() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation()
                       void handleDelete(task.id)
                     }}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                   </Button>
                 </div>
               </AcrylicPanel>

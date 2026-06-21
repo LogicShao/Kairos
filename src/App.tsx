@@ -16,8 +16,8 @@ function App() {
       <AppBackground />
       <AppShell active={active} onNavigate={setActive}>
         {active === "pomodoro" && (
-          <div className="flex min-h-[70vh] items-center justify-center">
-            <AcrylicPanel className="w-full max-w-md p-8 animate-in fade-in-0 zoom-in-95 duration-300">
+          <div className="flex min-h-[60vh] md:min-h-[70vh] items-center justify-center">
+            <AcrylicPanel className="w-full max-w-md p-5 sm:p-8 animate-in fade-in-0 zoom-in-95 duration-300">
               <PomodoroTimer />
             </AcrylicPanel>
           </div>

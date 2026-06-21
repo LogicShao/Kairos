@@ -106,8 +106,8 @@ export function PomodoroTimer() {
   const isWork = state.phase === "work"
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <div className="relative w-72 h-72">
+    <div className="flex flex-col items-center gap-6 w-full">
+      <div className="relative w-64 h-64 md:w-72 md:h-72">
         <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90">
           <circle
             cx="150"
@@ -139,7 +139,7 @@ export function PomodoroTimer() {
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-5xl font-mono font-medium tabular-nums tracking-tight text-foreground">
+          <span className="text-4xl md:text-5xl font-mono font-medium tabular-nums tracking-tight text-foreground">
             {formatTime(state.remaining_seconds)}
           </span>
           <span
@@ -162,10 +162,10 @@ export function PomodoroTimer() {
         <p className="text-xs text-muted-foreground">{error}</p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-full justify-center">
         <Button
           size="icon-lg"
-          className="rounded-full shadow-lg shadow-primary/25"
+          className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0"
           onClick={handleStartPause}
           aria-label={state.is_running ? "暂停" : "开始"}
         >
@@ -174,7 +174,7 @@ export function PomodoroTimer() {
         <Button
           variant="ghost"
           size="icon"
-          className="rounded-full"
+          className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0"
           onClick={handleReset}
           aria-label="重置"
         >

@@ -240,16 +240,16 @@ export function ExamList() {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing}>
-            <ClipboardPaste className="mr-1 h-4 w-4" />
-            从剪贴板导入
+          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
+            <ClipboardPaste className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">从剪贴板导入</span>
           </Button>
-          <Button size="sm" onClick={openCreateForm}>
-            <Plus className="mr-1 h-4 w-4" />
-            添加考试
+          <Button size="sm" onClick={openCreateForm} className="px-2.5 sm:px-3">
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">添加考试</span>
           </Button>
         </div>
       </div>
@@ -508,16 +508,16 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
-            <Pencil className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
+            <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
             onClick={onDelete}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </Button>
         </div>
       </div>

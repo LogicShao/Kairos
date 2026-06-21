@@ -41,5 +41,17 @@ bump: ## Bump version (usage: make bump V=0.1.1)
 	sed -i 's/"version": "[^"]*"/"version": "$(V)"/' package.json
 	@echo "  ✓ bumped to $(V)"
 
+android-dev: ## Start Tauri Android dev (emulator / USB)
+	cargo tauri android dev
+
+android-build-debug: ## Android debug APK
+	cargo tauri android build --debug
+
+android-build: ## Android release build (AAB)
+	cargo tauri android build --release
+
+check-all: check ## Full check including Android target
+	$(CARGO) check --target aarch64-linux-android --manifest-path $(MANIFEST)
+
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'

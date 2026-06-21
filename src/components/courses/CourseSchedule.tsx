@@ -155,6 +155,7 @@ export function CourseSchedule() {
   const [weekLoading, setWeekLoading] = useState(false)
   const [weekError, setWeekError] = useState<string | null>(null)
   const [weekRefresh, setWeekRefresh] = useState(0)
+  const [mobileDayIndex, setMobileDayIndex] = useState(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1)
   const didAutoJumpRef = useRef(false)
 
   const [showForm, setShowForm] = useState(false)
@@ -378,6 +379,20 @@ export function CourseSchedule() {
     }
   }
 
+  function goPrevDay() {
+    setMobileDayIndex((d) => (d === 0 ? 6 : d - 1))
+  }
+
+  function goNextDay() {
+    setMobileDayIndex((d) => (d === 6 ? 0 : d + 1))
+  }
+
+  function goToday() {
+    const today = new Date().getDay()
+    setMobileDayIndex(today === 0 ? 6 : today - 1)
+    goCurrentWeek()
+  }
+
   function handlePointerDown(e: ReactPointerEvent) {
     dragStartRef.current = e.clientX
     dragDeltaRef.current = 0
@@ -455,13 +470,13 @@ export function CourseSchedule() {
             <ChevronRight className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rotate-90 text-muted-foreground" />
           </div>
 
-          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing}>
-            <ClipboardPaste className="h-4 w-4 mr-1" />
-            从剪贴板导入
+          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
+            <ClipboardPaste className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">从剪贴板导入</span>
           </Button>
-          <Button size="sm" onClick={openCreateForm}>
-            <Plus className="h-4 w-4 mr-1" />
-            添加课程
+          <Button size="sm" onClick={openCreateForm} className="px-2.5 sm:px-3">
+            <Plus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">添加课程</span>
           </Button>
         </div>
       </div>
@@ -491,6 +506,34 @@ export function CourseSchedule() {
             </div>
           </div>
 
+          {/* 移动端单日导航 */}
+          <div className="flex md:hidden items-center justify-between gap-2">
+            <Button size="icon-sm" variant="outline" onClick={goPrevDay} aria-label="前一天">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-center min-w-0">
+              <span className="text-sm font-medium text-foreground">
+                {DAY_LABELS[mobileDayIndex]}
+              </span>
+              {weekData && (
+                <span className="ml-2 text-xs text-muted-foreground tabular-nums">
+                  {dayCellKey(weekData.week_start_date, mobileDayIndex).slice(5).replace("-", "/")}
+                </span>
+              )}
+            </div>
+            <Button size="icon-sm" variant="outline" onClick={goNextDay} aria-label="后一天">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={goToday}
+              disabled={!weekData?.semester_start_date}
+            >
+              今天
+            </Button>
+          </div>
+
           {weekError ? (
             <AcrylicPanel className="p-8 text-center bg-card">
               <p className="text-sm text-muted-foreground">{weekError}</p>
@@ -499,135 +542,225 @@ export function CourseSchedule() {
               </p>
             </AcrylicPanel>
           ) : (
-            <AcrylicPanel className="bg-card overflow-x-auto">
-              {weekLoading && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              )}
-              {!weekLoading && (
-                <div
-                  className="grid select-none"
-                  style={{ gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))", minWidth: "680px" }}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
-                >
-                  {/* 表头：星期 + 日期 */}
-                  <div className="h-12 border-b border-border/40" />
-                  {DAY_LABELS.map((label, i) => {
-                    const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
-                    const isToday = dateKey === today
-                    return (
-                      <div
-                        key={label}
-                        className={cn(
-                          "flex h-12 flex-col items-center justify-center border-b border-border/40 text-xs",
-                          isToday ? "text-primary" : "text-foreground",
-                        )}
-                      >
-                        <span className="font-medium">{label}</span>
-                        {dateKey && (
-                          <span
-                            className={cn(
-                              "mt-0.5 text-[10px] tabular-nums",
-                              isToday
-                                ? "rounded-full bg-primary px-1.5 text-primary-foreground"
-                                : "text-muted-foreground/60",
-                            )}
-                          >
-                            {dateKey.slice(5).replace("-", "/")}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {/* 时间轴列 */}
-                  <div className="relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
-                    {Array.from({ length: TOTAL_HOURS }, (_, i) => (
-                      <div
-                        key={i}
-                        className="absolute right-1.5 text-[10px] text-muted-foreground/60 tabular-nums"
-                        style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
-                      >
-                        {i > 0 ? `${String(START_HOUR + i).padStart(2, "0")}:00` : ""}
-                      </div>
-                    ))}
+            <>
+              {/* 桌面端 7 列周视图 */}
+              <AcrylicPanel className="hidden md:block bg-card overflow-x-auto">
+                {weekLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   </div>
-
-                  {/* 每日列 */}
-                  {DAY_LABELS.map((_, dayIdx) => {
-                    const dateKey = weekData ? dayCellKey(weekData.week_start_date, dayIdx) : ""
-                    const isToday = dateKey === today
-                    const dayItems = (weekData?.items ?? []).filter((it) => it.day_of_week === dayIdx + 1)
-                    return (
-                      <div
-                        key={dayIdx}
-                        className={cn(
-                          "relative border-l border-border/20",
-                          isToday && "bg-primary/[0.04]",
-                        )}
-                        style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}
-                      >
-                        {/* 小时网格线 */}
-                        {Array.from({ length: TOTAL_HOURS }, (_, i) => (
-                          <div
-                            key={i}
-                            className="absolute inset-x-0 border-t border-border/15"
-                            style={{ top: `${i * HOUR_HEIGHT}px` }}
-                          />
-                        ))}
-
-                        {/* 课程/考试块 */}
-                        {dayItems.map((item) => {
-                          const startMin = timeToMinutes(item.start_time)
-                          const endMin = timeToMinutes(item.end_time)
-                          const top = minutesToTop(startMin)
-                          const height = Math.max(22, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
-                          const isExam = item.kind === "exam"
-                          return (
-                            <button
-                              key={`${item.kind}-${item.id}`}
-                              type="button"
-                              onClick={() => handleBlockClick(item)}
+                )}
+                {!weekLoading && (
+                  <div
+                    className="grid select-none"
+                    style={{ gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))", minWidth: "680px" }}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
+                  >
+                    {/* 表头：星期 + 日期 */}
+                    <div className="h-12 border-b border-border/40" />
+                    {DAY_LABELS.map((label, i) => {
+                      const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
+                      const isToday = dateKey === today
+                      return (
+                        <div
+                          key={label}
+                          className={cn(
+                            "flex h-12 flex-col items-center justify-center border-b border-border/40 text-xs",
+                            isToday ? "text-primary" : "text-foreground",
+                          )}
+                        >
+                          <span className="font-medium">{label}</span>
+                          {dateKey && (
+                            <span
                               className={cn(
-                                "absolute left-0.5 right-0.5 overflow-hidden rounded-md px-1.5 py-1 text-left transition-all",
-                                "hover:z-20 hover:shadow-lg",
-                                isExam ? "border-2 border-dashed cursor-default" : "cursor-pointer hover:brightness-105",
+                                "mt-0.5 text-[10px] tabular-nums",
+                                isToday
+                                  ? "rounded-full bg-primary px-1.5 text-primary-foreground"
+                                  : "text-muted-foreground/60",
                               )}
-                              style={{
-                                top: `${top}px`,
-                                height: `${height}px`,
-                                backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
-                                borderColor: isExam ? item.color : undefined,
-                                color: isExam ? item.color : contrastingTextColor(item.color),
-                              }}
                             >
-                              <div className="flex items-center gap-1">
-                                {isExam && <GraduationCap className="h-3 w-3 shrink-0" />}
-                                <span className="truncate text-[11px] font-medium leading-tight">
-                                  {item.title}
-                                </span>
-                              </div>
-                              <div className="truncate text-[9px] leading-tight opacity-80">
-                                {item.start_time}-{item.end_time}
-                              </div>
-                              {item.location && (
-                                <div className="truncate text-[9px] leading-tight opacity-70">
-                                  {item.location}
+                              {dateKey.slice(5).replace("-", "/")}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* 时间轴列 */}
+                    <div className="relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
+                      {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                        <div
+                          key={i}
+                          className="absolute right-1.5 text-[10px] text-muted-foreground/60 tabular-nums"
+                          style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
+                        >
+                          {i > 0 ? `${String(START_HOUR + i).padStart(2, "0")}:00` : ""}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 每日列 */}
+                    {DAY_LABELS.map((_, dayIdx) => {
+                      const dateKey = weekData ? dayCellKey(weekData.week_start_date, dayIdx) : ""
+                      const isToday = dateKey === today
+                      const dayItems = (weekData?.items ?? []).filter((it) => it.day_of_week === dayIdx + 1)
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={cn(
+                            "relative border-l border-border/20",
+                            isToday && "bg-primary/[0.04]",
+                          )}
+                          style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}
+                        >
+                          {/* 小时网格线 */}
+                          {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                            <div
+                              key={i}
+                              className="absolute inset-x-0 border-t border-border/15"
+                              style={{ top: `${i * HOUR_HEIGHT}px` }}
+                            />
+                          ))}
+
+                          {/* 课程/考试块 */}
+                          {dayItems.map((item) => {
+                            const startMin = timeToMinutes(item.start_time)
+                            const endMin = timeToMinutes(item.end_time)
+                            const top = minutesToTop(startMin)
+                            const height = Math.max(22, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+                            const isExam = item.kind === "exam"
+                            return (
+                              <button
+                                key={`${item.kind}-${item.id}`}
+                                type="button"
+                                onClick={() => handleBlockClick(item)}
+                                className={cn(
+                                  "absolute left-0.5 right-0.5 overflow-hidden rounded-md px-1.5 py-1 text-left transition-all",
+                                  "hover:z-20 hover:shadow-lg",
+                                  isExam ? "border-2 border-dashed cursor-default" : "cursor-pointer hover:brightness-105",
+                                )}
+                                style={{
+                                  top: `${top}px`,
+                                  height: `${height}px`,
+                                  backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
+                                  borderColor: isExam ? item.color : undefined,
+                                  color: isExam ? item.color : contrastingTextColor(item.color),
+                                }}
+                              >
+                                <div className="flex items-center gap-1">
+                                  {isExam && <GraduationCap className="h-3 w-3 shrink-0" />}
+                                  <span className="truncate text-[11px] font-medium leading-tight">
+                                    {item.title}
+                                  </span>
                                 </div>
-                              )}
-                            </button>
-                          )
-                        })}
+                                <div className="truncate text-[9px] leading-tight opacity-80">
+                                  {item.start_time}-{item.end_time}
+                                </div>
+                                {item.location && (
+                                  <div className="truncate text-[9px] leading-tight opacity-70">
+                                    {item.location}
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </AcrylicPanel>
+
+              {/* 移动端单日列视图 */}
+              {!weekLoading && weekData && (
+                <AcrylicPanel className="md:hidden bg-card">
+                  {(() => {
+                    const dayItems = (weekData.items ?? []).filter((it) => it.day_of_week === mobileDayIndex + 1)
+                    return (
+                      <div className="select-none" style={{ minHeight: `${TOTAL_HOURS * HOUR_HEIGHT + 20}px` }}>
+                        {/* 时间轴列 + 当日列 */}
+                        <div className="relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
+                          {/* 时间轴 */}
+                          {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                            <div
+                              key={i}
+                              className="absolute left-0 text-[10px] text-muted-foreground/60 tabular-nums w-10 text-right pr-2"
+                              style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
+                            >
+                              {i > 0 ? `${String(START_HOUR + i).padStart(2, "0")}:00` : ""}
+                            </div>
+                          ))}
+
+                          {/* 当日内容区域 */}
+                          <div className="ml-12 relative" style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}>
+                            {/* 小时网格线 */}
+                            {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                              <div
+                                key={i}
+                                className="absolute inset-x-0 border-t border-border/15"
+                                style={{ top: `${i * HOUR_HEIGHT}px` }}
+                              />
+                            ))}
+
+                            {/* 课程/考试块 */}
+                            {dayItems.map((item) => {
+                              const startMin = timeToMinutes(item.start_time)
+                              const endMin = timeToMinutes(item.end_time)
+                              const top = minutesToTop(startMin)
+                              const height = Math.max(28, ((endMin - startMin) / 60) * HOUR_HEIGHT - 2)
+                              const isExam = item.kind === "exam"
+                              return (
+                                <button
+                                  key={`m-${item.kind}-${item.id}`}
+                                  type="button"
+                                  onClick={() => handleBlockClick(item)}
+                                  className={cn(
+                                    "absolute left-1 right-1 overflow-hidden rounded-md px-2 py-1.5 text-left transition-all active:brightness-90",
+                                    isExam ? "border-2 border-dashed" : "",
+                                  )}
+                                  style={{
+                                    top: `${top}px`,
+                                    height: `${height}px`,
+                                    backgroundColor: isExam ? hexToRgba(item.color, 0.16) : item.color,
+                                    borderColor: isExam ? item.color : undefined,
+                                    color: isExam ? item.color : contrastingTextColor(item.color),
+                                  }}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    {isExam && <GraduationCap className="h-3 w-3 shrink-0" />}
+                                    <span className="truncate text-sm font-medium leading-tight">
+                                      {item.title}
+                                    </span>
+                                  </div>
+                                  <div className="truncate text-xs leading-tight opacity-80">
+                                    {item.start_time}-{item.end_time}
+                                  </div>
+                                  {item.location && (
+                                    <div className="truncate text-xs leading-tight opacity-70">
+                                      {item.location}
+                                    </div>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
                       </div>
                     )
-                  })}
-                </div>
+                  })()}
+                </AcrylicPanel>
               )}
-            </AcrylicPanel>
+
+              {/* 移动端空状态 */}
+              {!weekLoading && !weekData && (
+                <p className="md:hidden py-8 text-center text-sm text-muted-foreground">
+                  {weekError ?? "暂无课表数据"}
+                </p>
+              )}
+            </>
           )}
         </>
       )}
@@ -680,20 +813,20 @@ export function CourseSchedule() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
                       aria-label={`编辑课程 ${course.name}`}
                       onClick={() => openEditForm(course)}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
                       aria-label={`删除课程 ${course.name}`}
                       onClick={() => void handleDelete(course.id)}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                   </div>
                 </AcrylicPanel>
