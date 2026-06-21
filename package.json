@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "icons": "tauri icon public/app-icon-manifest.json",
     "tauri": "tauri"
   },
   "dependencies": {

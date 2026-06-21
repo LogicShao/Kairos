@@ -126,6 +126,15 @@ pub fn update_course(
 }
 
 #[tauri::command]
+pub fn reset_all_semester_start_dates(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    date: String,
+) -> Result<usize, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    crate::db::courses::update_all_semester_start_dates(&conn, &date).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn delete_course(db: State<'_, Arc<Mutex<Connection>>>, id: i64) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     crate::db::courses::delete_course(&conn, id).map_err(|e| e.to_string())

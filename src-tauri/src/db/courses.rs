@@ -111,6 +111,14 @@ pub fn update_course(conn: &Connection, id: i64, req: &UpdateCourseRequest) -> R
     Ok(())
 }
 
+pub fn update_all_semester_start_dates(conn: &Connection, date: &str) -> Result<usize> {
+    let count = conn.execute(
+        "UPDATE courses SET semester_start_date = ?1",
+        params![date],
+    )?;
+    Ok(count)
+}
+
 pub fn delete_course(conn: &Connection, id: i64) -> Result<()> {
     conn.execute("DELETE FROM courses WHERE id = ?1", params![id])?;
     Ok(())

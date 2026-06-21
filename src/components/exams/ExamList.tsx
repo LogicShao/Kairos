@@ -203,7 +203,13 @@ export function ExamList() {
   async function handleReadClipboard() {
     setImportError(null)
     try {
-      const text = await readText()
+      await new Promise((r) => setTimeout(r, 150))
+      let text: string
+      try {
+        text = await readText()
+      } catch {
+        text = await navigator.clipboard.readText()
+      }
       if (!text.trim()) {
         setImportError("剪贴板为空，请先从教务系统复制考试安排表格。")
         return

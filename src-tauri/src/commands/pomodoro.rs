@@ -1,10 +1,20 @@
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::db::models::{PomodoroConfig, UpdatePomodoroConfigRequest};
 use crate::timer::{PomodoroEngine, PomodoroState};
+
+/// Config shape without database `id`, for clean frontend interaction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PomodoroConfigData {
+    pub work_seconds: i64,
+    pub short_break_seconds: i64,
+    pub long_break_seconds: i64,
+    pub sessions_before_long_break: i64,
+}
 
 #[tauri::command]
 pub fn start_pomodoro(
@@ -45,7 +55,7 @@ pub fn get_pomodoro_state(
 pub fn update_pomodoro_config(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
     db: State<'_, Arc<Mutex<Connection>>>,
-    config: PomodoroConfig,
+    config: PomodoroConfigData,
 ) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     let req = UpdatePomodoroConfigRequest {
@@ -58,6 +68,26 @@ pub fn update_pomodoro_config(
     drop(conn);
 
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
-    eng.update_config(config);
+    eng.update_config(PomodoroConfig {
+        id: 1,
+        work_seconds: config.work_seconds,
+        short_break_seconds: config.short_break_seconds,
+        long_break_seconds: config.long_break_seconds,
+        sessions_before_long_break: config.sessions_before_long_break,
+    });
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_pomodoro_config(
+    db: State<'_, Arc<Mutex<Connection>>>,
+) -> Result<PomodoroConfigData, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let config = crate::db::pomodoro::get_config(&conn).map_err(|e| e.to_string())?;
+    Ok(PomodoroConfigData {
+        work_seconds: config.work_seconds,
+        short_break_seconds: config.short_break_seconds,
+        long_break_seconds: config.long_break_seconds,
+        sessions_before_long_break: config.sessions_before_long_break,
+    })
 }

@@ -54,7 +54,9 @@ pub fn build_week_schedule(
         .collect();
 
     let anchor = resolve_semester_start_date(&semester_courses, requested_semester_start_date)?;
-    let week_start = anchor + Duration::days((week_index - 1) * 7);
+    let raw_start = anchor + Duration::days((week_index - 1) * 7);
+    let days_from_monday = raw_start.weekday().num_days_from_monday() as i64;
+    let week_start = raw_start - Duration::days(days_from_monday);
     let week_end = week_start + Duration::days(6);
 
     let course_colors: HashMap<i64, String> = courses
@@ -227,8 +229,8 @@ mod tests {
         Exam {
             id: 10,
             course_name: "自动控制原理".to_string(),
-            exam_datetime: "2026-03-02T08:00:00Z".to_string(),
-            exam_end_datetime: "2026-03-02T10:00:00Z".to_string(),
+            exam_datetime: "2026-02-25T00:00:00Z".to_string(),
+            exam_end_datetime: "2026-02-25T02:00:00Z".to_string(),
             location: "天山堂A409".to_string(),
             notes: "正常考试".to_string(),
             course_id: Some(1),
@@ -257,7 +259,8 @@ mod tests {
         )
         .expect("build schedule");
 
-        assert_eq!(response.week_start_date, "2026-02-24");
+        // 2026-02-24 is Tuesday, so Monday of week 1 is 2026-02-23
+        assert_eq!(response.week_start_date, "2026-02-23");
         assert_eq!(response.items.len(), 2);
         assert_eq!(response.items[0].kind, "exam");
         assert_eq!(response.items[1].kind, "course");

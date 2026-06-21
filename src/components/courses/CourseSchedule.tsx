@@ -42,8 +42,6 @@ const COLOR_OPTIONS = [
   { value: "#D8E8D0", label: "嫩绿" },
 ]
 
-const SEMESTER_OPTIONS = ["2024S1", "2024S2", "2025S1", "2026S1"]
-
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number)
   return h * 60 + m
@@ -159,11 +157,12 @@ export function CourseSchedule() {
   const [viewMode, setViewMode] = useState<"week" | "list">("week")
   const [weekIndex, setWeekIndex] = useState(1)
   const [weekData, setWeekData] = useState<WeekScheduleResponse | null>(null)
-  const [weekLoading, setWeekLoading] = useState(false)
+  const [weekLoading, setWeekLoading] = useState(true)
   const [weekError, setWeekError] = useState<string | null>(null)
   const [weekRefresh, setWeekRefresh] = useState(0)
   const [mobileDayIndex, setMobileDayIndex] = useState(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1)
   const didAutoJumpRef = useRef(false)
+  const touchStartXRef = useRef(0)
 
   const [showForm, setShowForm] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
@@ -180,7 +179,9 @@ export function CourseSchedule() {
 
   const [showWeekPicker, setShowWeekPicker] = useState(false)
   const [showOverflowMenu, setShowOverflowMenu] = useState(false)
-  const [showSemesterSubmenu, setShowSemesterSubmenu] = useState(false)
+  const [showResetDate, setShowResetDate] = useState(false)
+  const [resetDate, setResetDate] = useState("")
+  const [resetting, setResetting] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const [detailCourse, setDetailCourse] = useState<Course | null>(null)
   const weekPickerRef = useRef<HTMLDivElement>(null)
@@ -357,7 +358,14 @@ export function CourseSchedule() {
   async function handleReadClipboard() {
     setImportError(null)
     try {
-      const text = await readText()
+      // 给 Android 一点时间完成剪贴板权限切换
+      await new Promise((r) => setTimeout(r, 150))
+      let text: string
+      try {
+        text = await readText()
+      } catch {
+        text = await navigator.clipboard.readText()
+      }
       if (!text.trim()) {
         setImportError("剪贴板为空，请先从教务系统复制课表表格。")
         return
@@ -427,6 +435,16 @@ export function CourseSchedule() {
     }
   }
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const delta = e.changedTouches[0].clientX - touchStartXRef.current
+    if (Math.abs(delta) < 50) return
+    if (delta > 0) handlePrevWeek()
+    else handleNextWeek()
+  }
+
   const handleBlockClick = (item: WeekScheduleItem) => {
     if (item.kind !== "course") return
     const course = courses.find((c) => c.id === item.id)
@@ -439,13 +457,21 @@ export function CourseSchedule() {
   const handleShowAllCourses = () => {
     setViewMode("list")
     setShowOverflowMenu(false)
-    setShowSemesterSubmenu(false)
   }
 
-  const handleSelectSemester = (semester: string) => {
-    setSemesterFilter(semester)
-    setShowOverflowMenu(false)
-    setShowSemesterSubmenu(false)
+  async function handleResetDate() {
+    if (!resetDate.trim()) return
+    setResetting(true)
+    try {
+      await invoke<number>("reset_all_semester_start_dates", { date: resetDate.trim() })
+      setShowResetDate(false)
+      setResetDate("")
+      refreshAll()
+    } catch (e) {
+      console.error("Failed to reset semester start dates:", e)
+    } finally {
+      setResetting(false)
+    }
   }
 
   const today = todayKey()
@@ -521,6 +547,20 @@ export function CourseSchedule() {
           <ChevronRight className="h-4 w-4" />
         </Button>
 
+        {!isCurrentWeek && currentWeek !== null && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setWeekIndex(currentWeek)
+              setViewMode("week")
+            }}
+            className="shrink-0 h-7 text-[11px] font-medium text-primary hover:bg-primary/10"
+          >
+            今天
+          </Button>
+        )}
+
         <div className="flex-1" />
 
         {/* Overflow menu */}
@@ -547,51 +587,17 @@ export function CourseSchedule() {
                 导入课表
               </button>
 
-              {/* 切换学期 submenu */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowSemesterSubmenu(!showSemesterSubmenu)}
-                  className={cn(
-                    "w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors flex items-center justify-between",
-                    showSemesterSubmenu && "bg-muted/60",
-                  )}
-                >
-                  切换学期
-                  <span className={cn("text-[10px] text-muted-foreground transition-transform", showSemesterSubmenu && "rotate-180")}>▼</span>
-                </button>
-                {showSemesterSubmenu && (
-                  <div className="ml-2 mt-0.5 space-y-0.5 border-l border-border/40 pl-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectSemester("")}
-                      className={cn(
-                        "w-full text-left rounded-md px-3 py-1.5 text-xs transition-colors",
-                        !semesterFilter
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground hover:bg-muted/60",
-                      )}
-                    >
-                      全部学期
-                    </button>
-                    {SEMESTER_OPTIONS.map((sem) => (
-                      <button
-                        key={sem}
-                        type="button"
-                        onClick={() => handleSelectSemester(sem)}
-                        className={cn(
-                          "w-full text-left rounded-md px-3 py-1.5 text-xs transition-colors",
-                          semesterFilter === sem
-                            ? "bg-primary text-primary-foreground"
-                            : "text-foreground hover:bg-muted/60",
-                        )}
-                      >
-                        {sem}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOverflowMenu(false)
+                  setResetDate(weekData?.semester_start_date ?? "")
+                  setShowResetDate(true)
+                }}
+                className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
+              >
+                重置学期起始日
+              </button>
 
               <button
                 type="button"
@@ -669,7 +675,7 @@ export function CourseSchedule() {
       </div>
 
       {/* ─── Content area ─── */}
-      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4">
+      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {/* Week view */}
         {viewMode === "week" && (
           <>
@@ -1315,6 +1321,52 @@ export function CourseSchedule() {
           >
             <Upload className="mr-1 h-3.5 w-3.5" />
             {importing ? "导入中..." : "开始导入"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* ─── Reset Semester Start Date Modal ─── */}
+      <Modal
+        open={showResetDate}
+        onOpenChange={(open) => {
+          setShowResetDate(open)
+          if (!open) setResetDate("")
+        }}
+        title="重置学期起始日"
+        description="将所有课程和考试的学期开始日期统一设置为指定日期，用于修正周课表计算。"
+        className="max-w-sm"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              学期开始日期 <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="date"
+              value={resetDate}
+              onChange={(e) => setResetDate(e.target.value)}
+              className={FIELD_CLASS}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowResetDate(false)}
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={resetting || !resetDate.trim()}
+            onClick={() => void handleResetDate()}
+          >
+            <Save className="mr-1 h-3.5 w-3.5" />
+            {resetting ? "保存中..." : "确认重置"}
           </Button>
         </div>
       </Modal>
