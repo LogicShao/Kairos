@@ -9,15 +9,16 @@ export interface AccentOption {
   value: AccentColor
   label: string
   swatchClass: string
+  swatchColor: string
 }
 
 export const ACCENT_OPTIONS: AccentOption[] = [
-  { value: "blue", label: "清蓝", swatchClass: "bg-sky-500" },
-  { value: "cyan", label: "湖青", swatchClass: "bg-cyan-500" },
-  { value: "emerald", label: "松绿", swatchClass: "bg-emerald-500" },
-  { value: "violet", label: "藤紫", swatchClass: "bg-violet-500" },
-  { value: "rose", label: "蔷薇", swatchClass: "bg-rose-500" },
-  { value: "amber", label: "琥珀", swatchClass: "bg-amber-500" },
+  { value: "blue", label: "清蓝", swatchClass: "bg-sky-500", swatchColor: "#0ea5e9" },
+  { value: "cyan", label: "湖青", swatchClass: "bg-cyan-500", swatchColor: "#06b6d4" },
+  { value: "emerald", label: "松绿", swatchClass: "bg-emerald-500", swatchColor: "#10b981" },
+  { value: "violet", label: "藤紫", swatchClass: "bg-violet-500", swatchColor: "#8b5cf6" },
+  { value: "rose", label: "蔷薇", swatchClass: "bg-rose-500", swatchColor: "#f43f5e" },
+  { value: "amber", label: "琥珀", swatchClass: "bg-amber-500", swatchColor: "#f59e0b" },
 ]
 
 function isAccentColor(value: string | null): value is AccentColor {

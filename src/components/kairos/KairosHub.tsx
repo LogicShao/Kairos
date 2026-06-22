@@ -126,11 +126,8 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
                     isActive && "border-primary bg-primary/10",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "flex h-6 w-6 items-center justify-center rounded-full text-white shadow-sm",
-                      option.swatchClass,
-                    )}
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full text-white shadow-sm"
+                    style={{ backgroundColor: option.swatchColor }}
                   >
                     {isActive && <Check className="h-3.5 w-3.5" />}
                   </span>
