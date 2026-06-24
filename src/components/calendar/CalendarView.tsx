@@ -281,7 +281,7 @@ function CalendarWeekTimetable({
   const timelineHeight = TOTAL_HOURS * HOUR_HEIGHT
 
   return (
-    <div className={cn("overflow-x-auto pb-4", compact ? "-mx-4 px-1" : "px-1")}>
+    <div className="overflow-x-auto px-1 pb-4">
       <div
         className={cn(
           "grid w-full select-none",
@@ -566,7 +566,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
   const selectedEvents = allEvents.filter((event) => event.day_of_week === selectedDayIndex + 1)
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
         <button
           type="button"
@@ -676,7 +676,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         {loading && (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />

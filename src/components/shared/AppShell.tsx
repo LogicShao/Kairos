@@ -115,7 +115,7 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
   return (
     <div className="relative z-0 flex flex-col h-screen overflow-hidden">
       {/* 主体：桌面侧边栏 + 内容区 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 桌面侧边栏：≥md 时显示 */}
         <aside className="hidden md:flex w-52 shrink-0 flex-col border-r border-border/50 bg-card/40 px-3 py-4 backdrop-blur-xl">
           <div className="flex items-center gap-2 px-2 pb-5">
@@ -168,9 +168,11 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
           </div>
         </aside>
 
-        {/* 内容区：底部在移动端留出 Tab Bar 空间 */}
-        <main className="flex flex-col flex-1 min-h-0 overflow-y-auto pb-16 md:pb-0">
-          <div className="flex flex-col flex-1 min-h-0 px-4 py-6 md:px-6 md:py-8">{children}</div>
+        {/* 内容区：底部 Tab Bar 是普通 flex 子项，不需要额外用 padding 抵消。 */}
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-0 pt-6 md:px-6 md:py-8">
+            {children}
+          </div>
         </main>
       </div>
 
