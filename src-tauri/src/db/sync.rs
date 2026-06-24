@@ -133,8 +133,7 @@ mod tests {
 
         let _ = get_sync_config(&conn).expect("Failed to get initial config");
 
-        update_last_sync_at(&conn, "2024-07-01T12:00:00Z")
-            .expect("Failed to update last_sync_at");
+        update_last_sync_at(&conn, "2024-07-01T12:00:00Z").expect("Failed to update last_sync_at");
 
         let config = get_sync_config(&conn).expect("Failed to get config");
         assert_eq!(config.last_sync_at.as_deref(), Some("2024-07-01T12:00:00Z"));

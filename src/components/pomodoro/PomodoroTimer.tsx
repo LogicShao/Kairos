@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
 import { Modal } from "@/components/shared/modal"
+import { PageShell } from "@/components/shared/page-shell"
+import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Play, Pause, RotateCcw, Settings } from "lucide-react"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
@@ -169,18 +171,22 @@ export function PomodoroTimer() {
   const offset = CIRCUMFERENCE * (1 - progress)
   const isWork = state.phase === "work"
 
+  const settingsButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0"
+      onClick={handleOpenSettings}
+      aria-label="番茄钟设置"
+    >
+      <Settings className="h-4 w-4" />
+    </Button>
+  )
+
   return (
-    <div className="flex flex-col items-center gap-6 w-full">
+    <PageShell title="专注" width="md" centered action={settingsButton}>
+      <AcrylicPanel className="w-full p-5 sm:p-8 flex flex-col items-center gap-6">
       <div className="relative w-64 h-64 md:w-72 md:h-72">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute -top-2 -right-2 z-10 rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0"
-          onClick={handleOpenSettings}
-          aria-label="番茄钟设置"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
         <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90">
           <circle
             cx="150"
@@ -309,6 +315,7 @@ export function PomodoroTimer() {
           </div>
         )}
       </Modal>
-    </div>
+      </AcrylicPanel>
+    </PageShell>
   )
 }

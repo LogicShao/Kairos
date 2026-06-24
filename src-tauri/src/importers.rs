@@ -101,14 +101,7 @@ fn parse_time_range(slot_text: &str) -> Option<(String, String)> {
     let normalized = slot_text.replace(char::is_whitespace, "");
 
     match normalized.as_str() {
-        "上午12节" => Some(("08:00".to_string(), "09:40".to_string())),
-        "上午34节" => Some(("10:00".to_string(), "11:40".to_string())),
-        "下午56节" => Some(("14:00".to_string(), "15:40".to_string())),
-        "下午78节" => Some(("16:00".to_string(), "17:40".to_string())),
-        "晚9-10节" => Some(("19:00".to_string(), "20:40".to_string())),
-        "晚9-11节" => Some(("19:00".to_string(), "21:30".to_string())),
         "中午第1节" => Some(("12:10".to_string(), "12:55".to_string())),
-        "下午5-7节" => Some(("14:00".to_string(), "16:25".to_string())),
         _ => {
             let (period, digits) = if let Some(rest) = normalized.strip_prefix("上午") {
                 ("上午", rest)
@@ -121,39 +114,64 @@ fn parse_time_range(slot_text: &str) -> Option<(String, String)> {
             };
 
             let digits = digits.strip_suffix('节')?;
-            let mut parts = digits.split('-');
-            let start_index = parts.next()?.parse::<i64>().ok()?;
-            let end_index = parts
-                .next()
-                .unwrap_or_default()
-                .parse::<i64>()
-                .ok()
-                .unwrap_or(start_index);
-
-            let start_minutes = lesson_index_to_minutes(period, start_index)?;
-            let end_minutes = lesson_index_to_minutes(period, end_index + 1)?;
-            if end_minutes <= start_minutes {
+            let digits = digits.strip_prefix('第').unwrap_or(digits);
+            let (start_index, end_index) = parse_lesson_index_range(digits)?;
+            if !lesson_matches_period(period, start_index)
+                || !lesson_matches_period(period, end_index)
+            {
                 return None;
             }
 
+            let (start_minutes, _) = lesson_index_to_minutes(start_index)?;
+            let (_, end_minutes) = lesson_index_to_minutes(end_index)?;
             Some((minutes_to_time(start_minutes), minutes_to_time(end_minutes)))
         }
     }
 }
 
-fn lesson_index_to_minutes(period: &str, index: i64) -> Option<i64> {
-    match (period, index) {
-        ("上午", 1) => Some(8 * 60),
-        ("上午", 2) => Some(8 * 60 + 50),
-        ("上午", 3) => Some(10 * 60),
-        ("上午", 4) => Some(10 * 60 + 50),
-        ("下午", 5) => Some(14 * 60),
-        ("下午", 6) => Some(14 * 60 + 50),
-        ("下午", 7) => Some(16 * 60),
-        ("下午", 8) => Some(16 * 60 + 50),
-        ("晚", 9) => Some(19 * 60),
-        ("晚", 10) => Some(19 * 60 + 50),
-        ("晚", 11) => Some(20 * 60 + 40),
+fn parse_lesson_index_range(digits: &str) -> Option<(i64, i64)> {
+    if let Some((start, end)) = digits.split_once('-') {
+        let start_index = start.parse::<i64>().ok()?;
+        let end_index = end.parse::<i64>().ok()?;
+        return (start_index <= end_index).then_some((start_index, end_index));
+    }
+
+    let single_index = digits.parse::<i64>().ok()?;
+    if lesson_index_to_minutes(single_index).is_some() {
+        return Some((single_index, single_index));
+    }
+
+    let mut chars = digits.chars();
+    let start_index = chars.next()?.to_digit(10)? as i64;
+    let end_index = chars.next()?.to_digit(10)? as i64;
+    if chars.next().is_some() || start_index > end_index {
+        return None;
+    }
+    Some((start_index, end_index))
+}
+
+fn lesson_matches_period(period: &str, index: i64) -> bool {
+    match period {
+        "上午" => (1..=4).contains(&index),
+        "下午" => (5..=8).contains(&index),
+        "晚" => (9..=11).contains(&index),
+        _ => false,
+    }
+}
+
+fn lesson_index_to_minutes(index: i64) -> Option<(i64, i64)> {
+    match index {
+        1 => Some((8 * 60 + 30, 9 * 60 + 15)),
+        2 => Some((9 * 60 + 25, 10 * 60 + 10)),
+        3 => Some((10 * 60 + 30, 11 * 60 + 15)),
+        4 => Some((11 * 60 + 25, 12 * 60 + 10)),
+        5 => Some((14 * 60 + 30, 15 * 60 + 15)),
+        6 => Some((15 * 60 + 25, 16 * 60 + 10)),
+        7 => Some((16 * 60 + 30, 17 * 60 + 15)),
+        8 => Some((17 * 60 + 25, 18 * 60 + 10)),
+        9 => Some((19 * 60, 19 * 60 + 45)),
+        10 => Some((19 * 60 + 55, 20 * 60 + 40)),
+        11 => Some((20 * 60 + 50, 21 * 60 + 35)),
         _ => None,
     }
 }
@@ -354,10 +372,61 @@ mod tests {
         assert_eq!(courses.len(), 2);
         assert_eq!(courses[0].name, "自动控制原理");
         assert_eq!(courses[0].week_pattern, "1-17周全周");
+        assert_eq!(courses[0].start_time, "10:30");
+        assert_eq!(courses[0].end_time, "12:10");
         assert_eq!(courses[0].semester_start_date, "2026-02-24");
         assert_eq!(courses[1].day_of_week, 2);
         assert_eq!(courses[1].start_time, "19:00");
         assert_eq!(courses[1].end_time, "20:40");
+    }
+
+    #[test]
+    fn test_parse_time_range_uses_school_lesson_times() {
+        let single_lessons = [
+            ("上午1节", "08:30", "09:15"),
+            ("上午2节", "09:25", "10:10"),
+            ("上午3节", "10:30", "11:15"),
+            ("上午4节", "11:25", "12:10"),
+            ("下午5节", "14:30", "15:15"),
+            ("下午6节", "15:25", "16:10"),
+            ("下午7节", "16:30", "17:15"),
+            ("下午8节", "17:25", "18:10"),
+            ("晚9节", "19:00", "19:45"),
+            ("晚10节", "19:55", "20:40"),
+            ("晚11节", "20:50", "21:35"),
+        ];
+
+        for (raw, start, end) in single_lessons {
+            assert_eq!(
+                parse_time_range(raw),
+                Some((start.to_string(), end.to_string()))
+            );
+        }
+
+        assert_eq!(
+            parse_time_range("上午12节"),
+            Some(("08:30".to_string(), "10:10".to_string()))
+        );
+        assert_eq!(
+            parse_time_range("上午34节"),
+            Some(("10:30".to_string(), "12:10".to_string()))
+        );
+        assert_eq!(
+            parse_time_range("下午56节"),
+            Some(("14:30".to_string(), "16:10".to_string()))
+        );
+        assert_eq!(
+            parse_time_range("下午78节"),
+            Some(("16:30".to_string(), "18:10".to_string()))
+        );
+        assert_eq!(
+            parse_time_range("下午5-7节"),
+            Some(("14:30".to_string(), "17:15".to_string()))
+        );
+        assert_eq!(
+            parse_time_range("晚9-11节"),
+            Some(("19:00".to_string(), "21:35".to_string()))
+        );
     }
 
     #[test]

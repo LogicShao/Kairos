@@ -134,23 +134,19 @@ impl PomodoroEngine {
             TimerPhase::Work => {
                 self.completed_sessions += 1;
 
-                let sessions_before_long =
-                    self.config.sessions_before_long_break.max(1) as u32;
+                let sessions_before_long = self.config.sessions_before_long_break.max(1) as u32;
 
                 if self.completed_sessions % sessions_before_long == 0 {
                     self.phase = TimerPhase::LongBreak;
-                    self.total_seconds =
-                        seconds_from_config(self.config.long_break_seconds);
+                    self.total_seconds = seconds_from_config(self.config.long_break_seconds);
                 } else {
                     self.phase = TimerPhase::ShortBreak;
-                    self.total_seconds =
-                        seconds_from_config(self.config.short_break_seconds);
+                    self.total_seconds = seconds_from_config(self.config.short_break_seconds);
                 }
             }
             TimerPhase::ShortBreak | TimerPhase::LongBreak => {
                 self.phase = TimerPhase::Work;
-                self.total_seconds =
-                    seconds_from_config(self.config.work_seconds);
+                self.total_seconds = seconds_from_config(self.config.work_seconds);
             }
         }
 

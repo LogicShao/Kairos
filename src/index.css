@@ -358,6 +358,17 @@
   html {
     @apply font-sans;
     }
+
+  /* 文本选区：使用项目 primary 色系，随主题色/深浅模式自动适配 */
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+  /* Firefox 旧版兼容 */
+  ::-moz-selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
 }
 
 /* 极光环境背景：为毛玻璃面板提供景深。亮/暗主题各一套。 */

@@ -15,6 +15,7 @@ import {
   Save,
   ClipboardPaste,
   Upload,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
@@ -117,8 +118,8 @@ function emptyForm(): CourseFormData {
   return {
     name: "",
     day_of_week: 1,
-    start_time: "08:00",
-    end_time: "09:40",
+    start_time: "08:30",
+    end_time: "10:10",
     week_pattern: "",
     semester_start_date: "",
     location: "",
@@ -143,7 +144,7 @@ function courseToForm(c: Course): CourseFormData {
   }
 }
 
-export function CourseSchedule() {
+export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => void }) {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -469,9 +470,17 @@ export function CourseSchedule() {
   const isCurrentWeek = currentWeek !== null && currentWeek === weekIndex
 
   return (
-    <div className="flex flex-col h-full">
-      {/* ─── Header: week nav + overflow ─── */}
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* ─── Header: back + week nav + overflow ─── */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => onNavigate("kairos")}
+          aria-label="返回"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <Button
           size="icon-sm"
           variant="ghost"
@@ -499,7 +508,7 @@ export function CourseSchedule() {
             {isCurrentWeek && (
               <span className="text-[11px] text-muted-foreground font-normal">(本周)</span>
             )}
-            <span className={cn("text-[10px] text-muted-foreground transition-transform", showWeekPicker && "rotate-180")}>▼</span>
+            <span className={cn("text-[10px] text-muted-foreground transition-transform ml-0.5", showWeekPicker && "rotate-180")}>▼</span>
           </button>
           {showWeekPicker && (
             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top">
@@ -622,7 +631,7 @@ export function CourseSchedule() {
                 onClick={() => handleDayClick(i, dateKey)}
                 className={cn(
                   "flex flex-col items-center justify-center h-12 text-center transition-colors",
-                  isToday ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted/40",
+                  isToday ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/40",
                 )}
               >
                 <span className="text-[10px] leading-tight font-medium">{day}</span>
@@ -633,11 +642,11 @@ export function CourseSchedule() {
         </div>
       </div>
 
-      {/* ─── Date strip (mobile: aligned with 32px + 7×44px grid) ─── */}
-      <div className="md:hidden shrink-0 pb-1 overflow-x-auto scrollbar-none">
+      {/* ─── Date strip (mobile: fit all seven days inside the viewport) ─── */}
+      <div className="-mx-4 md:hidden shrink-0 overflow-x-hidden px-2 pb-1">
         <div
-          className="grid select-none"
-          style={{ gridTemplateColumns: "32px repeat(7, minmax(44px, 1fr))", minWidth: "348px" }}
+          className="grid w-full select-none"
+          style={{ gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))" }}
         >
           <div />
           {DAY_SHORT.map((day, i) => {
@@ -651,7 +660,7 @@ export function CourseSchedule() {
                 onClick={() => handleDayClick(i, dateKey)}
                 className={cn(
                   "flex flex-col items-center justify-center h-12 text-center transition-colors",
-                  isToday ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted/40",
+                  isToday ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/40",
                 )}
               >
                 <span className="text-[10px] leading-tight font-medium">{day}</span>
@@ -663,7 +672,7 @@ export function CourseSchedule() {
       </div>
 
       {/* ─── Content area ─── */}
-      <div className="flex-1 overflow-y-auto min-h-0 pb-16 md:pb-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-4">
         {/* Week view */}
         {viewMode === "week" && (
           <>
@@ -706,7 +715,7 @@ export function CourseSchedule() {
                         return (
                           <div
                             key={i}
-                            className="absolute right-1.5 text-[10px] text-muted-foreground/70 tabular-nums"
+                            className="absolute right-1.5 text-[10px] text-muted-foreground tabular-nums"
                             style={{ top: `${i * HOUR_HEIGHT - 6}px` }}
                           >
                             {`${String(START_HOUR + i).padStart(2, "0")}:00`}
@@ -760,7 +769,7 @@ export function CourseSchedule() {
                                 type="button"
                                 onClick={() => handleBlockClick(item)}
                                 className={cn(
-                                  "absolute left-0.5 right-0.5 overflow-hidden rounded-lg px-2 py-1.5 text-left transition-all",
+                                  "absolute left-0.5 right-0.5 overflow-hidden rounded-lg px-1 py-px text-left transition-all flex flex-col justify-center",
                                   "hover:z-20 hover:shadow-lg",
                                   isExam
                                     ? "border-2 border-dashed cursor-default"
@@ -776,21 +785,14 @@ export function CourseSchedule() {
                                   borderColor: isExam ? item.color : undefined,
                                 }}
                               >
-                                <div className="flex items-center gap-1">
-                                  {isExam && (
-                                    <GraduationCap className="h-3 w-3 shrink-0" />
-                                  )}
-                                  <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
-                                    {item.title}
-                                  </span>
-                                </div>
-                                <div className="text-[9px] leading-tight opacity-70">
-                                  {item.start_time}
-                                </div>
-                                {item.location && (
-                                  <div className="truncate text-[10px] leading-tight opacity-70">
+                                <span className="truncate text-[11px] font-semibold leading-tight">
+                                  {isExam && <GraduationCap className="inline h-3 w-3 shrink-0 mr-0.5 -mt-px" />}
+                                  {item.title}
+                                </span>
+                                {item.location && height >= 40 && (
+                                  <span className="truncate text-[9px] leading-tight opacity-65">
                                     {item.location}
-                                  </div>
+                                  </span>
                                 )}
                               </button>
                             )
@@ -801,13 +803,12 @@ export function CourseSchedule() {
                   </div>
                 </div>
 
-                {/* Mobile: scrollable 7-column week grid */}
-                <div className="md:hidden overflow-x-auto">
+                {/* Mobile: fit all seven days inside the viewport */}
+                <div className="-mx-4 md:hidden overflow-x-hidden px-2">
                   <div
-                    className="grid select-none"
+                    className="grid w-full select-none"
                     style={{
-                      gridTemplateColumns: "32px repeat(7, minmax(44px, 1fr))",
-                      minWidth: "348px",
+                      gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))",
                     }}
                   >
                     {/* Time axis column (sticky left) */}
@@ -817,7 +818,7 @@ export function CourseSchedule() {
                         return (
                           <div
                             key={i}
-                            className="absolute right-1 text-[9px] text-muted-foreground/70 tabular-nums"
+                            className="absolute right-1 text-[9px] text-muted-foreground tabular-nums"
                             style={{ top: `${i * HOUR_HEIGHT - 5}px` }}
                           >
                             {`${String(START_HOUR + i).padStart(2, "0")}`}
@@ -866,7 +867,7 @@ export function CourseSchedule() {
                                 type="button"
                                 onClick={() => handleBlockClick(item)}
                                 className={cn(
-                                  "absolute left-px right-px overflow-hidden rounded-lg px-2 py-1.5 text-left transition-all active:brightness-90",
+                                  "absolute left-px right-px overflow-hidden rounded-lg px-1 py-px text-left transition-all active:brightness-90 flex items-center",
                                   isExam ? "border border-dashed" : "",
                                   dark ? "text-white" : "text-foreground",
                                 )}
@@ -877,11 +878,8 @@ export function CourseSchedule() {
                                   borderColor: isExam ? item.color : undefined,
                                 }}
                               >
-                                <span className="block line-clamp-2 text-[10px] font-semibold leading-tight">
+                                <span className="truncate text-[10px] font-semibold leading-tight w-full">
                                   {item.title}
-                                </span>
-                                <span className="block text-[9px] leading-tight opacity-65">
-                                  {item.start_time}
                                 </span>
                               </button>
                             )

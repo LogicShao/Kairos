@@ -19,6 +19,8 @@ const HOUR_HEIGHT = 44
 const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HOURS = END_HOUR - START_HOUR
+const COMPACT_TIME_AXIS_WIDTH = 28
+const COMPACT_DAY_MIN_WIDTH = 44
 
 type CalendarMode = "week" | "day"
 
@@ -274,13 +276,18 @@ function CalendarWeekTimetable({
   onEventClick,
 }: CalendarWeekTimetableProps) {
   const gridTemplateColumns = compact
-    ? "32px repeat(7, minmax(44px, 1fr))"
+    ? `${COMPACT_TIME_AXIS_WIDTH}px repeat(7, minmax(${COMPACT_DAY_MIN_WIDTH}px, 1fr))`
     : "48px repeat(7, minmax(0, 1fr))"
   const timelineHeight = TOTAL_HOURS * HOUR_HEIGHT
 
   return (
-    <div className="overflow-x-auto px-1 pb-4">
-      <div className={cn("grid select-none", compact ? "min-w-[348px]" : "min-w-[680px]")}>
+    <div className={cn("overflow-x-auto pb-4", compact ? "-mx-4 px-1" : "px-1")}>
+      <div
+        className={cn(
+          "grid w-full select-none",
+          compact ? "min-w-[336px]" : "min-w-[680px]",
+        )}
+      >
         <div className="grid" style={{ gridTemplateColumns }}>
           <div />
           {DAY_SHORT.map((day, dayIndex) => {
@@ -433,27 +440,34 @@ function CalendarWeekTimetable({
                       )}
                       style={blockStyle}
                     >
-                      <span className="flex items-center gap-1">
-                        <EventTypeIcon
-                          kind={event.kind}
-                          className={cn("shrink-0", compact ? "h-3 w-3" : "h-3.5 w-3.5")}
-                        />
-                        <span
-                          className={cn(
-                            "line-clamp-2 font-semibold leading-tight",
-                            compact ? "text-[10px]" : "text-[11px]",
+                      {compact ? (
+                        <span className="flex h-full min-w-0 flex-col justify-center">
+                          <span className="block truncate text-[10px] font-semibold leading-tight">
+                            {event.title}
+                          </span>
+                          {height >= 36 && (
+                            <span className="block truncate text-[9px] leading-tight opacity-70">
+                              {event.start_time}
+                            </span>
                           )}
-                        >
-                          {event.title}
                         </span>
-                      </span>
-                      <span className="block text-[9px] leading-tight opacity-70">
-                        {event.start_time}
-                      </span>
-                      {!compact && event.location && (
-                        <span className="block truncate text-[10px] leading-tight opacity-70">
-                          {event.location}
-                        </span>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <EventTypeIcon kind={event.kind} className="h-3.5 w-3.5 shrink-0" />
+                            <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
+                              {event.title}
+                            </span>
+                          </span>
+                          <span className="block text-[9px] leading-tight opacity-70">
+                            {event.start_time}
+                          </span>
+                          {event.location && (
+                            <span className="block truncate text-[10px] leading-tight opacity-70">
+                              {event.location}
+                            </span>
+                          )}
+                        </>
                       )}
                     </button>
                   )

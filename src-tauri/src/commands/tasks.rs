@@ -106,10 +106,7 @@ pub fn update_task(
 }
 
 #[tauri::command]
-pub fn delete_task(
-    db: State<'_, Arc<Mutex<Connection>>>,
-    id: i64,
-) -> Result<(), String> {
+pub fn delete_task(db: State<'_, Arc<Mutex<Connection>>>, id: i64) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     crate::db::tasks::delete_task(&conn, id).map_err(|e| e.to_string())
 }

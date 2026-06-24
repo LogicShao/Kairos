@@ -27,9 +27,9 @@ function App() {
         {active === "todo" && <TaskList />}
         {active === "calendar" && <CalendarView onNavigate={setActive} />}
         {active === "kairos" && <KairosHub onNavigate={setActive} />}
-        {active === "courses" && <CourseSchedule />}
-        {active === "exams" && <ExamList />}
-        {active === "sync" && <SyncSettings />}
+        {active === "courses" && <CourseSchedule onNavigate={setActive} />}
+        {active === "exams" && <ExamList onNavigate={setActive} />}
+        {active === "sync" && <SyncSettings onNavigate={setActive} />}
       </AppShell>
     </>
   )

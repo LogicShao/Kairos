@@ -587,7 +587,11 @@ mod tests {
         .expect("build calendar week");
 
         assert_eq!(response.week_start_date, "2026-02-23");
-        let task_events: Vec<_> = response.events.iter().filter(|e| e.kind == "task").collect();
+        let task_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
         assert_eq!(task_events.len(), 1);
         assert_eq!(task_events[0].title, "提交作业");
         assert_eq!(task_events[0].color, TASK_COLOR);
@@ -626,7 +630,11 @@ mod tests {
         )
         .expect("build calendar week");
 
-        let task_events: Vec<_> = response.events.iter().filter(|e| e.kind == "task").collect();
+        let task_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
         assert!(task_events.is_empty());
     }
 
@@ -655,16 +663,18 @@ mod tests {
         )
         .expect("build calendar week");
 
-        let task_events: Vec<_> = response.events.iter().filter(|e| e.kind == "task").collect();
+        let task_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
         assert!(task_events.is_empty());
     }
 
     #[test]
     fn test_build_calendar_week_without_semester_anchor_uses_current_week() {
         let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
-        let today = chrono::Utc::now()
-            .with_timezone(&china_offset)
-            .date_naive();
+        let today = chrono::Utc::now().with_timezone(&china_offset).date_naive();
         let monday = today - Duration::days(today.weekday().num_days_from_monday() as i64);
         let due_date = monday.format("%Y-%m-%d").to_string();
 
@@ -680,7 +690,11 @@ mod tests {
         .expect("build calendar week");
 
         assert_eq!(response.week_start_date, due_date);
-        let task_events: Vec<_> = response.events.iter().filter(|e| e.kind == "task").collect();
+        let task_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
         assert_eq!(task_events.len(), 1);
     }
 
@@ -700,8 +714,16 @@ mod tests {
         assert_eq!(response.week_start_date, "2026-07-20");
         assert!(response.week_index > 16);
 
-        let course_events: Vec<_> = response.events.iter().filter(|e| e.kind == "course").collect();
-        let task_events: Vec<_> = response.events.iter().filter(|e| e.kind == "task").collect();
+        let course_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "course")
+            .collect();
+        let task_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
         assert!(course_events.is_empty());
         assert_eq!(task_events.len(), 1);
         assert_eq!(task_events[0].title, "暑假读书计划");

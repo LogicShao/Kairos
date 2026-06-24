@@ -58,7 +58,7 @@ function NavButton({
         "md:flex-row md:gap-2.5 md:px-2.5 md:py-2 md:text-sm md:rounded-lg",
         active
           ? "text-primary bg-primary/10 md:bg-primary/[0.12]"
-          : "text-muted-foreground hover:text-foreground md:hover:bg-muted/60",
+          : "text-foreground/70 hover:text-foreground md:hover:bg-muted/60",
       )}
     >
       {logoSrc ? (
@@ -169,8 +169,8 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
         </aside>
 
         {/* 内容区：底部在移动端留出 Tab Bar 空间 */}
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-          <div className="min-h-full px-4 py-6 md:px-6 md:py-8">{children}</div>
+        <main className="flex flex-col flex-1 min-h-0 overflow-y-auto pb-16 md:pb-0">
+          <div className="flex flex-col flex-1 min-h-0 px-4 py-6 md:px-6 md:py-8">{children}</div>
         </main>
       </div>
 

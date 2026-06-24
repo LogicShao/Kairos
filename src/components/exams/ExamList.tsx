@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
-import { Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
 
 const FIELD_CLASS =
   "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
@@ -95,7 +95,7 @@ function formatDatetimeForInput(isoStr: string): string {
   return `${year}-${month}-${day}T${hour}:${min}`
 }
 
-export function ExamList() {
+export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) {
   const [exams, setExams] = useState<Exam[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -248,7 +248,12 @@ export function ExamList() {
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
+        <div className="flex items-center gap-1">
+          <Button size="icon-sm" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
+        </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
             <ClipboardPaste className="h-4 w-4 sm:mr-1" />

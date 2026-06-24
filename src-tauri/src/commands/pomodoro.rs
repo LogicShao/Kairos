@@ -17,27 +17,21 @@ pub struct PomodoroConfigData {
 }
 
 #[tauri::command]
-pub fn start_pomodoro(
-    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
-) -> Result<(), String> {
+pub fn start_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.start();
     Ok(())
 }
 
 #[tauri::command]
-pub fn pause_pomodoro(
-    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
-) -> Result<(), String> {
+pub fn pause_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.pause();
     Ok(())
 }
 
 #[tauri::command]
-pub fn reset_pomodoro(
-    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
-) -> Result<(), String> {
+pub fn reset_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.reset();
     Ok(())

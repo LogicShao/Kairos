@@ -47,8 +47,8 @@ android-dev: ## Start Tauri Android dev (emulator / USB)
 android-build-debug: ## Android debug APK
 	cargo tauri android build --debug
 
-android-build: ## Android release build (AAB)
-	cargo tauri android build --release
+android-build: ## Android release build (AAB + APK)
+	cargo tauri android build
 
 check-all: check ## Full check including Android target
 	$(CARGO) check --target aarch64-linux-android --manifest-path $(MANIFEST)

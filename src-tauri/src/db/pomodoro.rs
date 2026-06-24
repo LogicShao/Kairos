@@ -1,6 +1,8 @@
 use rusqlite::{params, Connection, Result};
 
-use super::models::{CreatePomodoroSessionRequest, PomodoroConfig, PomodoroSession, UpdatePomodoroConfigRequest};
+use super::models::{
+    CreatePomodoroSessionRequest, PomodoroConfig, PomodoroSession, UpdatePomodoroConfigRequest,
+};
 
 pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
     let result = conn.query_row(
@@ -181,7 +183,10 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, id);
         assert_eq!(sessions[0].session_type, "work");
-        assert_eq!(sessions[0].ended_at.as_deref(), Some("2024-06-01T10:25:00Z"));
+        assert_eq!(
+            sessions[0].ended_at.as_deref(),
+            Some("2024-06-01T10:25:00Z")
+        );
     }
 
     #[test]
@@ -216,8 +221,8 @@ mod tests {
             due_date: None,
             tags: String::from("[]"),
         };
-        let task_id = crate::db::tasks::create_task(&conn, &task_req)
-            .expect("Failed to create task");
+        let task_id =
+            crate::db::tasks::create_task(&conn, &task_req).expect("Failed to create task");
 
         let req1 = CreatePomodoroSessionRequest {
             started_at: "2024-06-01T10:00:00Z".to_string(),

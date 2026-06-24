@@ -47,7 +47,14 @@ pub fn get_all_tasks(
     sort_by: &str,
     sort_order: &str,
 ) -> Result<Vec<Task>> {
-    let allowed_sort_columns = ["title", "status", "priority", "due_date", "created_at", "updated_at"];
+    let allowed_sort_columns = [
+        "title",
+        "status",
+        "priority",
+        "due_date",
+        "created_at",
+        "updated_at",
+    ];
     let sort_column = if allowed_sort_columns.contains(&sort_by) {
         sort_by
     } else {
@@ -76,7 +83,8 @@ pub fn get_all_tasks(
 
     sql.push_str(&format!(" ORDER BY {} {}", sort_column, order));
 
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+        params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
         Ok(Task {
@@ -253,8 +261,8 @@ mod tests {
     #[test]
     fn test_get_all_tasks_empty() {
         let conn = setup_db();
-        let tasks = get_all_tasks(&conn, None, None, "created_at", "DESC")
-            .expect("Failed to get tasks");
+        let tasks =
+            get_all_tasks(&conn, None, None, "created_at", "DESC").expect("Failed to get tasks");
         assert!(tasks.is_empty());
     }
 
@@ -281,13 +289,11 @@ mod tests {
         create_task(&conn, &t1).expect("Failed to create t1");
         create_task(&conn, &t2).expect("Failed to create t2");
 
-        let asc = get_all_tasks(&conn, None, None, "title", "ASC")
-            .expect("Failed to sort ASC");
+        let asc = get_all_tasks(&conn, None, None, "title", "ASC").expect("Failed to sort ASC");
         assert_eq!(asc[0].title, "A");
         assert_eq!(asc[1].title, "Z");
 
-        let desc = get_all_tasks(&conn, None, None, "title", "DESC")
-            .expect("Failed to sort DESC");
+        let desc = get_all_tasks(&conn, None, None, "title", "DESC").expect("Failed to sort DESC");
         assert_eq!(desc[0].title, "Z");
         assert_eq!(desc[1].title, "A");
     }

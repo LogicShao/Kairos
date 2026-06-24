@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { RefreshCw, Check, X } from "lucide-react"
+import { ArrowLeft, RefreshCw, Check, X } from "lucide-react"
 import type { SyncConfig, SyncResult } from "@/types/sync"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -17,7 +17,7 @@ function inputClass(hasError: boolean): string {
   )
 }
 
-export function SyncSettings() {
+export function SyncSettings({ onNavigate }: { onNavigate: (key: string) => void }) {
   const [config, setConfig] = useState<SyncConfig | null>(null)
   const [serverUrl, setServerUrl] = useState("")
   const [username, setUsername] = useState("")
@@ -97,6 +97,12 @@ export function SyncSettings() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-md mx-auto mt-4 md:mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+      <div className="flex items-center gap-1 mb-2">
+        <Button size="icon-sm" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-lg font-semibold text-foreground">Kairos Hub</h2>
+      </div>
       <AcrylicPanel className="p-4 sm:p-6 border-primary/15">
         <h2 className="text-lg font-semibold text-foreground mb-4">
           WebDAV 同步设置

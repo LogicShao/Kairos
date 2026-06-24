@@ -7,9 +7,7 @@ use crate::db::models::SyncConfig;
 use crate::sync::exporter::{SyncResult, SyncStats};
 
 #[tauri::command]
-pub fn get_sync_config(
-    db: State<'_, Arc<Mutex<Connection>>>,
-) -> Result<SyncConfig, String> {
+pub fn get_sync_config(db: State<'_, Arc<Mutex<Connection>>>) -> Result<SyncConfig, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     crate::db::sync::get_sync_config(&conn).map_err(|e| e.to_string())
 }
@@ -24,9 +22,7 @@ pub fn update_sync_config(
 }
 
 #[tauri::command]
-pub fn test_sync_connection(
-    db: State<'_, Arc<Mutex<Connection>>>,
-) -> Result<bool, String> {
+pub fn test_sync_connection(db: State<'_, Arc<Mutex<Connection>>>) -> Result<bool, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     let config = crate::db::sync::get_sync_config(&conn).map_err(|e| e.to_string())?;
 
@@ -44,9 +40,7 @@ pub fn test_sync_connection(
 }
 
 #[tauri::command]
-pub fn sync_now(
-    db: State<'_, Arc<Mutex<Connection>>>,
-) -> Result<SyncResult, String> {
+pub fn sync_now(db: State<'_, Arc<Mutex<Connection>>>) -> Result<SyncResult, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     let config = crate::db::sync::get_sync_config(&conn).map_err(|e| e.to_string())?;
 
@@ -77,15 +71,13 @@ pub fn sync_now(
         }
     };
 
-    let local_data =
-        crate::sync::exporter::export_all(&conn).map_err(|e| e.to_string())?;
+    let local_data = crate::sync::exporter::export_all(&conn).map_err(|e| e.to_string())?;
 
     let stats = if let Some(remote) = remote_data {
         let merged_stats =
             crate::sync::exporter::import_all(&conn, &remote).map_err(|e| e.to_string())?;
 
-        let merged_local =
-            crate::sync::exporter::export_all(&conn).map_err(|e| e.to_string())?;
+        let merged_local = crate::sync::exporter::export_all(&conn).map_err(|e| e.to_string())?;
 
         client
             .upload(&merged_local)

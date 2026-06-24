@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
+import { PageShell } from "@/components/shared/page-shell"
 import { cn } from "@/lib/utils"
 import { Calendar, Circle, CircleDot, CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react"
 
@@ -117,22 +118,19 @@ export function TaskList() {
     )
   }
 
-  return (
-    <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-heading font-medium text-foreground">
-          待办事项
-        </h2>
-        <Button
-          size="sm"
-          onClick={() => { setShowForm(true); setEditingTask(null) }}
-          disabled={showForm}
-        >
-          <Plus className="h-4 w-4 md:mr-1" />
-          <span className="hidden md:inline">新建</span>
-        </Button>
-      </div>
+  const addButton = (
+    <Button
+      size="sm"
+      onClick={() => { setShowForm(true); setEditingTask(null) }}
+      disabled={showForm}
+    >
+      <Plus className="h-4 w-4 md:mr-1" />
+      <span className="hidden md:inline">新建</span>
+    </Button>
+  )
 
+  return (
+    <PageShell title="待办事项" width="2xl" action={addButton}>
       <Modal
         open={showForm || editingTask !== null}
         onOpenChange={(open) => {
@@ -295,6 +293,6 @@ export function TaskList() {
           })}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }
