@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "icons": "tauri icon public/app-icon-manifest.json",
     "tauri": "tauri",
-    "android:dev": "bash scripts/android-debug.sh"
+    "android:dev": "bash scripts/android-hmr.sh",
+    "android:install-debug": "bash scripts/android-debug.sh"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.74.1",

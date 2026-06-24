@@ -6,6 +6,7 @@ MUMU_PORT="127.0.0.1:16416"
 FRONTEND_PORT=5173
 PACKAGE_NAME="com.kairos.app.debug"
 APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+DEV_URL="http://127.0.0.1:${FRONTEND_PORT}"
 
 # --rebuild: 强制重新构建 APK
 REBUILD=false
@@ -47,17 +48,18 @@ done
 echo "=== 3. 构建 debug APK ==="
 if [ "$REBUILD" = true ] || [ ! -f "$APK_PATH" ]; then
   echo "  构建中... (使用 --rebuild 强制重建)"
-  npx tauri android build --debug
+  npx tauri android build --debug --config "{\"build\":{\"devUrl\":\"${DEV_URL}\"}}"
   echo "  ✓ $APK_PATH"
 else
   echo "  使用现有 APK (加 --rebuild 强制重建)"
   echo "  $APK_PATH"
+  echo "  注意: 现有 APK 如果仍请求局域网 IP，请加 --rebuild 重新生成 devUrl。"
 fi
 
 # 4. 端口转发
 echo "=== 4. adb reverse ($FRONTEND_PORT) ==="
 "$ADB" -s "$MUMU_PORT" reverse tcp:$FRONTEND_PORT tcp:$FRONTEND_PORT
-echo "  ✓ 已设置"
+echo "  ✓ 已设置: Android $DEV_URL -> 开发机 localhost:$FRONTEND_PORT"
 
 # 5. 安装
 echo "=== 5. 安装 APK ==="
