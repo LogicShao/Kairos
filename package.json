@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "icons": "tauri icon public/app-icon-manifest.json",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "android:dev": "bash scripts/android-debug.sh"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.74.1",
