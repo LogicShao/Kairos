@@ -470,7 +470,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
   const isCurrentWeek = currentWeek !== null && currentWeek === weekIndex
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* ─── Header: back + week nav + overflow ─── */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0">
         <Button
@@ -643,7 +643,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       </div>
 
       {/* ─── Date strip (mobile: fit all seven days inside the viewport) ─── */}
-      <div className="-mx-4 md:hidden shrink-0 overflow-x-hidden px-2 pb-1">
+      <div className="shrink-0 overflow-x-hidden pb-1 md:hidden">
         <div
           className="grid w-full select-none"
           style={{ gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))" }}
@@ -672,7 +672,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       </div>
 
       {/* ─── Content area ─── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-0 md:pb-4">
         {/* Week view */}
         {viewMode === "week" && (
           <>
@@ -804,7 +804,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                 </div>
 
                 {/* Mobile: fit all seven days inside the viewport */}
-                <div className="-mx-4 md:hidden overflow-x-hidden px-2">
+                <div className="overflow-x-hidden md:hidden">
                   <div
                     className="grid w-full select-none"
                     style={{

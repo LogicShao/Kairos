@@ -20,7 +20,6 @@ const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HOURS = END_HOUR - START_HOUR
 const COMPACT_TIME_AXIS_WIDTH = 28
-const COMPACT_DAY_MIN_WIDTH = 44
 
 type CalendarMode = "week" | "day"
 
@@ -276,16 +275,16 @@ function CalendarWeekTimetable({
   onEventClick,
 }: CalendarWeekTimetableProps) {
   const gridTemplateColumns = compact
-    ? `${COMPACT_TIME_AXIS_WIDTH}px repeat(7, minmax(${COMPACT_DAY_MIN_WIDTH}px, 1fr))`
+    ? `${COMPACT_TIME_AXIS_WIDTH}px repeat(7, minmax(0, 1fr))`
     : "48px repeat(7, minmax(0, 1fr))"
   const timelineHeight = TOTAL_HOURS * HOUR_HEIGHT
 
   return (
-    <div className="overflow-x-auto px-1 pb-4">
+    <div className={cn(compact ? "overflow-x-hidden pb-4" : "overflow-x-auto px-1 pb-4")}>
       <div
         className={cn(
           "grid w-full select-none",
-          compact ? "min-w-[336px]" : "min-w-[680px]",
+          compact ? "min-w-0" : "min-w-[680px]",
         )}
       >
         <div className="grid" style={{ gridTemplateColumns }}>
@@ -301,7 +300,7 @@ function CalendarWeekTimetable({
                 type="button"
                 onClick={() => onDayClick(dayIndex)}
                 className={cn(
-                  "flex h-12 min-w-11 flex-col items-center justify-center text-center transition-colors",
+                  "flex h-12 min-w-0 flex-col items-center justify-center text-center transition-colors",
                   isToday
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : dayIndex === selectedDayIndex
@@ -317,8 +316,11 @@ function CalendarWeekTimetable({
             )
           })}
 
-          <div className="border-y border-border/35 bg-card px-1.5 py-2 text-[10px] font-medium text-muted-foreground">
-            截止
+          <div className={cn(
+            "border-y border-border/35 bg-card text-[10px] font-medium text-muted-foreground",
+            compact ? "px-1 py-2 text-center" : "px-1.5 py-2",
+          )}>
+            {compact ? "截" : "截止"}
           </div>
           {DAY_SHORT.map((day, dayIndex) => {
             const dateKey = dayCellKey(weekData.week_start_date, dayIndex)

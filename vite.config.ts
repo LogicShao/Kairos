@@ -12,9 +12,15 @@ export default defineConfig({
   },
   clearScreen: false,
   server: {
-    host: "0.0.0.0",
+    host: process.env.TAURI_DEV_HOST ?? process.env.VITE_DEV_HOST ?? "127.0.0.1",
     port: 5173,
     strictPort: true,
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      ...(process.env.TAURI_DEV_HOST ? [process.env.TAURI_DEV_HOST] : []),
+      ...(process.env.VITE_DEV_HOST ? [process.env.VITE_DEV_HOST] : []),
+    ],
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {

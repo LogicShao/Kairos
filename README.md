@@ -95,6 +95,27 @@ npm run build
 npm run icons
 ```
 
+### Android 开发模式
+
+默认使用 USB/模拟器端口反向代理，Android 端访问 `127.0.0.1:5173`，不依赖局域网 IP：
+
+```bash
+npm run android:dev
+```
+
+如果使用真机局域网调试，需要显式指定电脑在同一网络下的 IP，并确认防火墙放行 TCP 5173：
+
+```bash
+npm run android:dev -- --host 172.20.199.104
+```
+
+安装已有 debug APK 到 MuMu 并设置端口反向代理：
+
+```bash
+npm run android:install-debug
+npm run android:install-debug -- --rebuild
+```
+
 ## 架构说明
 
 ```text

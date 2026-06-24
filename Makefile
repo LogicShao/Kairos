@@ -42,10 +42,10 @@ bump: ## Bump version (usage: make bump V=0.1.1)
 	@echo "  ✓ bumped to $(V)"
 
 android-dev: ## Start Tauri Android dev (emulator / USB)
-	cargo tauri android dev
+	npm run android:dev
 
 android-build-debug: ## Android debug APK
-	cargo tauri android build --debug
+	npm run android:install-debug -- --rebuild
 
 android-build: ## Android release build (AAB + APK)
 	cargo tauri android build
