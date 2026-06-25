@@ -5,6 +5,9 @@ export interface SyncConfig {
   password: string
   auto_sync: boolean
   last_sync_at: string | null
+  remote_etag: string | null
+  device_id: string | null
+  dataset_id: string | null
 }
 
 export interface SyncStats {

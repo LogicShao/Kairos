@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
 
+interface SyncSettingsProps {
+  onNavigate: (key: string) => void
+}
+
 function inputClass(hasError: boolean): string {
   return cn(
     "w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm outline-none transition-colors",
@@ -17,7 +21,7 @@ function inputClass(hasError: boolean): string {
   )
 }
 
-export function SyncSettings({ onNavigate }: { onNavigate: (key: string) => void }) {
+export function SyncSettings({ onNavigate }: SyncSettingsProps) {
   const [config, setConfig] = useState<SyncConfig | null>(null)
   const [serverUrl, setServerUrl] = useState("")
   const [username, setUsername] = useState("")
@@ -96,158 +100,172 @@ export function SyncSettings({ onNavigate }: { onNavigate: (key: string) => void
   const passwordMasked = showPassword ? "●".repeat(Math.min(password.length, 12)) : ""
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-md mx-auto mt-4 md:mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center gap-1 mb-2">
-        <Button size="icon-sm" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold text-foreground">Kairos Hub</h2>
-      </div>
-      <AcrylicPanel className="p-4 sm:p-6 border-primary/15">
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          WebDAV 同步设置
-        </h2>
-
-        <div className="flex flex-col gap-4">
-          <div className="mb-3">
-            <label className="block text-sm text-muted-foreground mb-0.5">
-              服务器地址
-            </label>
-            <input
-              type="text"
-              className={inputClass(false)}
-              placeholder="webdav.example.com"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              onBlur={saveConfig}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="block text-sm text-muted-foreground mb-0.5">
-              用户名
-            </label>
-            <input
-              type="text"
-              className={inputClass(false)}
-              placeholder="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onBlur={saveConfig}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="block text-sm text-muted-foreground mb-0.5">
-              密码
-            </label>
-            <input
-              type="password"
-              className={inputClass(false)}
-              placeholder={passwordMasked || "••••••••"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onBlur={saveConfig}
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-sm text-muted-foreground">自动同步</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoSync}
-              onClick={() => {
-                setAutoSync(!autoSync)
-                setTimeout(saveConfig, 0)
-              }}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                autoSync ? "bg-primary" : "bg-muted-foreground/25",
-              )}
-            >
-              <span
-                className={cn(
-                  "pointer-events-none block h-5 w-5 rounded-full bg-card shadow-sm ring-0 transition-transform",
-                  autoSync ? "translate-x-5" : "translate-x-0",
-                )}
-              />
-            </button>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <Button
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={testStatus === "loading" || !serverUrl}
-              className="flex-1 border-primary/40 text-primary hover:bg-primary/5 min-h-11 md:min-h-0"
-            >
-              {testStatus === "loading" ? (
-                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-              ) : testStatus === "ok" ? (
-                <Check className="h-4 w-4 mr-1 text-emerald-400" />
-              ) : testStatus === "fail" ? (
-                <X className="h-4 w-4 mr-1 text-destructive" />
-              ) : null}
-              测试连接
-            </Button>
-
-            <Button
-              onClick={handleSyncNow}
-              disabled={syncStatus === "loading" || !serverUrl}
-              className="flex-1 min-h-11 md:min-h-0"
-            >
-              {syncStatus === "loading" ? (
-                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-              ) : null}
-              立即同步
-            </Button>
-          </div>
-        </div>
-      </AcrylicPanel>
-
-      {testMessage && (
-        <p
-          className={cn(
-            "text-sm text-center",
-            testStatus === "ok" ? "text-emerald-400" : "text-destructive",
-          )}
-        >
-          {testMessage}
-        </p>
-      )}
-
-      {lastSyncAt && (
-        <p className="text-xs text-center text-muted-foreground">
-          上次同步: {new Date(lastSyncAt).toLocaleString()}
-        </p>
-      )}
-
-      {syncResult && (
-        <AcrylicPanel className="p-4">
-          <h3 className="text-sm font-medium text-foreground mb-2">同步结果</h3>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>任务: {syncResult.stats.tasks_merged} 条已合并</p>
-            <p>课程: {syncResult.stats.courses_merged} 条已合并</p>
-            <p>考试: {syncResult.stats.exams_merged} 条已合并</p>
-            <p>番茄记录: {syncResult.stats.sessions_merged} 条已合并</p>
-            {syncResult.stats.conflicts > 0 && (
-              <p className="text-amber-400">
-                冲突: {syncResult.stats.conflicts} 条 (本地版本已保留)
-              </p>
-            )}
-            <p className="pt-1 text-muted-foreground/60">
-              {syncResult.uploaded ? "✓ 已上传" : "✗ 未上传"} /{" "}
-              {syncResult.downloaded ? "✓ 已下载" : "✗ 无远程数据"}
+    <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+        <div className="flex items-start gap-2">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => onNavigate("kairos")}
+            aria-label="返回 Kairos"
+            className="mt-0.5 shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-foreground">同步设置</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              配置 WebDAV 备份与多端同步，保护本地学习数据。
             </p>
           </div>
-        </AcrylicPanel>
-      )}
+        </div>
 
-      {syncError && (
-        <p className="text-sm text-center text-destructive">{syncError}</p>
-      )}
+        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+          <h2 className="mb-4 text-lg font-semibold text-foreground">
+            WebDAV 连接
+          </h2>
+
+          <div className="flex flex-col gap-4">
+            <div className="mb-3">
+              <label className="mb-0.5 block text-sm text-muted-foreground">
+                服务器地址
+              </label>
+              <input
+                type="text"
+                className={inputClass(false)}
+                placeholder="webdav.example.com"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                onBlur={saveConfig}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="mb-0.5 block text-sm text-muted-foreground">
+                用户名
+              </label>
+              <input
+                type="text"
+                className={inputClass(false)}
+                placeholder="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onBlur={saveConfig}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="mb-0.5 block text-sm text-muted-foreground">
+                密码
+              </label>
+              <input
+                type="password"
+                className={inputClass(false)}
+                placeholder={passwordMasked || "••••••••"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onBlur={saveConfig}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-sm text-muted-foreground">自动同步</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoSync}
+                onClick={() => {
+                  setAutoSync(!autoSync)
+                  setTimeout(saveConfig, 0)
+                }}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  autoSync ? "bg-primary" : "bg-muted-foreground/25",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none block h-5 w-5 rounded-full bg-card shadow-sm ring-0 transition-transform",
+                    autoSync ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testStatus === "loading" || !serverUrl}
+                className="min-h-11 flex-1 border-primary/40 text-primary hover:bg-primary/5 md:min-h-0"
+              >
+                {testStatus === "loading" ? (
+                  <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                ) : testStatus === "ok" ? (
+                  <Check className="mr-1 h-4 w-4 text-emerald-400" />
+                ) : testStatus === "fail" ? (
+                  <X className="mr-1 h-4 w-4 text-destructive" />
+                ) : null}
+                测试连接
+              </Button>
+
+              <Button
+                onClick={handleSyncNow}
+                disabled={syncStatus === "loading" || !serverUrl}
+                className="min-h-11 flex-1 md:min-h-0"
+              >
+                {syncStatus === "loading" ? (
+                  <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                ) : null}
+                立即同步
+              </Button>
+            </div>
+          </div>
+        </AcrylicPanel>
+
+        {testMessage && (
+          <p
+            className={cn(
+              "text-center text-sm",
+              testStatus === "ok" ? "text-emerald-400" : "text-destructive",
+            )}
+          >
+            {testMessage}
+          </p>
+        )}
+
+        {lastSyncAt && (
+          <p className="text-center text-xs text-muted-foreground">
+            上次同步: {new Date(lastSyncAt).toLocaleString()}
+          </p>
+        )}
+
+        {syncResult && (
+          <AcrylicPanel className="p-4">
+            <h3 className="mb-2 text-sm font-medium text-foreground">同步结果</h3>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>任务: {syncResult.stats.tasks_merged} 条已合并</p>
+              <p>课程: {syncResult.stats.courses_merged} 条已合并</p>
+              <p>考试: {syncResult.stats.exams_merged} 条已合并</p>
+              <p>番茄记录: {syncResult.stats.sessions_merged} 条已合并</p>
+              {syncResult.stats.conflicts > 0 && (
+                <p className="text-amber-400">
+                  冲突: {syncResult.stats.conflicts} 条 (本地版本已保留)
+                </p>
+              )}
+              <p className="pt-1 text-muted-foreground/60">
+                {syncResult.uploaded ? "已上传" : "未上传"} /{" "}
+                {syncResult.downloaded ? "已下载" : "无远程数据"}
+              </p>
+            </div>
+          </AcrylicPanel>
+        )}
+
+        {syncError && (
+          <p className="text-center text-sm text-destructive">{syncError}</p>
+        )}
+      </div>
     </div>
   )
 }
