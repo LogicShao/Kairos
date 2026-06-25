@@ -5,7 +5,8 @@ import { Save } from "lucide-react"
 
 interface TaskFormProps {
   task?: Task | null
-  onSave: (task: CreateTaskRequest | UpdateTaskRequest) => void
+  onCreate: (task: CreateTaskRequest) => void | Promise<void>
+  onUpdate: (task: UpdateTaskRequest) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -21,7 +22,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "已完成" },
 ]
 
-export function TaskForm({ task, onSave, onCancel }: TaskFormProps) {
+export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title ?? "")
   const [description, setDescription] = useState(task?.description ?? "")
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo")
@@ -48,21 +49,28 @@ export function TaskForm({ task, onSave, onCancel }: TaskFormProps) {
       .map((t) => t.trim())
       .filter(Boolean)
 
-    const payload: CreateTaskRequest | UpdateTaskRequest = {
-      title: title.trim(),
-      description: description.trim() || undefined,
-      status: task ? status : undefined,
-      priority,
-      due_date: dueDate || null,
-      tags: JSON.stringify(tagList),
-    }
-
-    if (!task) {
-      ;(payload as CreateTaskRequest).status = status
-    }
-
     try {
-      await onSave(payload)
+      if (task) {
+        const payload: UpdateTaskRequest = {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          status,
+          priority,
+          due_date: dueDate || null,
+          tags: JSON.stringify(tagList),
+        }
+        await onUpdate(payload)
+      } else {
+        const payload: CreateTaskRequest = {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          status,
+          priority,
+          due_date: dueDate || null,
+          tags: JSON.stringify(tagList),
+        }
+        await onCreate(payload)
+      }
     } finally {
       setSaving(false)
     }

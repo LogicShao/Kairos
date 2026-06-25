@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
-import type { PomodoroState, PomodoroConfig } from "@/types/pomodoro"
+import type { PomodoroState, PomodoroConfig, PomodoroPhase } from "@/types/pomodoro"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
@@ -12,7 +12,7 @@ import { Play, Pause, RotateCcw, Settings } from "lucide-react"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
 
-const PHASE_LABELS: Record<string, string> = {
+const PHASE_LABELS: Record<PomodoroPhase, string> = {
   work: "专注",
   short_break: "短休",
   long_break: "长休",
@@ -73,7 +73,7 @@ export function PomodoroTimer() {
           setState(event.payload)
         })
 
-        unlistenPhase = await listen<string>("pomodoro-phase-change", (event) => {
+        unlistenPhase = await listen<PomodoroPhase>("pomodoro-phase-change", (event) => {
           const phase = event.payload
           const label = PHASE_LABELS[phase] ?? phase
           if (typeof Notification !== "undefined" && Notification.permission === "granted") {

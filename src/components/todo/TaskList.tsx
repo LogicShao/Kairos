@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import type { Task, TaskFilterParams, TaskStatus, TaskPriority } from "@/types/task"
+import type { Task, TaskFilterParams, TaskStatus, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from "@/types/task"
 import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -85,13 +85,13 @@ export function TaskList() {
     return () => { cancelled = true }
   }, [statusFilter, priorityFilter])
 
-  async function handleCreate(data: Record<string, unknown>) {
+  async function handleCreate(data: CreateTaskRequest) {
     await invoke("create_task", { cmd: data })
     setShowForm(false)
     await fetchTasks()
   }
 
-  async function handleUpdate(data: Record<string, unknown>) {
+  async function handleUpdate(data: UpdateTaskRequest) {
     if (!editingTask) return
     await invoke("update_task", { id: editingTask.id, cmd: data })
     setEditingTask(null)
@@ -144,13 +144,8 @@ export function TaskList() {
       >
         <TaskForm
           task={editingTask}
-          onSave={(data) => {
-            if (editingTask) {
-              void handleUpdate(data as unknown as Record<string, unknown>)
-            } else {
-              void handleCreate(data as unknown as Record<string, unknown>)
-            }
-          }}
+          onCreate={handleCreate}
+          onUpdate={handleUpdate}
           onCancel={() => {
             setShowForm(false)
             setEditingTask(null)
@@ -210,7 +205,7 @@ export function TaskList() {
         <div className="space-y-2">
           {tasks.map((task) => {
             const dueInfo = formatDueDate(task.due_date)
-            const priorityCfg = PRIORITY_CONFIG[task.priority as TaskPriority] ?? PRIORITY_CONFIG.medium
+            const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
 
             return (
               <AcrylicPanel
@@ -223,7 +218,7 @@ export function TaskList() {
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 shrink-0">
-                    {statusIcon(task.status as TaskStatus)}
+                    {statusIcon(task.status)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
