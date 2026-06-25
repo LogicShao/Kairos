@@ -554,6 +554,9 @@ conn.execute(
 - [ ] 函数命名使用蛇形命名法（`create_task`、`get_all_tasks`）
 - [ ] 结构体命名使用驼峰命名法（`Task`、`CreateTaskRequest`）
 - [ ] 无未使用的导入（`cargo clippy` 通过）
+- [ ] 跨模块结构体字段有注释（参考 [comment-guidelines.md](./comment-guidelines.md)）
+- [ ] 非显而易见的算法函数有语义注释
+- [ ] 协议常量/版本号有取值原因说明
 
 ### 数据库变更
 
