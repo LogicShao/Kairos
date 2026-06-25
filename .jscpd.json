@@ -1,0 +1,10 @@
+{
+  "minTokens": 30,
+  "minLines": 5,
+  "format": ["rust", "typescript", "javascript"],
+  "ignorePattern": ["node_modules", "target", "dist", ".git", ".claude"],
+  "reporters": ["console"],
+  "output": "report/jscpd",
+  "threshold": 5,
+  "blame": false
+}

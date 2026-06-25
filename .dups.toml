@@ -1,0 +1,17 @@
+# cargo-duplicated configuration
+# https://github.com/kucherenko/cargo-duplicated
+
+# Minimum block size (lines) to consider as potential duplicate
+min_block_size = 5
+
+# How many identical/similar blocks needed to report as duplication
+threshold = 3
+
+# Default similarity ratio (0.0 - 1.0), higher = stricter matching
+# similarity = 1.0
+
+# Ignore test files
+ignore_tests = true
+
+# Paths to exclude
+# exclude = ["target", "tests"]
