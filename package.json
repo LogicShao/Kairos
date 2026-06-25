@@ -11,6 +11,7 @@
     "icons": "tauri icon public/app-icon-manifest.json",
     "tauri": "tauri",
     "android:dev": "bash scripts/android-hmr.sh",
+    "android:phone": "bash scripts/android-dev.sh",
     "android:install-debug": "bash scripts/android-debug.sh"
   },
   "dependencies": {
