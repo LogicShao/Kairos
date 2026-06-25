@@ -12,10 +12,16 @@ pub struct PomodoroConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PomodoroSession {
     pub id: i64,
+    /// 跨设备稳定标识（UUID）。合并键，不等于 SQLite id。
+    #[serde(default)]
+    pub sync_id: String,
     pub started_at: String,
     pub ended_at: Option<String>,
     pub session_type: String,
     pub task_id: Option<i64>,
+    /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +42,9 @@ pub struct UpdatePomodoroConfigRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: i64,
+    /// 跨设备稳定标识（UUID）。合并键，不等于 SQLite id。
+    #[serde(default)]
+    pub sync_id: String,
     pub title: String,
     pub description: String,
     pub status: String,
@@ -44,6 +53,9 @@ pub struct Task {
     pub tags: String,
     pub created_at: String,
     pub updated_at: String,
+    /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +81,9 @@ pub struct UpdateTaskRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Course {
     pub id: i64,
+    /// 跨设备稳定标识（UUID）。合并键，不等于 SQLite id。
+    #[serde(default)]
+    pub sync_id: String,
     pub name: String,
     pub day_of_week: i64,
     pub start_time: String,
@@ -81,6 +96,9 @@ pub struct Course {
     pub semester: String,
     pub created_at: String,
     pub updated_at: String,
+    /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +132,9 @@ pub struct UpdateCourseRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exam {
     pub id: i64,
+    /// 跨设备稳定标识（UUID）。合并键，不等于 SQLite id。
+    #[serde(default)]
+    pub sync_id: String,
     pub course_name: String,
     pub exam_datetime: String,
     pub exam_end_datetime: String,
@@ -123,6 +144,9 @@ pub struct Exam {
     pub semester: String,
     pub created_at: String,
     pub updated_at: String,
+    /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
+    #[serde(default)]
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,4 +179,13 @@ pub struct SyncConfig {
     pub password: String,
     pub auto_sync: bool,
     pub last_sync_at: Option<String>,
+    /// 上次成功上传后服务端返回的 HTTP ETag。下次上传时通过 If-Match header 发送。
+    #[serde(default)]
+    pub remote_etag: Option<String>,
+    /// 本设备唯一标识（UUID）。用于 trace 快照来源，不参与合并逻辑。
+    #[serde(default)]
+    pub device_id: Option<String>,
+    /// 数据集唯一标识（UUID）。同一同步文件的所有设备共享此值。
+    #[serde(default)]
+    pub dataset_id: Option<String>,
 }

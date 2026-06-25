@@ -457,6 +457,7 @@ mod tests {
     fn sample_course() -> Course {
         Course {
             id: 1,
+            sync_id: "course-sync-1".to_string(),
             name: "自动控制原理".to_string(),
             day_of_week: 3,
             start_time: "10:00".to_string(),
@@ -469,12 +470,14 @@ mod tests {
             semester: "2026S1".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            deleted_at: None,
         }
     }
 
     fn sample_exam() -> Exam {
         Exam {
             id: 10,
+            sync_id: "exam-sync-10".to_string(),
             course_name: "自动控制原理".to_string(),
             exam_datetime: "2026-02-25T00:00:00Z".to_string(),
             exam_end_datetime: "2026-02-25T02:00:00Z".to_string(),
@@ -484,12 +487,14 @@ mod tests {
             semester: "2026S1".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            deleted_at: None,
         }
     }
 
     fn sample_task(id: i64, title: &str, due_date: &str, status: &str) -> Task {
         Task {
             id,
+            sync_id: format!("task-sync-{id}"),
             title: title.to_string(),
             description: String::new(),
             status: status.to_string(),
@@ -498,6 +503,7 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            deleted_at: None,
         }
     }
 
@@ -642,6 +648,7 @@ mod tests {
     fn test_build_calendar_week_task_no_due_date() {
         let task_no_date = Task {
             id: 400,
+            sync_id: "task-sync-400".to_string(),
             title: "无截止日期".to_string(),
             description: String::new(),
             status: "todo".to_string(),
@@ -650,6 +657,7 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            deleted_at: None,
         };
 
         let response = build_calendar_week(

@@ -4,7 +4,7 @@ use super::models::SyncConfig;
 
 pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
     let result = conn.query_row(
-        "SELECT id, server_url, username, password, auto_sync, last_sync_at
+        "SELECT id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id
          FROM sync_config WHERE id = 1",
         [],
         |row| {
@@ -15,6 +15,9 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
                 password: row.get(3)?,
                 auto_sync: row.get::<_, i64>(4)? != 0,
                 last_sync_at: row.get(5)?,
+                remote_etag: row.get(6)?,
+                device_id: row.get(7)?,
+                dataset_id: row.get(8)?,
             })
         },
     );
@@ -29,10 +32,13 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
                 password: String::new(),
                 auto_sync: false,
                 last_sync_at: None,
+                remote_etag: None,
+                device_id: Some(crate::sync::ids::new_sync_id()),
+                dataset_id: Some(crate::sync::ids::new_sync_id()),
             };
             conn.execute(
-                "INSERT INTO sync_config (id, server_url, username, password, auto_sync, last_sync_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO sync_config (id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     default.id,
                     default.server_url,
@@ -40,6 +46,9 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
                     default.password,
                     default.auto_sync as i64,
                     default.last_sync_at,
+                    default.remote_etag,
+                    default.device_id,
+                    default.dataset_id,
                 ],
             )?;
             Ok(default)
@@ -51,14 +60,18 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
 pub fn update_sync_config(conn: &Connection, config: &SyncConfig) -> Result<()> {
     conn.execute(
         "UPDATE sync_config
-         SET server_url = ?1, username = ?2, password = ?3, auto_sync = ?4, last_sync_at = ?5
-         WHERE id = ?6",
+         SET server_url = ?1, username = ?2, password = ?3, auto_sync = ?4, last_sync_at = ?5,
+             remote_etag = ?6, device_id = ?7, dataset_id = ?8
+         WHERE id = ?9",
         params![
             config.server_url,
             config.username,
             config.password,
             config.auto_sync as i64,
             config.last_sync_at,
+            config.remote_etag,
+            config.device_id,
+            config.dataset_id,
             config.id,
         ],
     )?;
@@ -69,6 +82,14 @@ pub fn update_last_sync_at(conn: &Connection, timestamp: &str) -> Result<()> {
     conn.execute(
         "UPDATE sync_config SET last_sync_at = ?1 WHERE id = 1",
         params![timestamp],
+    )?;
+    Ok(())
+}
+
+pub fn update_remote_etag(conn: &Connection, etag: Option<&str>) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_config SET remote_etag = ?1 WHERE id = 1",
+        params![etag],
     )?;
     Ok(())
 }
@@ -116,6 +137,9 @@ mod tests {
             password: "pass".to_string(),
             auto_sync: true,
             last_sync_at: Some("2024-06-01T10:00:00Z".to_string()),
+            remote_etag: Some("\"etag-1\"".to_string()),
+            device_id: Some("device-1".to_string()),
+            dataset_id: Some("dataset-1".to_string()),
         };
         update_sync_config(&conn, &updated).expect("Failed to update config");
 
@@ -125,6 +149,9 @@ mod tests {
         assert_eq!(config.password, "pass");
         assert!(config.auto_sync);
         assert_eq!(config.last_sync_at.as_deref(), Some("2024-06-01T10:00:00Z"));
+        assert_eq!(config.remote_etag.as_deref(), Some("\"etag-1\""));
+        assert_eq!(config.device_id.as_deref(), Some("device-1"));
+        assert_eq!(config.dataset_id.as_deref(), Some("dataset-1"));
     }
 
     #[test]

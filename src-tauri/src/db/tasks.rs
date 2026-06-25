@@ -3,17 +3,19 @@ use rusqlite::{params, Connection, Result};
 use super::models::{CreateTaskRequest, Task, UpdateTaskRequest};
 
 pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
+    let now = super::chrono_now();
     conn.execute(
-        "INSERT INTO tasks (title, description, status, priority, due_date, tags, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+        "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
         params![
+            crate::sync::ids::new_sync_id(),
             req.title,
             req.description,
             req.status,
             req.priority,
             req.due_date,
             req.tags,
-            super::chrono_now(),
+            now,
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -21,20 +23,22 @@ pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
 
 pub fn get_task(conn: &Connection, id: i64) -> Result<Task> {
     conn.query_row(
-        "SELECT id, title, description, status, priority, due_date, tags, created_at, updated_at
-         FROM tasks WHERE id = ?1",
+        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at
+         FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
         |row| {
             Ok(Task {
                 id: row.get(0)?,
-                title: row.get(1)?,
-                description: row.get(2)?,
-                status: row.get(3)?,
-                priority: row.get(4)?,
-                due_date: row.get(5)?,
-                tags: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                sync_id: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                status: row.get(4)?,
+                priority: row.get(5)?,
+                due_date: row.get(6)?,
+                tags: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
+                deleted_at: row.get(10)?,
             })
         },
     )
@@ -68,7 +72,7 @@ pub fn get_all_tasks(
     };
 
     let mut sql = String::from(
-        "SELECT id, title, description, status, priority, due_date, tags, created_at, updated_at FROM tasks WHERE 1=1",
+        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NULL",
     );
     let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -89,14 +93,16 @@ pub fn get_all_tasks(
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
         Ok(Task {
             id: row.get(0)?,
-            title: row.get(1)?,
-            description: row.get(2)?,
-            status: row.get(3)?,
-            priority: row.get(4)?,
-            due_date: row.get(5)?,
-            tags: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
+            sync_id: row.get(1)?,
+            title: row.get(2)?,
+            description: row.get(3)?,
+            status: row.get(4)?,
+            priority: row.get(5)?,
+            due_date: row.get(6)?,
+            tags: row.get(7)?,
+            created_at: row.get(8)?,
+            updated_at: row.get(9)?,
+            deleted_at: row.get(10)?,
         })
     })?;
 
@@ -123,7 +129,11 @@ pub fn update_task(conn: &Connection, id: i64, req: &UpdateTaskRequest) -> Resul
 }
 
 pub fn delete_task(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
+    let now = super::chrono_now();
+    conn.execute(
+        "UPDATE tasks SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
+        params![now, id],
+    )?;
     Ok(())
 }
 

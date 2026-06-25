@@ -59,8 +59,13 @@ pub fn update_config(conn: &Connection, req: &UpdatePomodoroConfigRequest) -> Re
 
 pub fn create_session(conn: &Connection, req: &CreatePomodoroSessionRequest) -> Result<i64> {
     conn.execute(
-        "INSERT INTO pomodoro_sessions (started_at, session_type, task_id) VALUES (?1, ?2, ?3)",
-        params![req.started_at, req.session_type, req.task_id],
+        "INSERT INTO pomodoro_sessions (sync_id, started_at, session_type, task_id) VALUES (?1, ?2, ?3, ?4)",
+        params![
+            crate::sync::ids::new_sync_id(),
+            req.started_at,
+            req.session_type,
+            req.task_id,
+        ],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -75,8 +80,9 @@ pub fn update_session_end(conn: &Connection, id: i64, ended_at: &str) -> Result<
 
 pub fn get_sessions(conn: &Connection, limit: i64, offset: i64) -> Result<Vec<PomodoroSession>> {
     let mut stmt = conn.prepare(
-        "SELECT id, started_at, ended_at, session_type, task_id
+        "SELECT id, sync_id, started_at, ended_at, session_type, task_id, deleted_at
          FROM pomodoro_sessions
+         WHERE deleted_at IS NULL
          ORDER BY started_at DESC
          LIMIT ?1 OFFSET ?2",
     )?;
@@ -84,10 +90,12 @@ pub fn get_sessions(conn: &Connection, limit: i64, offset: i64) -> Result<Vec<Po
     let rows = stmt.query_map(params![limit, offset], |row| {
         Ok(PomodoroSession {
             id: row.get(0)?,
-            started_at: row.get(1)?,
-            ended_at: row.get(2)?,
-            session_type: row.get(3)?,
-            task_id: row.get(4)?,
+            sync_id: row.get(1)?,
+            started_at: row.get(2)?,
+            ended_at: row.get(3)?,
+            session_type: row.get(4)?,
+            task_id: row.get(5)?,
+            deleted_at: row.get(6)?,
         })
     })?;
 
@@ -96,19 +104,21 @@ pub fn get_sessions(conn: &Connection, limit: i64, offset: i64) -> Result<Vec<Po
 
 pub fn get_sessions_by_task(conn: &Connection, task_id: i64) -> Result<Vec<PomodoroSession>> {
     let mut stmt = conn.prepare(
-        "SELECT id, started_at, ended_at, session_type, task_id
+        "SELECT id, sync_id, started_at, ended_at, session_type, task_id, deleted_at
          FROM pomodoro_sessions
-         WHERE task_id = ?1
+         WHERE task_id = ?1 AND deleted_at IS NULL
          ORDER BY started_at DESC",
     )?;
 
     let rows = stmt.query_map(params![task_id], |row| {
         Ok(PomodoroSession {
             id: row.get(0)?,
-            started_at: row.get(1)?,
-            ended_at: row.get(2)?,
-            session_type: row.get(3)?,
-            task_id: row.get(4)?,
+            sync_id: row.get(1)?,
+            started_at: row.get(2)?,
+            ended_at: row.get(3)?,
+            session_type: row.get(4)?,
+            task_id: row.get(5)?,
+            deleted_at: row.get(6)?,
         })
     })?;
 

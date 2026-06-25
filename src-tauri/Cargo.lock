@@ -1930,6 +1930,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-log",
+ "uuid",
 ]
 
 [[package]]

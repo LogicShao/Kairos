@@ -3,10 +3,12 @@ use rusqlite::{params, Connection, Result};
 use super::models::{CreateExamRequest, Exam, UpdateExamRequest};
 
 pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
+    let now = super::chrono_now();
     conn.execute(
-        "INSERT INTO exams (course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+        "INSERT INTO exams (sync_id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
         params![
+            crate::sync::ids::new_sync_id(),
             req.course_name,
             req.exam_datetime,
             req.exam_end_datetime,
@@ -14,7 +16,7 @@ pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
             req.notes,
             req.course_id,
             req.semester,
-            super::chrono_now(),
+            now,
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -22,21 +24,23 @@ pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
 
 pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
     conn.query_row(
-        "SELECT id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at
-         FROM exams WHERE id = ?1",
+        "SELECT id, sync_id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at, deleted_at
+         FROM exams WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
         |row| {
             Ok(Exam {
                 id: row.get(0)?,
-                course_name: row.get(1)?,
-                exam_datetime: row.get(2)?,
-                exam_end_datetime: row.get(3)?,
-                location: row.get(4)?,
-                notes: row.get(5)?,
-                course_id: row.get(6)?,
-                semester: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                sync_id: row.get(1)?,
+                course_name: row.get(2)?,
+                exam_datetime: row.get(3)?,
+                exam_end_datetime: row.get(4)?,
+                location: row.get(5)?,
+                notes: row.get(6)?,
+                course_id: row.get(7)?,
+                semester: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
+                deleted_at: row.get(11)?,
             })
         },
     )
@@ -44,23 +48,26 @@ pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
 
 pub fn get_all_exams(conn: &Connection) -> Result<Vec<Exam>> {
     let mut stmt = conn.prepare(
-        "SELECT id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at
+        "SELECT id, sync_id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at, deleted_at
          FROM exams
+         WHERE deleted_at IS NULL
          ORDER BY exam_datetime ASC",
     )?;
 
     let rows = stmt.query_map([], |row| {
         Ok(Exam {
             id: row.get(0)?,
-            course_name: row.get(1)?,
-            exam_datetime: row.get(2)?,
-            exam_end_datetime: row.get(3)?,
-            location: row.get(4)?,
-            notes: row.get(5)?,
-            course_id: row.get(6)?,
-            semester: row.get(7)?,
-            created_at: row.get(8)?,
-            updated_at: row.get(9)?,
+            sync_id: row.get(1)?,
+            course_name: row.get(2)?,
+            exam_datetime: row.get(3)?,
+            exam_end_datetime: row.get(4)?,
+            location: row.get(5)?,
+            notes: row.get(6)?,
+            course_id: row.get(7)?,
+            semester: row.get(8)?,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
+            deleted_at: row.get(11)?,
         })
     })?;
 
@@ -89,7 +96,11 @@ pub fn update_exam(conn: &Connection, id: i64, req: &UpdateExamRequest) -> Resul
 }
 
 pub fn delete_exam(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM exams WHERE id = ?1", params![id])?;
+    let now = super::chrono_now();
+    conn.execute(
+        "UPDATE exams SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
+        params![now, id],
+    )?;
     Ok(())
 }
 

@@ -3,10 +3,12 @@ use rusqlite::{params, Connection, Result};
 use super::models::{Course, CreateCourseRequest, UpdateCourseRequest};
 
 pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64> {
+    let now = super::chrono_now();
     conn.execute(
-        "INSERT INTO courses (name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
+        "INSERT INTO courses (sync_id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
         params![
+            crate::sync::ids::new_sync_id(),
             req.name,
             req.day_of_week,
             req.start_time,
@@ -17,7 +19,7 @@ pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64
             req.teacher,
             req.color,
             req.semester,
-            super::chrono_now(),
+            now,
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -25,24 +27,26 @@ pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64
 
 pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
     conn.query_row(
-        "SELECT id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at
-         FROM courses WHERE id = ?1",
+        "SELECT id, sync_id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at, deleted_at
+         FROM courses WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
         |row| {
             Ok(Course {
                 id: row.get(0)?,
-                name: row.get(1)?,
-                day_of_week: row.get(2)?,
-                start_time: row.get(3)?,
-                end_time: row.get(4)?,
-                week_pattern: row.get(5)?,
-                semester_start_date: row.get(6)?,
-                location: row.get(7)?,
-                teacher: row.get(8)?,
-                color: row.get(9)?,
-                semester: row.get(10)?,
-                created_at: row.get(11)?,
-                updated_at: row.get(12)?,
+                sync_id: row.get(1)?,
+                name: row.get(2)?,
+                day_of_week: row.get(3)?,
+                start_time: row.get(4)?,
+                end_time: row.get(5)?,
+                week_pattern: row.get(6)?,
+                semester_start_date: row.get(7)?,
+                location: row.get(8)?,
+                teacher: row.get(9)?,
+                color: row.get(10)?,
+                semester: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+                deleted_at: row.get(14)?,
             })
         },
     )
@@ -50,13 +54,13 @@ pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
 
 pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<Course>> {
     let mut sql = String::from(
-        "SELECT id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at
-         FROM courses",
+        "SELECT id, sync_id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at, deleted_at
+         FROM courses WHERE deleted_at IS NULL",
     );
     let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
     if let Some(sem) = semester {
-        sql.push_str(" WHERE semester = ?1");
+        sql.push_str(" AND semester = ?1");
         params_vec.push(Box::new(sem.to_string()));
     }
     sql.push_str(" ORDER BY day_of_week, start_time");
@@ -68,18 +72,20 @@ pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
         Ok(Course {
             id: row.get(0)?,
-            name: row.get(1)?,
-            day_of_week: row.get(2)?,
-            start_time: row.get(3)?,
-            end_time: row.get(4)?,
-            week_pattern: row.get(5)?,
-            semester_start_date: row.get(6)?,
-            location: row.get(7)?,
-            teacher: row.get(8)?,
-            color: row.get(9)?,
-            semester: row.get(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
+            sync_id: row.get(1)?,
+            name: row.get(2)?,
+            day_of_week: row.get(3)?,
+            start_time: row.get(4)?,
+            end_time: row.get(5)?,
+            week_pattern: row.get(6)?,
+            semester_start_date: row.get(7)?,
+            location: row.get(8)?,
+            teacher: row.get(9)?,
+            color: row.get(10)?,
+            semester: row.get(11)?,
+            created_at: row.get(12)?,
+            updated_at: row.get(13)?,
+            deleted_at: row.get(14)?,
         })
     })?;
 
@@ -112,12 +118,20 @@ pub fn update_course(conn: &Connection, id: i64, req: &UpdateCourseRequest) -> R
 }
 
 pub fn update_all_semester_start_dates(conn: &Connection, date: &str) -> Result<usize> {
-    let count = conn.execute("UPDATE courses SET semester_start_date = ?1", params![date])?;
+    let now = super::chrono_now();
+    let count = conn.execute(
+        "UPDATE courses SET semester_start_date = ?1, updated_at = ?2 WHERE deleted_at IS NULL",
+        params![date, now],
+    )?;
     Ok(count)
 }
 
 pub fn delete_course(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM courses WHERE id = ?1", params![id])?;
+    let now = super::chrono_now();
+    conn.execute(
+        "UPDATE courses SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
+        params![now, id],
+    )?;
     Ok(())
 }
 

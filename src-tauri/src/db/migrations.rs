@@ -97,6 +97,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             ALTER TABLE exams ADD COLUMN semester TEXT NOT NULL DEFAULT '';
             ",
         ),
+        (
+            4,
+            "sync_identity_and_tombstones",
+            "",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -108,10 +113,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     for (version, name, sql) in migrations {
         if version > current_version {
             let tx = conn.unchecked_transaction()?;
-            if version == 3 {
-                apply_course_week_and_exam_range_migration(&tx)?;
-            } else {
-                tx.execute_batch(sql)?;
+            match version {
+                3 => apply_course_week_and_exam_range_migration(&tx)?,
+                4 => apply_sync_identity_and_tombstones_migration(&tx)?,
+                _ => tx.execute_batch(sql)?,
             }
             tx.execute(
                 "INSERT INTO _migrations (version, name) VALUES (?1, ?2)",
@@ -120,6 +125,63 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             tx.commit()?;
         }
     }
+
+    Ok(())
+}
+
+fn apply_sync_identity_and_tombstones_migration(conn: &Connection) -> Result<()> {
+    for table in ["tasks", "courses", "exams", "pomodoro_sessions"] {
+        add_column_if_missing(conn, table, "sync_id", "sync_id TEXT")?;
+        add_column_if_missing(conn, table, "deleted_at", "deleted_at TEXT")?;
+        backfill_sync_ids(conn, table)?;
+        conn.execute(
+            &format!(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_sync_id
+                 ON {table}(sync_id)
+                 WHERE sync_id IS NOT NULL AND sync_id != ''"
+            ),
+            [],
+        )?;
+    }
+
+    add_column_if_missing(conn, "sync_config", "remote_etag", "remote_etag TEXT")?;
+    add_column_if_missing(conn, "sync_config", "device_id", "device_id TEXT")?;
+    add_column_if_missing(conn, "sync_config", "dataset_id", "dataset_id TEXT")?;
+
+    backfill_sync_config_ids(conn)?;
+
+    Ok(())
+}
+
+fn backfill_sync_ids(conn: &Connection, table: &str) -> Result<()> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id FROM {table} WHERE sync_id IS NULL OR sync_id = ''"
+    ))?;
+    let ids = stmt
+        .query_map([], |row| row.get::<_, i64>(0))?
+        .collect::<Result<Vec<_>>>()?;
+
+    for id in ids {
+        conn.execute(
+            &format!("UPDATE {table} SET sync_id = ?1 WHERE id = ?2"),
+            rusqlite::params![crate::sync::ids::new_sync_id(), id],
+        )?;
+    }
+
+    Ok(())
+}
+
+fn backfill_sync_config_ids(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_config
+         SET device_id = CASE WHEN device_id IS NULL OR device_id = '' THEN ?1 ELSE device_id END,
+             dataset_id = CASE WHEN dataset_id IS NULL OR dataset_id = '' THEN ?2 ELSE dataset_id END
+         WHERE id = 1",
+        rusqlite::params![
+            crate::sync::ids::new_sync_id(),
+            crate::sync::ids::new_sync_id(),
+        ],
+    )?;
 
     Ok(())
 }
@@ -238,11 +300,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly three migration records (v1 + v2 + v3) applied once each
+        // Should have exactly four migration records (v1 + v2 + v3 + v4) applied once each
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 3);
+        assert_eq!(count, 4);
     }
 
     #[test]
@@ -260,6 +322,27 @@ mod tests {
             );
             INSERT INTO _migrations (version, name) VALUES (1, 'initial_schema');
             INSERT INTO _migrations (version, name) VALUES (2, 'sync_config');
+
+            CREATE TABLE pomodoro_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                session_type TEXT NOT NULL CHECK(session_type IN ('work', 'short_break', 'long_break')),
+                task_id INTEGER,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'todo' CHECK(status IN ('todo', 'in_progress', 'done')),
+                priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('high', 'medium', 'low')),
+                due_date TEXT,
+                tags TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
             CREATE TABLE courses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,6 +373,15 @@ mod tests {
                 semester TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
             );
+
+            CREATE TABLE sync_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                server_url TEXT NOT NULL DEFAULT '',
+                username TEXT NOT NULL DEFAULT '',
+                password TEXT NOT NULL DEFAULT '',
+                auto_sync INTEGER NOT NULL DEFAULT 0,
+                last_sync_at TEXT
+            );
             ",
         )
         .expect("Failed to seed preexisting schema");
@@ -299,6 +391,55 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 3);
+        assert_eq!(count, 4);
+    }
+
+    #[test]
+    fn test_migration_v4_backfills_sync_metadata() {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .expect("Failed to enable foreign keys");
+
+        run_migrations(&conn).expect("Migrations failed");
+
+        conn.execute(
+            "INSERT INTO sync_config (id, server_url, username, password, auto_sync)
+             VALUES (1, '', '', '', 0)",
+            [],
+        )
+        .expect("Failed to seed sync config");
+        conn.execute(
+            "INSERT INTO tasks (title, description, status, priority, tags, created_at, updated_at)
+             VALUES ('task', '', 'todo', 'medium', '[]', '2024-01-01', '2024-01-01')",
+            [],
+        )
+        .expect("Failed to seed task");
+
+        // Simulate an older database that got v4 columns before values were backfilled.
+        conn.execute("UPDATE tasks SET sync_id = ''", [])
+            .expect("Failed to clear sync_id");
+        conn.execute("UPDATE sync_config SET device_id = '', dataset_id = ''", [])
+            .expect("Failed to clear config ids");
+        conn.execute("DELETE FROM _migrations WHERE version = 4", [])
+            .expect("Failed to clear v4 migration marker");
+
+        run_migrations(&conn).expect("v4 rerun should backfill missing metadata");
+
+        let task_sync_id: String = conn
+            .query_row("SELECT sync_id FROM tasks WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .expect("Failed to query task sync_id");
+        assert!(!task_sync_id.is_empty());
+
+        let (device_id, dataset_id): (String, String) = conn
+            .query_row(
+                "SELECT device_id, dataset_id FROM sync_config WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("Failed to query sync config ids");
+        assert!(!device_id.is_empty());
+        assert!(!dataset_id.is_empty());
     }
 }
