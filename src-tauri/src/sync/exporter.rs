@@ -47,9 +47,13 @@ fn default_schema_version() -> i64 {
 /// 注意: conflicts 含义是"本地版本较新，远端更新被忽略"，不是传统意义的"编辑冲突"。
 #[derive(Debug, Clone, Serialize)]
 pub struct SyncStats {
+    /// 本次同步成功写入本地数据库的任务数（新增 + 被远端覆盖的更新）。
     pub tasks_merged: usize,
+    /// 本次同步成功写入本地数据库的课程数。
     pub courses_merged: usize,
+    /// 本次同步成功写入本地数据库的考试数。
     pub exams_merged: usize,
+    /// 本次同步成功写入本地数据库的番茄钟 session 数。
     pub sessions_merged: usize,
     /// 被拒绝的远端实体数（本地版本更新或相等时保留本地）。
     pub conflicts: usize,
@@ -62,6 +66,7 @@ pub struct SyncResult {
     pub uploaded: bool,
     /// 本次是否下载了远端数据（404 = false）。
     pub downloaded: bool,
+    /// 本次下载合并和 ETag 冲突重试合并的累计统计。
     pub stats: SyncStats,
 }
 

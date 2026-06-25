@@ -5,54 +5,83 @@ use serde::Serialize;
 
 use crate::db::models::{Course, Exam, Task};
 
+/// 未绑定课程的考试使用固定警示色，避免前端自行猜测考试默认颜色。
 const EXAM_FALLBACK_COLOR: &str = "#DC2626";
 
+/// 周课表聚合项，跨越后端课程/考试模型和前端课程周视图。
 #[derive(Debug, Clone, Serialize)]
 pub struct WeekScheduleItem {
+    /// 聚合来源: "course" 或 "exam"。前端用它决定点击和展示语义。
     pub kind: String,
     pub id: i64,
     pub title: String,
+    /// ISO weekday: 1 = 周一，7 = 周日。
     pub day_of_week: i64,
+    /// 当天开始时间，格式 HH:mm。
     pub start_time: String,
+    /// 当天结束时间，格式 HH:mm。
     pub end_time: String,
     pub location: String,
     pub teacher: String,
+    /// 展示颜色。课程取自身颜色；考试优先取关联课程颜色，否则用 EXAM_FALLBACK_COLOR。
     pub color: String,
     pub notes: String,
+    /// 课程周次规则；考试项为空字符串。
     pub week_pattern: String,
+    /// 关联课程本地 id。课程项为自身 id，未绑定课程的考试为 None。
     pub course_id: Option<i64>,
 }
 
+/// 周课表响应，日期均为 YYYY-MM-DD。
 #[derive(Debug, Clone, Serialize)]
 pub struct WeekScheduleResponse {
+    /// 请求的教学周序号，最小为 1。
     pub week_index: i64,
+    /// 学期标识，例如 2026S1。
     pub semester: String,
+    /// 学期锚点日期，用于从教学周推导自然周。
     pub semester_start_date: String,
+    /// 当前周周一日期。
     pub week_start_date: String,
+    /// 当前周周日日期。
     pub week_end_date: String,
     pub items: Vec<WeekScheduleItem>,
 }
 
+/// 日历视图聚合事件，跨越 course/exam/task 三种来源。
 #[derive(Debug, Clone, Serialize)]
 pub struct CalendarEvent {
+    /// 聚合来源: "course"、"exam" 或 "task"。
     pub kind: String,
     pub id: i64,
     pub title: String,
+    /// ISO weekday: 1 = 周一，7 = 周日。
     pub day_of_week: i64,
+    /// 当天开始时间，格式 HH:mm。
     pub start_time: String,
+    /// 当天结束时间，格式 HH:mm。
     pub end_time: String,
     pub location: String,
+    /// 展示颜色由后端统一按来源决定，前端只消费。
     pub color: String,
+    /// 展示标签，任务从 tags JSON 解析，考试包含"考试"和 notes。
     pub tags: Vec<String>,
+    /// 前端点击后跳转目标: "todo"、"courses" 或 "exams"。
     pub source_link: String,
 }
 
+/// 日历周响应，支持按教学周或自然周定位。
 #[derive(Debug, Clone, Serialize)]
 pub struct CalendarWeekResponse {
+    /// 实际日历周对应的教学周序号，可能由 week_start_date 反推。
     pub week_index: i64,
+    /// 学期标识，例如 2026S1。
     pub semester: String,
+    /// 学期锚点日期，格式 YYYY-MM-DD。
     pub semester_start_date: String,
+    /// 当前周周一日期，格式 YYYY-MM-DD。
     pub week_start_date: String,
+    /// 当前周周日日期，格式 YYYY-MM-DD。
     pub week_end_date: String,
     pub events: Vec<CalendarEvent>,
 }
@@ -164,7 +193,9 @@ pub fn build_week_schedule(
     })
 }
 
+/// 未完成任务在日历视图中的固定颜色。
 const TASK_COLOR: &str = "#D97706";
+/// 已完成任务在日历视图中的固定颜色，区别于未完成任务但不改变 task 状态。
 const TASK_COMPLETED_COLOR: &str = "#14B8A6";
 
 pub fn build_calendar_week(
