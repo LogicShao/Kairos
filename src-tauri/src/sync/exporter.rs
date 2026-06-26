@@ -597,7 +597,10 @@ fn remote_effective_timestamp<'a>(updated_at: &'a str, deleted_at: Option<&'a st
 }
 
 /// PomodoroSession 没有 updated_at 字段，effective_timestamp 取:
-/// deleted_at → ended_at → started_at（优先级从高到低）
+/// deleted_at → ended_at → started_at（优先级从高到低）。
+/// 墓碑优先：有 deleted_at 时以删除时间为准，确保删除能覆盖活跃 session。
+/// 无墓碑时以 ended_at 为准（已结束的 session 比进行中的更新），
+/// 最差情况回退到 started_at（新创建的 session 只有开始时间）。
 fn remote_session_effective_timestamp(session: &PomodoroSession) -> &str {
     session
         .deleted_at

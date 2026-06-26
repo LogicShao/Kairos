@@ -1,8 +1,17 @@
+//! 教务系统文本导入：从剪贴板粘贴的 TSV 文本解析课程和考试。
+//!
+//! 设计决策:
+//! - 格式: 基于特定高校教务系统的 TSV 导出格式（制表符分隔，含课时/节次编码）
+//! - 时间映射: lesson_index_to_minutes 硬编码目标学校的作息时间表
+//! - 颜色分配: 按课程代码+名称哈希取模，保证同课程在不同学期颜色一致
+//! - 去重: 按学期+名称+星期+时间+周次+地点+教师组合键跳过重复
+
 use chrono::{FixedOffset, NaiveDateTime, TimeZone, Utc};
 use serde::Serialize;
 
 use crate::db::models::{CreateCourseRequest, CreateExamRequest};
 
+/// 课程导入颜色池。按课程代码+名称的哈希取模分配，同一课程稳定映射到同一颜色。
 const IMPORT_COLORS: [&str; 8] = [
     "#3B82F6", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#EF4444", "#7C8CC0", "#8B5CF6",
 ];
@@ -80,6 +89,8 @@ fn matches_day_label(label: &str) -> Option<i64> {
     }
 }
 
+/// 按课程代码+名称的哈希值从 IMPORT_COLORS 池中选取颜色。
+/// 同一课程的哈希值在不同导入批次中保持一致。
 fn infer_color(seed: &str) -> String {
     let mut hash: u32 = 0;
     for ch in seed.chars() {
@@ -97,6 +108,8 @@ fn normalize_teacher(lines: &[String]) -> String {
         .join(" / ")
 }
 
+/// 解析教务系统课时文本，支持格式: "上午34节"、"下午5-7节"、"晚9-11节"、"中午第1节"。
+/// 返回 (HH:mm, HH:mm)，内部通过 lesson_index_to_minutes 映射到真实时间。
 fn parse_time_range(slot_text: &str) -> Option<(String, String)> {
     let normalized = slot_text.replace(char::is_whitespace, "");
 
@@ -159,6 +172,9 @@ fn lesson_matches_period(period: &str, index: i64) -> bool {
     }
 }
 
+/// 硬编码的目标学校作息时间表：节次 → (开始分钟, 结束分钟)。
+/// 来源于特定高校的课时安排，不同学校可能不同。
+/// 第1-4节为上午，5-8节为下午，9-11节为晚间。
 fn lesson_index_to_minutes(index: i64) -> Option<(i64, i64)> {
     match index {
         1 => Some((8 * 60 + 30, 9 * 60 + 15)),

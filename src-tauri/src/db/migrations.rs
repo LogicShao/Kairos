@@ -100,7 +100,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         (
             4,
             "sync_identity_and_tombstones",
-            "",
+            "",  // SQL 由 apply_sync_identity_and_tombstones_migration 处理
         ),
     ];
 

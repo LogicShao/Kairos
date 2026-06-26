@@ -2,6 +2,8 @@ use rusqlite::{params, Connection, Result};
 
 use super::models::SyncConfig;
 
+/// 获取同步配置。若 sync_config 表尚无记录（首次启动），插入默认值并返回。
+/// device_id 和 dataset_id 初始化为新的 UUID，用于 trace 和数据集分组。
 pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
     let result = conn.query_row(
         "SELECT id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id

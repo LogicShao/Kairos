@@ -117,6 +117,8 @@ pub fn update_course(conn: &Connection, id: i64, req: &UpdateCourseRequest) -> R
     Ok(())
 }
 
+/// 批量更新所有课程的学期开始日期。
+/// 用于学期切换或跨学期课程校准，不筛选具体学期。
 pub fn update_all_semester_start_dates(conn: &Connection, date: &str) -> Result<usize> {
     let now = super::chrono_now();
     let count = conn.execute(

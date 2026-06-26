@@ -59,6 +59,7 @@ pub fn get_all_tasks(
         "created_at",
         "updated_at",
     ];
+    // 白名单防止 SQL 注入：只允许预定义的列名出现在 ORDER BY 子句中。
     let sort_column = if allowed_sort_columns.contains(&sort_by) {
         sort_by
     } else {

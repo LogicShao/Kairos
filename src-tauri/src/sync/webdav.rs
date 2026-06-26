@@ -1,3 +1,11 @@
+//! WebDAV 同步传输层：上传/下载 kairos-sync.json 快照文件。
+//!
+//! 设计决策:
+//! - 认证: HTTP Basic Auth，凭证来自本地 SyncConfig
+//! - 并发安全: ETag 条件上传 (If-Match)，412 冲突由上层重试
+//! - 超时: 连接/读写超时 10 秒，避免阻塞 UI
+//! - Base64: 手动实现以避免引入额外依赖
+
 use std::time::Duration;
 
 use reqwest::blocking::Client;

@@ -4,6 +4,8 @@ use super::models::{
     CreatePomodoroSessionRequest, PomodoroConfig, PomodoroSession, UpdatePomodoroConfigRequest,
 };
 
+/// 获取番茄钟配置。若 config 表尚无记录（首次启动），插入默认值并返回。
+/// 默认: 25 分钟工作 / 5 分钟短休息 / 15 分钟长休息 / 每 4 次 work 触发一次 long_break。
 pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
     let result = conn.query_row(
         "SELECT id, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break

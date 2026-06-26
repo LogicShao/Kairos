@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::db::models::{Course, Exam, Task};
 
-/// 未绑定课程的考试使用固定警示色，避免前端自行猜测考试默认颜色。
+/// 未绑定课程的考试使用固定警示色（Red-600），避免前端自行猜测考试默认颜色。
 const EXAM_FALLBACK_COLOR: &str = "#DC2626";
 
 /// 周课表聚合项，跨越后端课程/考试模型和前端课程周视图。
@@ -193,9 +193,10 @@ pub fn build_week_schedule(
     })
 }
 
-/// 未完成任务在日历视图中的固定颜色。
+/// 未完成任务在日历视图中的固定颜色（Amber-600），语义为"待处理/需关注"。
 const TASK_COLOR: &str = "#D97706";
-/// 已完成任务在日历视图中的固定颜色，区别于未完成任务但不改变 task 状态。
+/// 已完成任务在日历视图中的固定颜色（Teal-500），语义为"已完成"。
+/// 区别于未完成任务但不改变数据库 task 状态，仅影响日历渲染。
 const TASK_COMPLETED_COLOR: &str = "#14B8A6";
 
 pub fn build_calendar_week(

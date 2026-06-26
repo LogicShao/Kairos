@@ -30,8 +30,11 @@ pub struct PomodoroSession {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePomodoroSessionRequest {
+    /// UTC ISO 8601 开始时间，由前端在计时开始时生成。
     pub started_at: String,
+    /// "work"、"short_break" 或 "long_break"，与 PomodoroState.phase 对齐。
     pub session_type: String,
+    /// 关联任务的本地 SQLite id；None 表示独立番茄钟。
     pub task_id: Option<i64>,
 }
 
