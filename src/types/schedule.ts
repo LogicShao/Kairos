@@ -50,7 +50,7 @@ export interface CalendarEvent {
   location: string
   /** 展示颜色，由后端按来源统一决定。 */
   color: string
-  /** 展示标签，课程/考试通常为空数组。 */
+  /** 展示标签。课程为空数组；考试至少含"考试"+notes；任务按状态含"完成"/"截止"+解析的 tags。 */
   tags: string[]
   /** 点击事件后前端应该跳转的功能页。 */
   source_link: "todo" | "courses" | "exams"

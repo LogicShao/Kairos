@@ -16,7 +16,7 @@ export interface Exam {
   semester: string
   /** UTC ISO 8601 创建时间，由后端 db::chrono_now 生成。 */
   created_at: string
-  /** UTC ISO 8601 更新时间，由后端 db::chrono_now 生成。 */
+  /** UTC ISO 8601 更新时间。LWW 同步以此字段比较胜负（墓碑优先取 deleted_at）。 */
   updated_at: string
   /** 墓碑时间戳。正常列表查询只返回 null；非 null 表示已软删除并参与同步传播。 */
   deleted_at: string | null
