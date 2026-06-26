@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Version Bump & Release Tag Guide](./version-bump-guide.md) | Decide when a publishable snapshot should bump version and receive a tag | When wrapping a release batch |
 
 ---
 
@@ -38,6 +39,14 @@ These guides help you **ask the right questions before coding**.
 - [ ] UI / command code starts casting raw payload fields directly
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
+
+### When to Think About Version Bump & Release Tag
+
+- [ ] 一批用户可感知改动已经完成，准备作为一个版本收口
+- [ ] 本轮校验已经通过，接下来考虑的是发布边界而不是继续开发
+- [ ] 你准备同步修改版本号，或判断这次是否值得打 tag
+
+→ Read [Version Bump & Release Tag Guide](./version-bump-guide.md)
 
 ### When to Think About Code Reuse
 
