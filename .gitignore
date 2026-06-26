@@ -15,9 +15,7 @@ _ui_temp_figs/
 _TEMP/
 .vite-hmr.pid
 
-# Trellis per-developer workspace (personal journals / task drafts)
-.trellis/workspace/
-.trellis/tasks/
+# Trellis local-state boundary is maintained in ".trellis/.gitignore"
 
 # Android signing keys
 *.jks

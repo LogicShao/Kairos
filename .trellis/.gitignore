@@ -1,3 +1,9 @@
+# Versioned Trellis assets live next to this file:
+# workflow.md, config.yaml, spec/, scripts/, agents/, .version, .template-hashes.json
+# Everything below is local/task/runtime state and must stay out of Git.
+tasks/
+workspace/
+
 # Developer identity (local only)
 .developer
 

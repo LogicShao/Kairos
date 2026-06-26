@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend conventions index for Rust/Tauri code — directory structure, database, error handling, logging"}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend conventions index for React/TypeScript code — components, hooks, state management, type safety"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Critical: Tauri Rust↔JS IPC boundary — data format consistency, error propagation across layers"}
-{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Four feature modules (pomodoro, todo, courses, exams) share CRUD and timer patterns — prevent duplication"}
