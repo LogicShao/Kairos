@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { Task, TaskFilterParams, TaskStatus, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from "@/types/task"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,12 @@ function formatDueDate(dateStr: string | null): { text: string; urgent: boolean 
   return { text: dateStr, urgent: false }
 }
 
+const PRIORITY_RANK: Record<TaskPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+}
+
 export function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,12 +50,24 @@ export function TaskList() {
   const [statusFilter, setStatusFilter] = useState<string>("")
   const [priorityFilter, setPriorityFilter] = useState<string>("")
 
+  // 排序：优先级高 → 低，截止日期早 → 晚，无截止日期排最后
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      const pa = PRIORITY_RANK[a.priority] ?? PRIORITY_RANK.medium
+      const pb = PRIORITY_RANK[b.priority] ?? PRIORITY_RANK.medium
+      if (pa !== pb) return pa - pb
+
+      if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+      if (a.due_date) return -1
+      if (b.due_date) return 1
+      return 0
+    })
+  }, [tasks])
+
   const fetchTasks = useCallback(async () => {
     const filters: TaskFilterParams = {}
     if (statusFilter) filters.status_filter = statusFilter
     if (priorityFilter) filters.priority_filter = priorityFilter
-    filters.sort_by = "created_at"
-    filters.sort_order = "DESC"
 
     const result = await invoke<Task[]>("get_all_tasks", { filters })
     setTasks(result)
@@ -63,8 +81,6 @@ export function TaskList() {
         const filters: TaskFilterParams = {}
         if (statusFilter) filters.status_filter = statusFilter
         if (priorityFilter) filters.priority_filter = priorityFilter
-        filters.sort_by = "created_at"
-        filters.sort_order = "DESC"
 
         const result = await invoke<Task[]>("get_all_tasks", { filters })
         if (!cancelled) {
@@ -203,7 +219,7 @@ export function TaskList() {
 
       {!loading && tasks.length > 0 && (
         <div className="space-y-2">
-          {tasks.map((task) => {
+          {sortedTasks.map((task) => {
             const dueInfo = formatDueDate(task.due_date)
             const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
 

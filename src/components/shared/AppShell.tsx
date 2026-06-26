@@ -118,12 +118,12 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 桌面侧边栏：≥md 时显示 */}
         <aside className="hidden md:flex w-52 shrink-0 flex-col border-r border-border/50 bg-card/40 px-3 py-4 backdrop-blur-xl">
-          <div className="flex items-center gap-2 px-2 pb-5">
+          <div className="flex items-center gap-2 px-2 pb-3.5">
             <img src={kairosLogo} alt="Kairos" className="h-8 w-8 shrink-0 rounded-lg" />
             <div className="min-w-0">
               <div className="font-heading text-sm font-medium leading-none text-primary">Kairos</div>
-              <div className="mt-1 truncate text-[10px] text-muted-foreground">
-                καιρός · 正当其时的关键时刻
+              <div className="mt-1 line-clamp-2 text-[10px] text-muted-foreground">
+                καιρός——稍纵即逝的，正是此刻
               </div>
             </div>
           </div>

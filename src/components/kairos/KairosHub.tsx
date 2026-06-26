@@ -54,7 +54,7 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
                 Kairos
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                正当其时的关键时刻，安排学业日程与专注执行
+                καιρός——稍纵即逝的，正是此刻
               </p>
             </div>
           </div>

@@ -355,6 +355,7 @@ function CalendarWeekTimetable({
                           key={`task-${event.id}`}
                           type="button"
                           onClick={() => onEventClick(event)}
+                          title={`${event.title} · ${eventTimeLabel(event)}${isDone ? " · 已完成" : ""}`}
                           className={cn(
                             "flex min-h-7 w-full items-center gap-1 rounded-md border px-1.5 py-1 text-left text-[10px] font-medium leading-tight transition-colors hover:bg-card",
                             isDone && "text-muted-foreground line-through",
