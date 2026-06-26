@@ -12,137 +12,33 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Save,
-  ClipboardPaste,
-  Upload,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
   EllipsisVertical,
+  Save,
 } from "lucide-react"
-
-const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-const DAY_SHORT = ["一", "二", "三", "四", "五", "六", "日"]
-const HOUR_HEIGHT = 44
-const START_HOUR = 7
-const END_HOUR = 22
-const TOTAL_HOURS = END_HOUR - START_HOUR
-
-const FIELD_CLASS =
-  "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-
-const COLOR_OPTIONS = [
-  { value: "#B8C9E8", label: "雾蓝" },
-  { value: "#C5E0D8", label: "薄荷" },
-  { value: "#F0D5D8", label: "豆沙粉" },
-  { value: "#E8D5F0", label: "香芋紫" },
-  { value: "#F5E6C8", label: "鹅黄" },
-  { value: "#D5E8F0", label: "浅海蓝" },
-  { value: "#F0E0D0", label: "暖杏" },
-  { value: "#D8E8D0", label: "嫩绿" },
-]
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number)
-  return h * 60 + m
-}
-
-function minutesToTop(minutes: number): number {
-  return ((minutes - START_HOUR * 60) / 60) * HOUR_HEIGHT
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!match) return null
-  return {
-    r: parseInt(match[1], 16),
-    g: parseInt(match[2], 16),
-    b: parseInt(match[3], 16),
-  }
-}
-
-function isDarkColor(hex: string): boolean {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return false
-  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255
-  return luminance <= 0.55
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return hex
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
-}
-
-function todayKey(): string {
-  const d = new Date()
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-function computeCurrentWeek(startDate: string): number {
-  const start = new Date(`${startDate}T00:00:00`)
-  if (Number.isNaN(start.getTime())) return 1
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diffDays = Math.floor((today.getTime() - start.getTime()) / 86_400_000)
-  return Math.max(1, Math.floor(diffDays / 7) + 1)
-}
-
-function dayCellKey(weekStartDate: string, offset: number): string {
-  const start = new Date(`${weekStartDate}T00:00:00`)
-  if (Number.isNaN(start.getTime())) return ""
-  start.setDate(start.getDate() + offset)
-  const month = String(start.getMonth() + 1).padStart(2, "0")
-  const day = String(start.getDate()).padStart(2, "0")
-  return `${start.getFullYear()}-${month}-${day}`
-}
-
-interface CourseFormData {
-  name: string
-  day_of_week: number
-  start_time: string
-  end_time: string
-  week_pattern: string
-  semester_start_date: string
-  location: string
-  teacher: string
-  color: string
-  semester: string
-}
-
-function emptyForm(): CourseFormData {
-  return {
-    name: "",
-    day_of_week: 1,
-    start_time: "08:30",
-    end_time: "10:10",
-    week_pattern: "",
-    semester_start_date: "",
-    location: "",
-    teacher: "",
-    color: "#B8C9E8",
-    semester: "",
-  }
-}
-
-function courseToForm(c: Course): CourseFormData {
-  return {
-    name: c.name,
-    day_of_week: c.day_of_week,
-    start_time: c.start_time,
-    end_time: c.end_time,
-    week_pattern: c.week_pattern,
-    semester_start_date: c.semester_start_date,
-    location: c.location,
-    teacher: c.teacher,
-    color: c.color,
-    semester: c.semester,
-  }
-}
+import {
+  DAY_LABELS,
+  DAY_SHORT,
+  HOUR_HEIGHT,
+  START_HOUR,
+  TOTAL_HOURS,
+  type CourseFormData,
+  emptyForm,
+  courseToForm,
+  timeToMinutes,
+  minutesToTop,
+  isDarkColor,
+  hexToRgba,
+  todayKey,
+  computeCurrentWeek,
+  dayCellKey,
+  FIELD_CLASS,
+} from "./utils"
+import { CourseFormModal } from "./CourseFormModal"
+import { ImportModal } from "./ImportModal"
 
 export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => void }) {
   const [courses, setCourses] = useState<Course[]>([])
@@ -768,6 +664,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                                 key={`${item.kind}-${item.id}`}
                                 type="button"
                                 onClick={() => handleBlockClick(item)}
+                                title={`${item.title}${item.location ? ` — ${item.location}` : ""}`}
                                 className={cn(
                                   "absolute left-0.5 right-0.5 overflow-hidden rounded-lg px-1 py-px text-left transition-all flex flex-col justify-center",
                                   "hover:z-20 hover:shadow-lg",
@@ -785,7 +682,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                                   borderColor: isExam ? item.color : undefined,
                                 }}
                               >
-                                <span className="truncate text-[11px] font-semibold leading-tight">
+                                <span className="line-clamp-2 text-[11px] font-semibold leading-tight">
                                   {isExam && <GraduationCap className="inline h-3 w-3 shrink-0 mr-0.5 -mt-px" />}
                                   {item.title}
                                 </span>
@@ -793,6 +690,9 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                                   <span className="truncate text-[9px] leading-tight opacity-65">
                                     {item.location}
                                   </span>
+                                )}
+                                {height < 40 && (
+                                  <span className="sr-only">{item.title} — {item.location}</span>
                                 )}
                               </button>
                             )
@@ -866,6 +766,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                                 key={`m-${item.kind}-${item.id}`}
                                 type="button"
                                 onClick={() => handleBlockClick(item)}
+                                title={item.title}
                                 className={cn(
                                   "absolute left-px right-px overflow-hidden rounded-lg px-1 py-px text-left transition-all active:brightness-90 flex items-center",
                                   isExam ? "border border-dashed" : "",
@@ -878,7 +779,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                                   borderColor: isExam ? item.color : undefined,
                                 }}
                               >
-                                <span className="truncate text-[10px] font-semibold leading-tight w-full">
+                                <span className="line-clamp-2 text-[10px] font-semibold leading-tight w-full">
                                   {item.title}
                                 </span>
                               </button>
@@ -1078,155 +979,21 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       </Modal>
 
       {/* ─── Course Form Modal ─── */}
-      <Modal
+      <CourseFormModal
         open={showForm}
         onOpenChange={(open) => {
           setShowForm(open)
           if (!open) setEditingCourse(null)
         }}
-        title={editingCourse ? "编辑课程" : "新建课程"}
-        description="填写课程的时间、周次与地点等信息"
-        className="max-w-2xl"
-      >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="col-span-2">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              课程名称 <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              placeholder="课程名称"
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">星期</label>
-            <select
-              value={form.day_of_week}
-              onChange={(e) => setForm({ ...form, day_of_week: Number(e.target.value) })}
-              className={FIELD_CLASS}
-            >
-              {DAY_LABELS.map((label, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">颜色</label>
-            <select
-              value={form.color}
-              onChange={(e) => setForm({ ...form, color: e.target.value })}
-              className={FIELD_CLASS}
-            >
-              {COLOR_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">开始时间</label>
-            <input
-              type="time"
-              value={form.start_time}
-              onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">结束时间</label>
-            <input
-              type="time"
-              value={form.end_time}
-              onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">周次</label>
-            <input
-              type="text"
-              value={form.week_pattern}
-              onChange={(e) => setForm({ ...form, week_pattern: e.target.value })}
-              placeholder="e.g. 1-17周全周"
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              学期开始日期
-            </label>
-            <input
-              type="date"
-              value={form.semester_start_date}
-              onChange={(e) => setForm({ ...form, semester_start_date: e.target.value })}
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">地点</label>
-            <input
-              type="text"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              placeholder="教室/地点"
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">教师</label>
-            <input
-              type="text"
-              value={form.teacher}
-              onChange={(e) => setForm({ ...form, teacher: e.target.value })}
-              placeholder="授课教师"
-              className={FIELD_CLASS}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
-            <input
-              type="text"
-              value={form.semester}
-              onChange={(e) => setForm({ ...form, semester: e.target.value })}
-              placeholder="e.g. 2026S1"
-              className={FIELD_CLASS}
-            />
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setShowForm(false)
-              setEditingCourse(null)
-            }}
-          >
-            取消
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={saving || !form.name.trim()}
-            onClick={handleSave}
-          >
-            <Save className="mr-1 h-3.5 w-3.5" />
-            {saving ? "保存中..." : "保存"}
-          </Button>
-        </div>
-      </Modal>
+        isEditing={!!editingCourse}
+        form={form}
+        setForm={setForm}
+        saving={saving}
+        onSave={handleSave}
+      />
 
       {/* ─── Import Modal ─── */}
-      <Modal
+      <ImportModal
         open={showImport}
         onOpenChange={(open) => {
           setShowImport(open)
@@ -1235,81 +1002,18 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
             setImportFeedback(null)
           }
         }}
-        title="从剪贴板导入课表"
-        description="从教务系统网页复制课表表格后粘贴或读取剪贴板"
-        className="max-w-2xl"
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              课表文本 <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="先从教务系统网页复制课表表格，再点击「读取剪贴板」或直接粘贴到这里。"
-              rows={8}
-              className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-            />
-          </div>
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
-              <input
-                type="text"
-                value={importSemester}
-                onChange={(e) => setImportSemester(e.target.value)}
-                placeholder="e.g. 2026S1"
-                className={FIELD_CLASS}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                学期开始日期
-              </label>
-              <input
-                type="date"
-                value={importStartDate}
-                onChange={(e) => setImportStartDate(e.target.value)}
-                className={FIELD_CLASS}
-              />
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground space-y-1">
-              <p>解析与去重在后端完成。</p>
-              <p>填写开始日期可启用周视图。</p>
-              <p>重复课程会被自动跳过。</p>
-            </div>
-          </div>
-        </div>
-
-        {importError && (
-          <p className="mt-3 text-sm text-destructive">{importError}</p>
-        )}
-        {importFeedback && (
-          <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>
-        )}
-
-        <div className="mt-4 flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleReadClipboard()}
-          >
-            <ClipboardPaste className="mr-1 h-3.5 w-3.5" />
-            读取剪贴板
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={importing || !importText.trim()}
-            onClick={() => void handleImport()}
-          >
-            <Upload className="mr-1 h-3.5 w-3.5" />
-            {importing ? "导入中..." : "开始导入"}
-          </Button>
-        </div>
-      </Modal>
+        importText={importText}
+        setImportText={setImportText}
+        importSemester={importSemester}
+        setImportSemester={setImportSemester}
+        importStartDate={importStartDate}
+        setImportStartDate={setImportStartDate}
+        importing={importing}
+        importError={importError}
+        importFeedback={importFeedback}
+        onReadClipboard={handleReadClipboard}
+        onImport={handleImport}
+      />
 
       {/* ─── Reset Semester Start Date Modal ─── */}
       <Modal
