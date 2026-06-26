@@ -434,6 +434,7 @@ function CalendarWeekTimetable({
                       key={`${event.kind}-${event.id}`}
                       type="button"
                       onClick={() => onEventClick(event)}
+                      title={`${event.title} — ${event.start_time}${event.location ? ` — ${event.location}` : ""}`}
                       className={cn(
                         "absolute overflow-hidden rounded-lg text-left transition-all active:brightness-90",
                         compact ? "left-px right-px px-1.5 py-1" : "left-0.5 right-0.5 px-2 py-1.5",
@@ -444,7 +445,7 @@ function CalendarWeekTimetable({
                     >
                       {compact ? (
                         <span className="flex h-full min-w-0 flex-col justify-center">
-                          <span className="block truncate text-[10px] font-semibold leading-tight">
+                          <span className="line-clamp-2 text-[10px] font-semibold leading-tight">
                             {event.title}
                           </span>
                           {height >= 36 && (
