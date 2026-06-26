@@ -15,8 +15,12 @@ _ui_temp_figs/
 _TEMP/
 .vite-hmr.pid
 
-# Trellis per-developer workspace (personal journals)
+# Trellis per-developer workspace (personal journals / task drafts)
 .trellis/workspace/
+.trellis/tasks/
+
+# Android signing keys
+*.jks
 
 # Editor directories and files
 .vscode/*
