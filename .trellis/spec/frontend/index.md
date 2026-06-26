@@ -24,7 +24,7 @@
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
 | [State Management](./state-management.md) | 无全局状态库、本地useState+Tauri invoke/listen | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | 离线优先、响应式、触摸目标、三态覆盖、禁止模式 | ✅ Filled |
-| [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
+| [Type Safety](./type-safety.md) | Tauri IPC contract mirrors, field comments, optional/null rules | ✅ Filled |
 | [Input Patterns](./input-patterns.md) | 数字输入组件选型指南：步进器/滑块/滚轮/自定义键盘 | ✅ Filled |
 
 ---
