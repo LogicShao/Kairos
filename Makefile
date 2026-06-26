@@ -37,7 +37,7 @@ verify: check lint test audit ## Full CI pipeline
 bump: ## Bump version (usage: make bump V=0.1.1)
 	@test -n "$(V)" || (echo "Usage: make bump V=0.1.1" && exit 1)
 	sed -i 's/"version": "[^"]*"/"version": "$(V)"/' src-tauri/tauri.conf.json
-	sed -i 's/version = "[^"]*"/version = "$(V)"/' src-tauri/Cargo.toml
+	sed -i 's/^version = "[^"]*"/version = "$(V)"/' src-tauri/Cargo.toml
 	sed -i 's/"version": "[^"]*"/"version": "$(V)"/' package.json
 	@echo "  ✓ bumped to $(V)"
 
