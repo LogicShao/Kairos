@@ -110,6 +110,43 @@ useEffect(() => {
 }, [])
 ```
 
+### 跨层运行态组件（sync / timer）
+
+当组件同时满足以下条件时：
+
+- 依赖 Tauri `listen()` 接收后端事件
+- 依赖 `invoke()` 修改同一份后端状态
+- 页面关闭后仍要求状态保持一致
+
+必须遵循以下约定：
+
+- 事件 payload 只消费后端已持久化的真实状态，不在前端本地猜测时间戳或版本号
+- `listen()` 必须有 cleanup，避免重复挂载造成重复订阅
+- 文本输入若不做显式“保存”按钮，必须有离开页面前的最终持久化路径
+- “先保存配置，再执行依赖该配置的动作” 必须体现在同一个 handler 中
+
+```tsx
+// ✅ 正确：先保存，再执行；事件里只读后端真实值
+const handleSyncNow = async () => {
+  await saveConfig()
+  await invoke("sync_now")
+}
+
+useEffect(() => {
+  let unlisten: UnlistenFn | undefined
+
+  listen<{ last_sync_at: string }>("sync-finished", (event) => {
+    setLastSyncAt(event.payload.last_sync_at)
+  }).then((fn) => {
+    unlisten = fn
+  })
+
+  return () => {
+    unlisten?.()
+  }
+}, [])
+```
+
 ---
 
 ## 无障碍 (A11y)

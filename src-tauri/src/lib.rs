@@ -8,6 +8,7 @@ pub mod timer;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use sync::AutoSyncState;
 use tauri::{Emitter, Manager};
 use timer::PomodoroEngine;
 
@@ -32,8 +33,9 @@ pub fn run() {
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
 
             let db_path = app_data_dir.join("kairos.db");
-            let conn = db::get_connection(db_path.to_str().expect("invalid db path"))
-                .expect("failed to open database connection");
+            let db_path_str = db_path.to_str().expect("invalid db path").to_string();
+            let conn =
+                db::get_connection(&db_path_str).expect("failed to open database connection");
 
             let config = db::pomodoro::get_config(&conn).expect("failed to load pomodoro config");
 
@@ -61,8 +63,22 @@ pub fn run() {
                 }
             });
 
-            app.manage(db_conn);
+            app.manage(db_conn.clone());
             app.manage(engine);
+
+            // ─── 自动同步状态初始化 ───
+            let auto_sync_state = AutoSyncState::new();
+            {
+                let c = db_conn.lock().unwrap();
+                if let Ok(cfg) = db::sync::get_sync_config(&c) {
+                    if cfg.auto_sync && !cfg.server_url.is_empty() {
+                        let path = db_path_str.clone();
+                        let handle = app.handle().clone();
+                        sync::spawn_auto_sync_worker(path, &auto_sync_state, handle);
+                    }
+                }
+            }
+            app.manage(Arc::new(Mutex::new(auto_sync_state)));
 
             Ok(())
         })

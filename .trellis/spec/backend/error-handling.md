@@ -507,3 +507,84 @@ fn test_base64_encode() {
 - [ ] 特殊业务状态（如 404 首次同步）有专门的处理逻辑
 - [ ] 测试覆盖错误路径（不存在的 ID、约束违规）
 - [ ] 前端可以根据错误字符串做出合理响应
+
+---
+
+## Scenario: WebDAV 自动同步运行态契约
+
+### 1. Scope / Trigger
+
+- Trigger: `sync_now`、`update_sync_config`、`sync-finished` 事件和自动同步 worker 形成了新的跨层运行态契约。
+- Scope: 手动同步、自动同步、前端 SyncSettings 页面刷新、运行中互斥和停用/重启语义。
+
+### 2. Signatures
+
+- Backend command:
+  - `get_sync_config() -> Result<SyncConfig, String>`
+  - `update_sync_config(config: SyncConfig) -> Result<(), String>`
+  - `sync_now() -> Result<SyncResult, String>`
+- Backend runtime:
+  - `spawn_auto_sync_worker(db_path, &AutoSyncState, app_handle)`
+  - `auto_sync_loop(db_path, enabled, running, worker_epoch, current_epoch, app_handle)`
+- Frontend event:
+  - `listen<{ last_sync_at: string }>("sync-finished", ...)`
+
+### 3. Contracts
+
+- Request fields:
+  - `SyncConfig.auto_sync = true` 且 `server_url != ""` 时，后端允许启动自动同步 worker。
+  - `update_sync_config` 必须先持久化数据库，再决定启停 worker。
+- Response / event fields:
+  - `sync_now` 成功返回 `SyncResult`，失败返回可序列化字符串。
+  - `sync-finished` payload 只包含持久化后的 `last_sync_at`，格式为 UTC ISO 8601 字符串。
+- Runtime fields:
+  - `AutoSyncState.running` 是手动/自动同步共享的全局互斥护栏。
+  - `AutoSyncState.worker_epoch` 是 worker 代次。关闭或重新开启自动同步时必须 bump，旧线程据此退出。
+
+### 4. Validation & Error Matrix
+
+- `server_url == ""` -> `sync_now` 返回 `"Server URL not configured"`
+- 已有同步进行中 -> `sync_now` 返回 `"Sync already in progress"`
+- 自动同步触发时 `running = true` -> 本轮跳过，仅记录日志
+- `auto_sync` 从关到开 -> 先写库，再启动新 worker 代次
+- `auto_sync` 从开到关 -> 先写库，再停用当前 worker 代次
+- WebDAV 下载/上传失败 -> 返回/记录带上下文的错误字符串，不弹前端成功事件
+- 只有在 `last_sync_at` 已持久化后，才允许 emit `sync-finished`
+
+### 5. Good / Base / Bad Cases
+
+- Good:
+  - 用户修改配置并开启自动同步，应用启动后延迟窗口内只存在一个有效 worker。
+  - 页面打开时收到 `sync-finished`，显示数据库中的真实 `last_sync_at`。
+- Base:
+  - 自动同步失败只打日志，下一周期继续尝试。
+  - 页面未打开时自动同步成功，只更新数据库；下次进入页面再读取。
+- Bad:
+  - 关闭再快速开启自动同步后，旧 worker 继续长期存活并参与轮询。
+  - 前端用 `new Date().toISOString()` 猜测同步时间，而不是读取持久化值。
+  - 手动同步与自动同步同时上传同一份快照。
+
+### 6. Tests Required
+
+- Unit:
+  - `AutoSyncState` 停用/重启后旧 epoch 失效
+  - `SyncGuard` 第二次 acquire 失败，drop 后可重新 acquire
+- Integration:
+  - `sync_now` 在空 `server_url` 下返回明确错误
+  - `update_sync_config` 不因快速切换 `auto_sync` 留下长期有效的旧 worker
+- Frontend assertion points:
+  - `SyncSettings` 监听 `sync-finished` 后刷新 `last_sync_at`
+  - 页面卸载前若存在未保存草稿，会触发一次最终持久化
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+- `update_sync_config` 直接 `spawn` 新线程，但不给旧线程失效信号
+- 前端在同步成功后本地猜时间，或只在按钮点击时才保存配置
+
+#### Correct
+
+- worker 启停通过 `worker_epoch` 代次失效保证“旧线程可退出，新线程可独占”
+- 前端先保存 `SyncConfig`，再执行测试连接 / 立即同步 / 开关切换
+- `sync-finished` 只传递后端已落库的 `last_sync_at`

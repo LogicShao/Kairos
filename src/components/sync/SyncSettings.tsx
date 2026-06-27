@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { ArrowLeft, RefreshCw, Check, X } from "lucide-react"
 import type { SyncConfig, SyncResult } from "@/types/sync"
 import { Button } from "@/components/ui/button"
@@ -35,7 +36,10 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
   const [syncStatus, setSyncStatus] = useState<"idle" | "loading" | "done">("idle")
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const latestDraftRef = useRef<SyncConfig | null>(null)
+  const lastPersistedRef = useRef<SyncConfig | null>(null)
 
+  // ── 初始加载 ──────────────────────────────────────────
   useEffect(() => {
     invoke<SyncConfig>("get_sync_config")
       .then((cfg) => {
@@ -45,56 +49,131 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
         setPassword(cfg.password)
         setAutoSync(cfg.auto_sync)
         setLastSyncAt(cfg.last_sync_at)
+        latestDraftRef.current = cfg
+        lastPersistedRef.current = cfg
       })
       .catch(console.error)
   }, [])
 
-  const saveConfig = useCallback(() => {
+  // ── 监听后端同步完成事件（手动 + 自动） ──────────────────
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+
+    listen<{ last_sync_at: string }>("sync-finished", (event) => {
+      setLastSyncAt(event.payload.last_sync_at)
+    })
+      .then((fn) => {
+        unlisten = fn
+      })
+      .catch(console.error)
+
+    return () => {
+      unlisten?.()
+    }
+  }, [])
+
+  // ── 顺序化保存配置：先写库，返回 Promise<SyncConfig> ──────
+  const saveConfig = useCallback(
+    async (overrides?: Partial<SyncConfig>): Promise<SyncConfig> => {
+      if (!config) {
+        throw new Error("Config not loaded")
+      }
+      const updated: SyncConfig = {
+        ...config,
+        server_url: serverUrl,
+        username,
+        password,
+        auto_sync: autoSync,
+        ...overrides,
+      }
+      await invoke("update_sync_config", { config: updated })
+      setConfig(updated)
+      lastPersistedRef.current = updated
+      latestDraftRef.current = updated
+      return updated
+    },
+    [config, serverUrl, username, password, autoSync],
+  )
+
+  useEffect(() => {
     if (!config) return
-    const updated: SyncConfig = {
+
+    latestDraftRef.current = {
       ...config,
       server_url: serverUrl,
       username,
       password,
       auto_sync: autoSync,
     }
-    invoke("update_sync_config", { config: updated })
-      .then(() => setConfig(updated))
-      .catch(console.error)
   }, [config, serverUrl, username, password, autoSync])
 
-  const handleTestConnection = useCallback(() => {
-    saveConfig()
+  useEffect(() => {
+    return () => {
+      const draft = latestDraftRef.current
+      const persisted = lastPersistedRef.current
+      if (!draft || !persisted) return
+
+      const hasUnsavedChanges =
+        draft.server_url !== persisted.server_url ||
+        draft.username !== persisted.username ||
+        draft.password !== persisted.password ||
+        draft.auto_sync !== persisted.auto_sync
+
+      if (!hasUnsavedChanges) return
+
+      void invoke("update_sync_config", { config: draft }).then(() => {
+        lastPersistedRef.current = draft
+      })
+    }
+  }, [])
+
+  // ── 测试连接：先保存最新配置，再测试 ────────────────────
+  const handleTestConnection = useCallback(async () => {
     setTestStatus("loading")
     setTestMessage("")
-    invoke<boolean>("test_sync_connection")
-      .then((ok) => {
-        setTestStatus(ok ? "ok" : "fail")
-        setTestMessage(ok ? "连接成功" : "无法连接到服务器")
-      })
-      .catch((err: string) => {
-        setTestStatus("fail")
-        setTestMessage(typeof err === "string" ? err : "连接失败")
-      })
+    try {
+      await saveConfig()
+      const ok = await invoke<boolean>("test_sync_connection")
+      setTestStatus(ok ? "ok" : "fail")
+      setTestMessage(ok ? "连接成功" : "无法连接到服务器")
+    } catch (err) {
+      setTestStatus("fail")
+      setTestMessage(typeof err === "string" ? err : "连接失败")
+    }
   }, [saveConfig])
 
-  const handleSyncNow = useCallback(() => {
-    saveConfig()
+  // ── 立即同步：先保存最新配置，再同步 ────────────────────
+  const handleSyncNow = useCallback(async () => {
     setSyncStatus("loading")
     setSyncResult(null)
     setSyncError(null)
-    invoke<SyncResult>("sync_now")
-      .then((result) => {
-        setSyncResult(result)
-        setSyncStatus("done")
-        const now = new Date().toISOString()
-        setLastSyncAt(now)
-      })
-      .catch((err: string) => {
-        setSyncError(typeof err === "string" ? err : "同步失败")
-        setSyncStatus("done")
-      })
+    try {
+      await saveConfig()
+      const result = await invoke<SyncResult>("sync_now")
+      setSyncResult(result)
+      setSyncStatus("done")
+      // 同步成功后重新读取 last_sync_at（避免前端猜测时间）
+      const cfg = await invoke<SyncConfig>("get_sync_config")
+      setConfig(cfg)
+      setLastSyncAt(cfg.last_sync_at)
+    } catch (err) {
+      setSyncError(typeof err === "string" ? err : "同步失败")
+      setSyncStatus("done")
+    }
   }, [saveConfig])
+
+  // ── 自动同步开关：先保存状态，再触发后端启停 ─────────────
+  const handleAutoSyncToggle = useCallback(async () => {
+    const nextAutoSync = !autoSync
+    setAutoSync(nextAutoSync)
+    try {
+      await saveConfig({ auto_sync: nextAutoSync })
+    } catch (err) {
+      // 保存失败时回退 UI 状态
+      setAutoSync(!nextAutoSync)
+      console.error("Failed to save auto_sync config:", err)
+    }
+  }, [autoSync, saveConfig])
 
   const showPassword = password.length > 0
   const passwordMasked = showPassword ? "●".repeat(Math.min(password.length, 12)) : ""
@@ -136,7 +215,6 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
                 placeholder="webdav.example.com"
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}
-                onBlur={saveConfig}
               />
             </div>
 
@@ -150,7 +228,6 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
                 placeholder="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                onBlur={saveConfig}
               />
             </div>
 
@@ -164,7 +241,6 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
                 placeholder={passwordMasked || "••••••••"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onBlur={saveConfig}
               />
             </div>
 
@@ -174,10 +250,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
                 type="button"
                 role="switch"
                 aria-checked={autoSync}
-                onClick={() => {
-                  setAutoSync(!autoSync)
-                  setTimeout(saveConfig, 0)
-                }}
+                onClick={handleAutoSyncToggle}
                 className={cn(
                   "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
