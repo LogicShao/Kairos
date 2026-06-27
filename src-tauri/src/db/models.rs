@@ -1,6 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationConfig {
+    pub id: i64,
+    /// 全局通知开关，1 = 启用，0 = 禁用。
+    pub enabled: bool,
+    /// 考试提醒偏移量（JSON 数组，单位分钟），例如 [1440,60] 表示提前 1 天和提前 1 小时。
+    pub exam_offsets_json: String,
+    /// Android 通知渠道是否已创建（幂等保护）。
+    pub android_channel_created: bool,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间。
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateNotificationConfig {
+    pub enabled: Option<bool>,
+    pub exam_offsets_json: Option<String>,
+    pub android_channel_created: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PomodoroConfig {
     pub id: i64,
     pub work_seconds: i64,

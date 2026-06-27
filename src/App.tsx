@@ -8,6 +8,7 @@ import { CalendarView } from "@/components/calendar/CalendarView"
 import { CourseSchedule } from "@/components/courses/CourseSchedule"
 import { ExamList } from "@/components/exams/ExamList"
 import { KairosHub } from "@/components/kairos/KairosHub"
+import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
         {active === "kairos" && <KairosHub onNavigate={setActive} />}
         {active === "courses" && <CourseSchedule onNavigate={setActive} />}
         {active === "exams" && <ExamList onNavigate={setActive} />}
+        {active === "notifications" && <NotificationSettings onNavigate={setActive} />}
         {active === "sync" && <SyncSettings onNavigate={setActive} />}
       </AppShell>
     </>

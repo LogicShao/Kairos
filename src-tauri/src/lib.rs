@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod importers;
+pub mod notifications;
 pub mod schedule;
 pub mod sync;
 pub mod timer;
@@ -10,7 +11,7 @@ use std::time::Duration;
 
 use sync::AutoSyncState;
 use tauri::{Emitter, Manager};
-use timer::PomodoroEngine;
+use timer::{PomodoroEngine, TimerPhase};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +19,15 @@ pub fn run() {
         .setup(|app| {
             app.handle()
                 .plugin(tauri_plugin_clipboard_manager::init())?;
+            let notifications_available = app
+                .handle()
+                .plugin(tauri_plugin_notification::init())
+                .is_ok();
+            if notifications_available {
+                notifications::mark_available();
+            } else {
+                log::warn!("notification plugin init failed — notifications disabled");
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -58,13 +68,46 @@ pub fn run() {
 
                 let _ = handle.emit("pomodoro-tick", &state);
 
-                if phase_change.is_some() {
+                if let Some(ended_phase) = phase_change {
                     let _ = handle.emit("pomodoro-phase-change", &state.phase);
+
+                    if notifications_available {
+                        // Cancel the notification for the just-ended phase
+                        notifications::pomodoro_scheduler::cancel_pomodoro_notification();
+
+                        // Schedule a notification for the new phase ending
+                        notifications::pomodoro_scheduler::schedule_pomodoro_notification(
+                            &handle,
+                            &state.phase,
+                            state.remaining_seconds as u64,
+                        );
+
+                        // Send an immediate notification about the phase change
+                        let (title, body) = match ended_phase {
+                            TimerPhase::Work => ("番茄钟", "专注时间结束！休息一下吧"),
+                            TimerPhase::ShortBreak => ("番茄钟", "短休息结束！开始专注吧"),
+                            TimerPhase::LongBreak => ("番茄钟", "长休息结束！开始专注吧"),
+                        };
+                        notifications::pomodoro_scheduler::send_immediate_notification(
+                            &handle, title, body,
+                        );
+                    }
                 }
             });
 
             app.manage(db_conn.clone());
             app.manage(engine);
+
+            // ─── 考试通知调度 ───
+            if notifications_available {
+                let c = db_conn.lock().unwrap();
+                let handle = app.handle().clone();
+                if let Err(e) =
+                    notifications::exam_scheduler::schedule_exam_notifications(&c, &handle)
+                {
+                    log::error!("failed to schedule exam notifications on startup: {e}");
+                }
+            }
 
             // ─── 自动同步状态初始化 ───
             let auto_sync_state = AutoSyncState::new();
@@ -79,7 +122,6 @@ pub fn run() {
                 }
             }
             app.manage(Arc::new(Mutex::new(auto_sync_state)));
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -110,6 +152,9 @@ pub fn run() {
             commands::sync::update_sync_config,
             commands::sync::test_sync_connection,
             commands::sync::sync_now,
+            commands::notifications::get_notification_config,
+            commands::notifications::update_notification_config,
+            commands::notifications::request_notification_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

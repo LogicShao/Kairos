@@ -1,4 +1,4 @@
-import { BookOpen, CalendarClock, Check, Cloud, Moon, Palette, Settings, Sun } from "lucide-react"
+import { Bell, BookOpen, CalendarClock, Check, Cloud, Moon, Palette, Settings, Sun } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
 import { ACCENT_OPTIONS, useTheme } from "@/hooks/use-theme"
@@ -29,6 +29,12 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "考试倒计时",
     description: "查看考试时间、地点与剩余天数",
     icon: CalendarClock,
+  },
+  {
+    key: "notifications",
+    label: "通知设置",
+    description: "管理番茄钟提醒与考试考前通知",
+    icon: Bell,
   },
   {
     key: "sync",
@@ -138,6 +144,10 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
             </div>
           </div>
         </AcrylicPanel>
+
+        <p className="text-center text-[11px] text-muted-foreground/50">
+          v{__APP_VERSION__}
+        </p>
       </div>
     </div>
   )

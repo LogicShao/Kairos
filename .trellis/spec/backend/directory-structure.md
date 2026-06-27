@@ -34,6 +34,11 @@ src-tauri/src/
 │   ├── courses.rs      # 课程表 CRUD
 │   ├── exams.rs        # 考试 CRUD
 │   └── sync.rs         # 同步配置 CRUD
+├── notifications/      # 通知调度业务逻辑
+│   ├── mod.rs          # 导出通知子模块
+│   ├── ids.rs          # 确定性通知 ID 生成（FNV-1a 哈希）
+│   ├── exam_scheduler.rs    # 考试考前提醒调度
+│   └── pomodoro_scheduler.rs # 番茄钟阶段结束通知调度
 ├── sync/               # 同步业务逻辑
 │   ├── mod.rs          # 导出同步模块
 │   ├── exporter.rs     # 数据导入/导出逻辑
@@ -166,6 +171,23 @@ pub struct Task {
 - `exporter.rs` - 导出/导入所有表的快照，实现 Last-Write-Wins 合并
 - `webdav.rs` - 封装 HTTP 客户端，处理认证和错误映射
 
+**示例 3：通知模块** (`notifications/`)：
+- `ids.rs` - 使用 FNV-1a 哈希从业务键生成确定性 `i32` 通知 ID，保证跨重启一致
+- `exam_scheduler.rs` - 启动全量重建考试提醒、创建/更新/删除考试时增量同步
+- `pomodoro_scheduler.rs` - 运行态维护单条当前阶段通知，暂停/重置/阶段切换时取消并重排
+
+> **Warning: tauri-plugin-notification 调度限制**
+>
+> `tauri-plugin-notification` v2.x 的桌面后端（notify-rust）**不支持** `schedule_at` 且**忽略** `id` 字段。
+> 这意味着无法通过插件 API 直接调度未来通知或取消已调度通知。
+>
+> 当前 MVP 方案：使用 `std::thread::spawn` + `Arc<AtomicBool>` 取消令牌实现定时通知。
+> - 调度：spawn 线程 sleep `remaining_seconds` 后调用系统通知
+> - 取消：设置令牌为 `true`，线程在 sleep 后检查令牌并跳过
+>
+> **限制**：应用退出后定时器丢失；不适合长时间延迟（>30min）。
+> **未来方向**：Android 端可考虑 AlarmManager；桌面端可考虑 OS 级调度器。
+
 ---
 
 ## Naming Conventions
@@ -222,6 +244,25 @@ src-tauri/src/lib.rs:46     # 后台线程每秒调用 engine.tick()
 ```
 
 **不创建** `commands/timer.rs`，因为定时器状态通过事件推送 (`emit`) 而非命令拉取。
+
+### 通知调度模块
+
+```
+src-tauri/src/
+├── notifications/
+│   ├── mod.rs                     # 导出通知子模块
+│   ├── ids.rs                     # 确定性通知 ID（FNV-1a）
+│   ├── exam_scheduler.rs          # 考试提醒全量/增量调度
+│   └── pomodoro_scheduler.rs      # 番茄钟运行态单条通知
+├── commands/
+│   ├── notifications.rs           # get/update_notification_config, request_permission
+│   ├── exams.rs                   # create/update/delete 内联通知调度钩子
+│   └── pomodoro.rs                # start/pause/reset 内联通知调度钩子
+├── db/
+│   ├── notifications.rs           # notification_config 表 CRUD
+│   └── models.rs                  # NotificationConfig, UpdateNotificationConfig
+└── lib.rs                         # 启动时 schedule_exam_notifications, tick loop 内 phase change 通知
+```
 
 ---
 

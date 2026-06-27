@@ -59,6 +59,7 @@ pub fn get_all_exams(db: State<'_, Arc<Mutex<Connection>>>) -> Result<Vec<Exam>,
 #[tauri::command]
 pub fn create_exam(
     db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: tauri::AppHandle,
     cmd: CreateExamCmd,
 ) -> Result<i64, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
@@ -71,18 +72,39 @@ pub fn create_exam(
         course_id: cmd.course_id,
         semester: cmd.semester.unwrap_or_default(),
     };
-    crate::db::exams::create_exam(&conn, &req).map_err(|e| e.to_string())
+    let id = crate::db::exams::create_exam(&conn, &req).map_err(|e| e.to_string())?;
+
+    // Schedule notifications for the newly created exam
+    if let Ok(exam) = crate::db::exams::get_exam(&conn, id) {
+        if let Err(e) =
+            crate::notifications::exam_scheduler::schedule_exam_for_one(&conn, &app_handle, &exam)
+        {
+            log::error!("failed to schedule notifications for new exam {id}: {e}");
+        }
+    }
+
+    Ok(id)
 }
 
 #[tauri::command]
 pub fn update_exam(
     db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: tauri::AppHandle,
     id: i64,
     cmd: UpdateExamCmd,
 ) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
 
     let existing = crate::db::exams::get_exam(&conn, id).map_err(|e| e.to_string())?;
+
+    // Cancel notifications for the old exam data
+    if let Err(e) = crate::notifications::exam_scheduler::cancel_exam_notifications(
+        &conn,
+        &app_handle,
+        &existing,
+    ) {
+        log::error!("failed to cancel notifications for exam {id}: {e}");
+    }
 
     let req = UpdateExamRequest {
         course_name: cmd.course_name.unwrap_or(existing.course_name),
@@ -96,12 +118,41 @@ pub fn update_exam(
         },
         semester: cmd.semester.unwrap_or(existing.semester),
     };
-    crate::db::exams::update_exam(&conn, id, &req).map_err(|e| e.to_string())
+    crate::db::exams::update_exam(&conn, id, &req).map_err(|e| e.to_string())?;
+
+    // Schedule notifications for the updated exam
+    if let Ok(updated) = crate::db::exams::get_exam(&conn, id) {
+        if let Err(e) = crate::notifications::exam_scheduler::schedule_exam_for_one(
+            &conn,
+            &app_handle,
+            &updated,
+        ) {
+            log::error!("failed to schedule notifications for updated exam {id}: {e}");
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
-pub fn delete_exam(db: State<'_, Arc<Mutex<Connection>>>, id: i64) -> Result<(), String> {
+pub fn delete_exam(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: tauri::AppHandle,
+    id: i64,
+) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
+
+    // Cancel notifications before deleting
+    if let Ok(exam) = crate::db::exams::get_exam(&conn, id) {
+        if let Err(e) = crate::notifications::exam_scheduler::cancel_exam_notifications(
+            &conn,
+            &app_handle,
+            &exam,
+        ) {
+            log::error!("failed to cancel notifications for deleted exam {id}: {e}");
+        }
+    }
+
     crate::db::exams::delete_exam(&conn, id).map_err(|e| e.to_string())
 }
 

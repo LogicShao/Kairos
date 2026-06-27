@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
 import { Modal } from "@/components/shared/modal"
 import { PageShell } from "@/components/shared/page-shell"
-import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Play, Pause, RotateCcw, Settings } from "lucide-react"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
@@ -46,11 +45,6 @@ export function PomodoroTimer() {
 
   useEffect(() => {
     let unlistenTick: UnlistenFn | undefined
-    let unlistenPhase: UnlistenFn | undefined
-
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission()
-    }
 
     async function init() {
       try {
@@ -72,18 +66,6 @@ export function PomodoroTimer() {
         unlistenTick = await listen<PomodoroState>("pomodoro-tick", (event) => {
           setState(event.payload)
         })
-
-        unlistenPhase = await listen<PomodoroPhase>("pomodoro-phase-change", (event) => {
-          const phase = event.payload
-          const label = PHASE_LABELS[phase] ?? phase
-          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            new Notification("Kairos", {
-              body: phase === "work"
-                ? `休息结束，开始新的${label}`
-                : `${label}时间到！`,
-            })
-          }
-        })
       } catch {
         setError("无法监听计时器事件")
       }
@@ -93,7 +75,6 @@ export function PomodoroTimer() {
 
     return () => {
       unlistenTick?.()
-      unlistenPhase?.()
     }
   }, [])
 
@@ -185,7 +166,7 @@ export function PomodoroTimer() {
 
   return (
     <PageShell title="专注" width="md" centered action={settingsButton}>
-      <AcrylicPanel className="w-full p-5 sm:p-8 flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-6">
       <div className="relative w-64 h-64 md:w-72 md:h-72">
         <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90">
           <circle
@@ -315,7 +296,7 @@ export function PomodoroTimer() {
           </div>
         )}
       </Modal>
-      </AcrylicPanel>
+      </div>
     </PageShell>
   )
 }

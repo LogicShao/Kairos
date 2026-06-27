@@ -102,6 +102,22 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             "sync_identity_and_tombstones",
             "",  // SQL 由 apply_sync_identity_and_tombstones_migration 处理
         ),
+        (
+            5,
+            "notification_config",
+            "
+            CREATE TABLE IF NOT EXISTS notification_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                exam_offsets_json TEXT NOT NULL DEFAULT '[1440,60]',
+                android_channel_created INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO notification_config (id, enabled, exam_offsets_json, android_channel_created, created_at, updated_at)
+            VALUES (1, 1, '[1440,60]', 0, datetime('now'), datetime('now'));
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -263,7 +279,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 6);
+        assert_eq!(table_count, 7);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -300,11 +316,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly four migration records (v1 + v2 + v3 + v4) applied once each
+        // Should have exactly five migration records (v1 + v2 + v3 + v4 + v5) applied once each
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 4);
+        assert_eq!(count, 5);
     }
 
     #[test]
@@ -391,7 +407,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 4);
+        assert_eq!(count, 5);
     }
 
     #[test]
@@ -420,8 +436,8 @@ mod tests {
             .expect("Failed to clear sync_id");
         conn.execute("UPDATE sync_config SET device_id = '', dataset_id = ''", [])
             .expect("Failed to clear config ids");
-        conn.execute("DELETE FROM _migrations WHERE version = 4", [])
-            .expect("Failed to clear v4 migration marker");
+        conn.execute("DELETE FROM _migrations WHERE version >= 4", [])
+            .expect("Failed to clear v4+ migration markers");
 
         run_migrations(&conn).expect("v4 rerun should backfill missing metadata");
 

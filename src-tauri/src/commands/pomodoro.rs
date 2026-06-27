@@ -17,9 +17,21 @@ pub struct PomodoroConfigData {
 }
 
 #[tauri::command]
-pub fn start_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
+pub fn start_pomodoro(
+    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.start();
+
+    // Schedule a notification for the current phase end
+    let state = eng.get_state();
+    drop(eng);
+    crate::notifications::pomodoro_scheduler::schedule_pomodoro_notification(
+        &app_handle,
+        &state.phase,
+        state.remaining_seconds as u64,
+    );
     Ok(())
 }
 
@@ -27,6 +39,8 @@ pub fn start_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(
 pub fn pause_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.pause();
+    drop(eng);
+    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
     Ok(())
 }
 
@@ -34,6 +48,8 @@ pub fn pause_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(
 pub fn reset_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.reset();
+    drop(eng);
+    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
     Ok(())
 }
 
