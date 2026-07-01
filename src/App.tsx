@@ -10,6 +10,7 @@ import { ExamList } from "@/components/exams/ExamList"
 import { KairosHub } from "@/components/kairos/KairosHub"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
+import { TodayPage } from "@/pages/today/TodayPage"
 
 function App() {
   const [active, setActive] = useState("calendar")
@@ -25,6 +26,7 @@ function App() {
             </AcrylicPanel>
           </div>
         )}
+        {active === "today" && <TodayPage onNavigate={setActive} />}
         {active === "todo" && <TaskList />}
         {active === "calendar" && <CalendarView onNavigate={setActive} />}
         {active === "kairos" && <KairosHub onNavigate={setActive} />}

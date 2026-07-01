@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
-import { Timer, CheckSquare, CalendarIcon, BookOpen, Clock, Cloud, Moon, Sun } from "lucide-react"
+import { CalendarDays, CalendarIcon, CheckSquare, Cloud, Moon, Sun, Timer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
 import kairosLogo from "@/assets/kairos-logo.svg"
@@ -12,17 +12,18 @@ interface NavItem {
   logoSrc?: string
 }
 
-/** 桌面侧边栏全部导航项 */
+/** 桌面侧边栏导航，与移动端主入口保持一致 */
 const DESKTOP_NAV: NavItem[] = [
+  { key: "today", label: "今天", icon: CalendarDays },
   { key: "pomodoro", label: "专注", icon: Timer },
   { key: "todo", label: "待办事项", icon: CheckSquare },
   { key: "calendar", label: "日历", icon: CalendarIcon },
-  { key: "courses", label: "课程表", icon: BookOpen },
-  { key: "exams", label: "考试倒计时", icon: Clock },
+  { key: "kairos", label: "Kairos", logoSrc: kairosLogo },
 ]
 
-/** 移动端底部主入口（4 个） */
+/** 移动端底部主入口（5 个） */
 const MOBILE_MAIN: NavItem[] = [
+  { key: "today", label: "今天", icon: CalendarDays },
   { key: "pomodoro", label: "专注", icon: Timer },
   { key: "todo", label: "待办", icon: CheckSquare },
   { key: "calendar", label: "日历", icon: CalendarIcon },
@@ -80,11 +81,13 @@ function NavButton({
 function SidebarNavButton({
   active,
   icon: Icon,
+  logoSrc,
   label,
   onClick,
 }: {
   active: boolean
-  icon: LucideIcon
+  icon?: LucideIcon
+  logoSrc?: string
   label: string
   onClick: () => void
 }) {
@@ -100,7 +103,16 @@ function SidebarNavButton({
           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
       )}
     >
-      <Icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" />
+      {logoSrc ? (
+        <img
+          src={logoSrc}
+          alt=""
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 rounded transition-transform group-hover:scale-110"
+        />
+      ) : Icon ? (
+        <Icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" />
+      ) : null}
       {label}
     </button>
   )
@@ -129,17 +141,16 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
           </div>
 
           <nav className="flex flex-1 flex-col gap-1">
-            {DESKTOP_NAV.map(({ key, label, icon: Icon }) =>
-              Icon ? (
-                <SidebarNavButton
-                  key={key}
-                  active={isActive(key)}
-                  icon={Icon}
-                  label={label}
-                  onClick={() => onNavigate(key)}
-                />
-              ) : null,
-            )}
+            {DESKTOP_NAV.map(({ key, label, icon: Icon, logoSrc }) => (
+              <SidebarNavButton
+                key={key}
+                active={isActive(key)}
+                icon={Icon}
+                logoSrc={logoSrc}
+                label={label}
+                onClick={() => onNavigate(key)}
+              />
+            ))}
           </nav>
 
           <div className="mt-2 flex items-center justify-between border-t border-border/50 pt-3">
