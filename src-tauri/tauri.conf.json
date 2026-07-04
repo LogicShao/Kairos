@@ -34,6 +34,9 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "certificateThumbprint": "A193C69DA78951F6F3204332288A84713C046312",
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
       "wix": {
         "language": "zh-CN"
       },
