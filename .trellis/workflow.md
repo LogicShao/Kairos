@@ -631,6 +631,7 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
 
 **Rules**:
 - No `git commit --amend` anywhere — three-stage three-commit flow (work commits → archive commit → journal commit).
+- Use the repository/user's local default Git identity and signing settings. Do not set `user.name`, `user.email`, `GIT_AUTHOR_*`, `GIT_COMMITTER_*`, or signing-related config/env overrides unless the user explicitly requests it.
 - Never push to remote in this step.
 - If the user wants different message wording but accepts the file grouping, edit the message and re-confirm once — but if they reject the grouping, exit to manual mode.
 - The batched plan is one prompt; do not prompt per commit.
