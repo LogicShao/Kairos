@@ -14,6 +14,8 @@ dist-ssr
 _ui_temp_figs/
 _TEMP/
 .vite-hmr.pid
+.reasonix
+reasonix.toml
 
 # Trellis local-state boundary is maintained in ".trellis/.gitignore"
 
