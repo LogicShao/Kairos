@@ -145,7 +145,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
@@ -212,12 +212,13 @@ jobs:
           } > "$android_project/keystore.properties"
 
       - name: Build Android release
-        run: npm run tauri -- android build
+        run: npm run android:build
 
       - name: Upload Android release assets
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          fail_on_unmatched_files: true
           files: |
             src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*Release/*.aab

@@ -12,6 +12,7 @@
     "tauri": "tauri",
     "android:dev": "bash scripts/android-hmr.sh",
     "android:phone": "bash scripts/android-dev.sh",
+    "android:build": "tauri android build --target aarch64 --split-per-abi --apk --aab --ci",
     "android:install-debug": "bash scripts/android-debug.sh"
   },
   "dependencies": {
