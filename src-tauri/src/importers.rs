@@ -91,7 +91,7 @@ fn matches_day_label(label: &str) -> Option<i64> {
 
 /// 按课程代码+名称的哈希值从 IMPORT_COLORS 池中选取颜色。
 /// 同一课程的哈希值在不同导入批次中保持一致。
-fn infer_color(seed: &str) -> String {
+pub(crate) fn infer_color(seed: &str) -> String {
     let mut hash: u32 = 0;
     for ch in seed.chars() {
         hash = hash.wrapping_mul(31).wrapping_add(ch as u32);

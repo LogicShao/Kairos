@@ -155,7 +155,7 @@ pub fn import_courses_from_text(
     import_new_courses(&conn, &courses, &cmd.semester)
 }
 
-fn import_new_courses(
+pub(crate) fn import_new_courses(
     conn: &Connection,
     courses: &[CreateCourseRequest],
     semester: &str,
