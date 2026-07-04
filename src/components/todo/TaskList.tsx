@@ -1,25 +1,41 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import type { Task, TaskFilterParams, TaskStatus, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from "@/types/task"
+import type { Task, TaskFilterParams, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from "@/types/task"
 import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
+import { Fab } from "@/components/shared/fab"
+import { FilterChip } from "@/components/shared/filter-chip"
 import { PageShell } from "@/components/shared/page-shell"
 import { cn } from "@/lib/utils"
-import { Calendar, Circle, CircleDot, CheckCircle2, ChevronDown, Plus, Trash2 } from "lucide-react"
+import { Calendar, Circle, CheckCircle2, ListTodo, Plus, Trash2 } from "lucide-react"
 
-const PRIORITY_CONFIG: Record<TaskPriority, { label: string; className: string }> = {
-  high: { label: "高", className: "bg-red-500/15 text-red-400 border-red-500/30" },
-  medium: { label: "中", className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  low: { label: "低", className: "bg-muted text-muted-foreground border-border" },
+interface PriorityConfig {
+  label: string
+  className: string
+  dotClassName: string
 }
 
-const STATUS_CONFIG: Record<TaskStatus, { label: string; icon: typeof Circle }> = {
-  todo: { label: "待办", icon: Circle },
-  in_progress: { label: "进行中", icon: CircleDot },
-  done: { label: "已完成", icon: CheckCircle2 },
+const PRIORITY_CONFIG: Record<TaskPriority, PriorityConfig> = {
+  high: { label: "高", className: "bg-red-500/15 text-red-400 border-red-500/30", dotClassName: "bg-red-400" },
+  medium: { label: "中", className: "bg-amber-500/15 text-amber-400 border-amber-500/30", dotClassName: "bg-amber-400" },
+  low: { label: "低", className: "bg-muted text-muted-foreground border-border", dotClassName: "bg-muted-foreground" },
 }
+
+const STATUS_OPTIONS = [
+  { value: "", label: "未完成" },
+  { value: "todo", label: "待办" },
+  { value: "in_progress", label: "进行中" },
+  { value: "done", label: "已完成" },
+]
+
+const PRIORITY_OPTIONS = [
+  { value: "", label: "全部优先级" },
+  { value: "high", label: "高" },
+  { value: "medium", label: "中" },
+  { value: "low", label: "低" },
+]
 
 function formatDueDate(dateStr: string | null): { text: string; urgent: boolean } {
   if (!dateStr) return { text: "", urgent: false }
@@ -70,7 +86,7 @@ export function TaskList() {
     if (priorityFilter) filters.priority_filter = priorityFilter
 
     const result = await invoke<Task[]>("get_all_tasks", { filters })
-    setTasks(result)
+    setTasks(!statusFilter ? result.filter(t => t.status !== "done") : result)
     setError(null)
   }, [statusFilter, priorityFilter])
 
@@ -84,7 +100,7 @@ export function TaskList() {
 
         const result = await invoke<Task[]>("get_all_tasks", { filters })
         if (!cancelled) {
-          setTasks(result)
+          setTasks(!statusFilter ? result.filter(t => t.status !== "done") : result)
           setError(null)
         }
       } catch {
@@ -119,34 +135,18 @@ export function TaskList() {
     await fetchTasks()
   }
 
-  const statusIcon = (status: TaskStatus) => {
-    const { icon: Icon, label } = STATUS_CONFIG[status]
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 text-xs",
-          status === "done" ? "text-emerald-400" : status === "in_progress" ? "text-amber-400" : "text-muted-foreground"
-        )}
-        title={label}
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-    )
+  async function handleComplete(task: Task) {
+    await invoke("update_task", { id: task.id, cmd: { status: "done" } })
+    await fetchTasks()
   }
 
-  const addButton = (
-    <Button
-      size="sm"
-      onClick={() => { setShowForm(true); setEditingTask(null) }}
-      disabled={showForm}
-    >
-      <Plus className="h-4 w-4 md:mr-1" />
-      <span className="hidden md:inline">新建</span>
-    </Button>
-  )
+  function openNewForm() {
+    setEditingTask(null)
+    setShowForm(true)
+  }
 
   return (
-    <PageShell title="待办事项" width="2xl" action={addButton}>
+    <PageShell title="待办事项" width="2xl" titleClassName="text-xl font-heading font-semibold">
       <Modal
         open={showForm || editingTask !== null}
         onOpenChange={(open) => {
@@ -155,6 +155,7 @@ export function TaskList() {
             setEditingTask(null)
           }
         }}
+        variant="bottom"
         title={editingTask ? "编辑任务" : "新建任务"}
         description="填写任务标题、优先级、截止日期等信息"
       >
@@ -169,33 +170,22 @@ export function TaskList() {
         />
       </Modal>
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <div className="relative flex-1">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full h-9 sm:h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-sm sm:text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-          >
-            <option value="">全部状态</option>
-            <option value="todo">待办</option>
-            <option value="in_progress">进行中</option>
-            <option value="done">已完成</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 sm:h-3 w-3.5 sm:w-3 text-muted-foreground" />
-        </div>
-        <div className="relative flex-1">
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="w-full h-9 sm:h-8 appearance-none rounded-md border border-input bg-background pl-2.5 pr-7 text-sm sm:text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-          >
-            <option value="">全部优先级</option>
-            <option value="high">高</option>
-            <option value="medium">中</option>
-            <option value="low">低</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 sm:h-3 w-3.5 sm:w-3 text-muted-foreground" />
-        </div>
+      <Fab onClick={openNewForm} />
+
+      {/* 胶囊筛选 */}
+      <div className="mb-4 flex items-center gap-2">
+        <FilterChip
+          label="状态"
+          options={STATUS_OPTIONS}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <FilterChip
+          label="优先级"
+          options={PRIORITY_OPTIONS}
+          value={priorityFilter}
+          onChange={setPriorityFilter}
+        />
       </div>
 
       {loading && (
@@ -208,13 +198,18 @@ export function TaskList() {
         <p className="text-center text-sm text-muted-foreground py-8">{error}</p>
       )}
 
+      {/* 空状态：无卡片，直接显示在背景上 */}
       {!loading && tasks.length === 0 && !error && (
-        <AcrylicPanel className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">暂无任务</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            点击"新建"按钮添加第一个任务
-          </p>
-        </AcrylicPanel>
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <ListTodo className="h-12 w-12 text-muted-foreground/30" strokeWidth={1.5} />
+          <div className="text-center space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">还没有待办任务</p>
+            <p className="text-xs text-muted-foreground/60">点击下方按钮开始规划</p>
+          </div>
+          <Button size="sm" className="min-h-11 md:min-h-8" onClick={openNewForm}>
+            <Plus className="h-4 w-4 mr-1" />添加任务
+          </Button>
+        </div>
       )}
 
       {!loading && tasks.length > 0 && (
@@ -234,7 +229,23 @@ export function TaskList() {
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 shrink-0">
-                    {statusIcon(task.status)}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (task.status === "done") return
+                        void handleComplete(task)
+                      }}
+                      disabled={task.status === "done"}
+                      aria-label={task.status === "done" ? "已完成" : "完成任务"}
+                      className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default md:h-6 md:w-6"
+                    >
+                      {task.status === "done" ? (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
+                      )}
+                    </button>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -248,10 +259,14 @@ export function TaskList() {
                       </span>
                       <span
                         className={cn(
-                          "inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
+                          "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
                           priorityCfg.className
                         )}
                       >
+                        {/* 优先级颜色圆点 */}
+                        <span
+                          className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)}
+                        />
                         {priorityCfg.label}
                       </span>
                     </div>
@@ -290,7 +305,7 @@ export function TaskList() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
                     onClick={(e) => {
                       e.stopPropagation()
                       void handleDelete(task.id)

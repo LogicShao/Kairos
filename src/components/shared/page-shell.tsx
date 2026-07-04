@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { cn } from "@/lib/utils"
 
 interface PageShellProps {
   /** 页面标题，显示在顶部居中 */
@@ -11,6 +12,8 @@ interface PageShellProps {
   centered?: boolean
   /** 标题栏右侧操作按钮，不传则留空 */
   action?: ReactNode
+  /** 标题额外样式类，可用于增大字号等；默认 text-lg font-heading font-medium */
+  titleClassName?: string
 }
 
 const WIDTH_CLASS: Record<NonNullable<PageShellProps["width"]>, string> = {
@@ -21,7 +24,7 @@ const WIDTH_CLASS: Record<NonNullable<PageShellProps["width"]>, string> = {
 }
 
 /** 页面外壳：统一标题栏 + 入场动画 + 宽度容器 + 间距。专注/待办/课程/考试/同步均可复用。 */
-export function PageShell({ title, children, width = "2xl", centered = false, action }: PageShellProps) {
+export function PageShell({ title, children, width = "2xl", centered = false, action, titleClassName }: PageShellProps) {
   return (
     <div
       className={
@@ -30,7 +33,7 @@ export function PageShell({ title, children, width = "2xl", centered = false, ac
     >
       {/* 标题栏 */}
       <div className="flex items-center justify-between gap-2 min-h-[2rem]">
-        <h2 className="text-lg font-heading font-medium text-foreground">{title}</h2>
+        <h2 className={cn("text-lg font-heading font-medium text-foreground", titleClassName)}>{title}</h2>
         {action && <div className="flex items-center">{action}</div>}
       </div>
 
