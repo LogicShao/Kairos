@@ -31,6 +31,17 @@ reasonix.toml
 # Android signing keys
 *.jks
 
+# Code signing private keys
+*.pfx
+*.p12
+*.pem
+*.key
+*.keystore
+
+# Local signing certificates
+*.cer
+*.crt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

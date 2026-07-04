@@ -48,7 +48,7 @@ android-build-debug: ## Android debug APK
 	npm run android:install-debug -- --rebuild
 
 android-build: ## Android release build (AAB + APK)
-	cargo tauri android build
+	npm run android:build
 
 check-all: check ## Full check including Android target
 	$(CARGO) check --target aarch64-linux-android --manifest-path $(MANIFEST)

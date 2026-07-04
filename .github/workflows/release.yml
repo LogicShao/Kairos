@@ -1,0 +1,224 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  desktop-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Validate tag version
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          const pkg = require('./package.json').version;
+          const tauri = require('./src-tauri/tauri.conf.json').version;
+          const cargo = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8')
+            .match(/^version = "([^"]+)"/m)?.[1];
+
+          for (const [name, value] of Object.entries({ tag, pkg, tauri, cargo })) {
+            if (value !== tag) {
+              console.error(`Version mismatch: ${name}=${value}, tag=${tag}`);
+              process.exit(1);
+            }
+          }
+          NODE
+
+      - name: Import Windows signing certificate
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64) {
+            throw "Missing WINDOWS_CERTIFICATE_BASE64 secret."
+          }
+          if (-not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            throw "Missing WINDOWS_CERTIFICATE_PASSWORD secret."
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "kairos-signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate `
+            -FilePath $pfxPath `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password $password | Out-Null
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Rust test
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Kairos ${{ github.ref_name }}"
+          releaseBody: "Automated release for ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+
+  android-release:
+    runs-on: ubuntu-22.04
+    needs: desktop-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Validate tag version
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          const pkg = require('./package.json').version;
+          const tauri = require('./src-tauri/tauri.conf.json').version;
+          const cargo = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8')
+            .match(/^version = "([^"]+)"/m)?.[1];
+
+          for (const [name, value] of Object.entries({ tag, pkg, tauri, cargo })) {
+            if (value !== tag) {
+              console.error(`Version mismatch: ${name}=${value}, tag=${tag}`);
+              process.exit(1);
+            }
+          }
+          NODE
+
+      - name: Import Android signing key
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Missing ANDROID_KEYSTORE_BASE64 secret." >&2
+            exit 1
+          fi
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "Missing ANDROID_KEYSTORE_PASSWORD secret." >&2
+            exit 1
+          fi
+          if [ -z "$ANDROID_KEY_ALIAS" ]; then
+            echo "Missing ANDROID_KEY_ALIAS secret." >&2
+            exit 1
+          fi
+          if [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "Missing ANDROID_KEY_PASSWORD secret." >&2
+            exit 1
+          fi
+
+          android_project="src-tauri/gen/android"
+          keystore_path="$android_project/kairos-release.jks"
+
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          {
+            printf 'storeFile=%s\n' 'kairos-release.jks'
+            printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+          } > "$android_project/keystore.properties"
+
+      - name: Build Android release
+        run: npm run android:build
+
+      - name: Upload Android release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          fail_on_unmatched_files: true
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*Release/*.aab
