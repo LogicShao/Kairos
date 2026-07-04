@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Multi-Agent Collaboration Guide](./multi-agent-collaboration-guide.md) | Coordinate Codex and Claude Code with explicit baton passing and handoff files | When work moves across tools or models |
 | [Version Bump & Release Tag Guide](./version-bump-guide.md) | Decide when a publishable snapshot should bump version and receive a tag | When wrapping a release batch |
 
 ---
@@ -59,6 +60,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] Multiple branches update the same derived state from `kind` / `action`
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
+### When to Think About Multi-Agent Collaboration
+
+- [ ] Planning happens in one tool and implementation in another
+- [ ] Two model stacks may touch the same task
+- [ ] You are manually switching between Codex and Claude Code
+- [ ] The next agent must not rely on chat-only context
+
+→ Read [Multi-Agent Collaboration Guide](./multi-agent-collaboration-guide.md)
 
 ### When Verifying AI Cross-Review Results
 
