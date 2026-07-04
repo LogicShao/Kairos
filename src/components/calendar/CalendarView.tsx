@@ -21,7 +21,7 @@ const END_HOUR = 22
 const TOTAL_HOURS = END_HOUR - START_HOUR
 const COMPACT_TIME_AXIS_WIDTH = 28
 
-type CalendarMode = "week" | "day"
+type CalendarMode = "month" | "week" | "day"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -117,6 +117,93 @@ function formatMonthLabel(startDate: string, endDate: string): string {
     return `${startYear}年${startMonth}月 / ${endMonth}月`
   }
   return `${startYear}年${startMonth}月 / ${endYear}年${endMonth}月`
+}
+
+function toDateKey(year: number, month: number, day: number): string {
+  const m = String(month).padStart(2, "0")
+  const d = String(day).padStart(2, "0")
+  return `${year}-${m}-${d}`
+}
+
+/** 生成月视图所需的 35/42 个日期单元（周一开始）。 */
+function getMonthGridDays(
+  year: number,
+  month: number,
+): Array<{ dateKey: string; day: number; inCurrentMonth: boolean }> {
+  const firstDay = new Date(year, month - 1, 1)
+  const lastDay = new Date(year, month, 0)
+  const dayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(gridStart.getDate() - dayOfWeek)
+
+  const lastDayOfWeek = lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1
+  const gridEnd = new Date(lastDay)
+  gridEnd.setDate(gridEnd.getDate() + (6 - lastDayOfWeek))
+
+  const totalCells = Math.round((gridEnd.getTime() - gridStart.getTime()) / 86400000) + 1
+  const days: Array<{ dateKey: string; day: number; inCurrentMonth: boolean }> = []
+
+  for (let i = 0; i < totalCells; i++) {
+    const d = new Date(gridStart)
+    d.setDate(gridStart.getDate() + i)
+    days.push({
+      dateKey: toDateKey(d.getFullYear(), d.getMonth() + 1, d.getDate()),
+      day: d.getDate(),
+      inCurrentMonth: d.getMonth() + 1 === month,
+    })
+  }
+  return days
+}
+
+/** 获取覆盖某月所需的各周起始日期（YYYY-MM-DD）。 */
+function getMonthWeekStarts(year: number, month: number): string[] {
+  const firstDay = new Date(year, month - 1, 1)
+  const dayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(gridStart.getDate() - dayOfWeek)
+
+  const lastDay = new Date(year, month, 0)
+  const lastDayOfWeek = lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1
+  const gridEnd = new Date(lastDay)
+  gridEnd.setDate(gridEnd.getDate() + (6 - lastDayOfWeek))
+
+  const weeks: string[] = []
+  const cursor = new Date(gridStart)
+  while (cursor <= gridEnd) {
+    weeks.push(toDateKey(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()))
+    cursor.setDate(cursor.getDate() + 7)
+  }
+  return weeks
+}
+
+/** 将多周事件数据按日期键（YYYY-MM-DD）归并。 */
+type EventsByDate = Record<string, CalendarEvent[]>
+
+function buildEventsByDate(weeksData: CalendarWeekResponse[]): EventsByDate {
+  const byDate: EventsByDate = {}
+  for (const week of weeksData) {
+    for (const event of week.events) {
+      const base = new Date(`${week.week_start_date}T00:00:00`)
+      base.setDate(base.getDate() + (event.day_of_week - 1))
+      const key = toDateKey(base.getFullYear(), base.getMonth() + 1, base.getDate())
+      if (!byDate[key]) byDate[key] = []
+      byDate[key].push(event)
+    }
+  }
+  return byDate
+}
+
+/** 解析 YYYY-MM-DD 日期键中的月份，返回 YYYY-MM-01。 */
+function monthKeyFromDateKey(dateKey: string): string {
+  return dateKey.length >= 7 ? `${dateKey.slice(0, 7)}-01` : dateKey
+}
+
+/** 对 YYYY-MM-01 月份键加减月数。 */
+function addMonthsToKey(monthKey: string, delta: number): string {
+  const d = new Date(`${monthKey}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return monthKey
+  d.setMonth(d.getMonth() + delta)
+  return toDateKey(d.getFullYear(), d.getMonth() + 1, 1)
 }
 
 function eventTypeLabel(kind: CalendarEvent["kind"]): string {
@@ -485,6 +572,129 @@ function CalendarWeekTimetable({
   )
 }
 
+interface CalendarMonthGridProps {
+  gridDays: Array<{ dateKey: string; day: number; inCurrentMonth: boolean }>
+  eventsByDate: EventsByDate
+  today: string
+  selectedDateKey: string
+  onDateClick: (dateKey: string) => void
+}
+
+/** 月视图网格：展示日期数字、事件摘要，点击日期切换到日视图。 */
+function CalendarMonthGrid({
+  gridDays,
+  eventsByDate,
+  today,
+  selectedDateKey,
+  onDateClick,
+}: CalendarMonthGridProps) {
+  const rows: Array<typeof gridDays> = []
+  for (let i = 0; i < gridDays.length; i += 7) {
+    rows.push(gridDays.slice(i, i + 7))
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-2 pb-4">
+      {/* 星期头 */}
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_SHORT.map((day) => (
+          <div
+            key={day}
+            className="py-1.5 text-center text-[10px] font-medium text-muted-foreground/60"
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+      {/* 日期网格 */}
+      <div className="rounded-xl border border-border/30 overflow-hidden">
+        {rows.map((weekDays, rowIdx) => (
+          <div key={rowIdx} className="grid grid-cols-7">
+            {weekDays.map((cell) => {
+              const cellEvents = eventsByDate[cell.dateKey] ?? []
+              const isToday = cell.dateKey === today
+              const isSelected = cell.dateKey === selectedDateKey
+
+              // 按来源分组显示摘要
+              const courseEvents = cellEvents.filter((e) => e.kind === "course")
+              const examEvents = cellEvents.filter((e) => e.kind === "exam")
+              const taskEvents = cellEvents.filter((e) => e.kind === "task")
+              const hasEvents = cellEvents.length > 0
+
+              return (
+                <button
+                  key={cell.dateKey}
+                  type="button"
+                  onClick={() => onDateClick(cell.dateKey)}
+                  className={cn(
+                    "flex min-h-[72px] flex-col items-stretch border-b border-r border-border/25 p-1 text-left transition-colors md:min-h-[88px]",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                    !cell.inCurrentMonth && "bg-muted/20",
+                    isToday && "bg-primary/[0.04]",
+                    isSelected && "ring-2 ring-inset ring-primary",
+                  )}
+                  aria-label={`${cell.dateKey}，${cellEvents.length} 个事件`}
+                >
+                  {/* 日期数字 */}
+                  <span
+                    className={cn(
+                      "mb-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums shrink-0",
+                      !cell.inCurrentMonth && "text-muted-foreground/40",
+                      cell.inCurrentMonth && !isToday && "text-foreground",
+                      isToday && "bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {cell.day}
+                  </span>
+                  {/* 事件摘要 */}
+                  <div className="flex min-h-0 flex-1 flex-col gap-px overflow-hidden">
+                    {/* 课程：最多显示 1 条 */}
+                    {courseEvents.length > 0 && (
+                      <span className="line-clamp-1 rounded-sm bg-primary/10 px-1 py-0.5 text-[9px] font-medium text-primary leading-tight">
+                        {courseEvents.length === 1
+                          ? courseEvents[0].title
+                          : `${courseEvents[0].title} +${courseEvents.length - 1}`}
+                      </span>
+                    )}
+                    {/* 考试：最多显示 1 条 */}
+                    {examEvents.length > 0 && (
+                      <span className="line-clamp-1 rounded-sm bg-destructive/10 px-1 py-0.5 text-[9px] font-medium text-destructive leading-tight">
+                        {examEvents.length === 1
+                          ? examEvents[0].title
+                          : `${examEvents[0].title} +${examEvents.length - 1}`}
+                      </span>
+                    )}
+                    {/* 待办：最多显示 1 条 */}
+                    {taskEvents.length > 0 && (
+                      <span className="line-clamp-1 rounded-sm bg-amber-500/10 px-1 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400 leading-tight">
+                        {taskEvents.length === 1
+                          ? taskEvents[0].title
+                          : `${taskEvents[0].title} +${taskEvents.length - 1}`}
+                      </span>
+                    )}
+                    {/* 更多计数（移动端隐藏，桌面端显示剩余条数） */}
+                    {hasEvents && cellEvents.length > 3 && (
+                      <span className="hidden md:block mt-px text-[9px] font-medium text-muted-foreground/60">
+                        +{cellEvents.length - 3} 更多
+                      </span>
+                    )}
+                    {/* 无事件时显示占位 */}
+                    {!hasEvents && (
+                      <span className="hidden md:block mt-px text-[9px] text-muted-foreground/30">
+                        无安排
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface CalendarViewProps {
   onNavigate: (key: string) => void
 }
@@ -499,6 +709,17 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
     new Date().getDay() === 0 ? 6 : new Date().getDay() - 1,
   )
   const [weekRefresh, setWeekRefresh] = useState(0)
+
+  // 月视图状态
+  const [visibleMonthKey, setVisibleMonthKey] = useState(() => {
+    const now = new Date()
+    return toDateKey(now.getFullYear(), now.getMonth() + 1, 1)
+  })
+  const [monthWeeksData, setMonthWeeksData] = useState<CalendarWeekResponse[]>([])
+  const [monthLoading, setMonthLoading] = useState(false)
+  const [monthError, setMonthError] = useState<string | null>(null)
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey)
+  const [monthRefresh, setMonthRefresh] = useState(0)
 
   const semester = (() => {
     const now = new Date()
@@ -539,8 +760,58 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
     }
   }, [semester, weekStartDate, weekRefresh])
 
-  const handlePrevWeek = () => setWeekStartDate((date) => addDaysToKey(date, -7))
-  const handleNextWeek = () => setWeekStartDate((date) => addDaysToKey(date, 7))
+  // 月视图数据加载
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadMonth() {
+      setMonthLoading(true)
+      setMonthError(null)
+      try {
+        const year = Number(visibleMonthKey.slice(0, 4))
+        const month = Number(visibleMonthKey.slice(5, 7))
+        const weekStarts = getMonthWeekStarts(year, month)
+        const results = await Promise.all(
+          weekStarts.map((ws) =>
+            invoke<CalendarWeekResponse>("get_calendar_week", {
+              cmd: { semester, week_index: 1, week_start_date: ws } satisfies CalendarWeekCmd,
+            }),
+          ),
+        )
+        if (!cancelled) {
+          setMonthWeeksData(results)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setMonthWeeksData([])
+          setMonthError(typeof e === "string" ? e : "无法加载月视图数据")
+        }
+      } finally {
+        if (!cancelled) setMonthLoading(false)
+      }
+    }
+
+    void loadMonth()
+    return () => {
+      cancelled = true
+    }
+  }, [semester, visibleMonthKey, monthRefresh])
+
+  const handlePrevNav = () => {
+    if (viewMode === "month") {
+      setVisibleMonthKey((key) => addMonthsToKey(key, -1))
+    } else {
+      setWeekStartDate((date) => addDaysToKey(date, -7))
+    }
+  }
+
+  const handleNextNav = () => {
+    if (viewMode === "month") {
+      setVisibleMonthKey((key) => addMonthsToKey(key, 1))
+    } else {
+      setWeekStartDate((date) => addDaysToKey(date, 7))
+    }
+  }
 
   const handleDayClick = (dayIndex: number) => {
     setSelectedDayIndex(dayIndex)
@@ -551,9 +822,46 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
     onNavigate(event.source_link)
   }
 
+  /** 月视图点击日期 → 切换日视图，同步 weekStartDate 和 selectedDayIndex。 */
+  const handleMonthDateClick = (dateKey: string) => {
+    setSelectedDateKey(dateKey)
+    // 将 weekStartDate 同步到所选日期所在周的周一
+    const d = new Date(`${dateKey}T00:00:00`)
+    if (!Number.isNaN(d.getTime())) {
+      const dayFromMonday = d.getDay() === 0 ? 6 : d.getDay() - 1
+      d.setDate(d.getDate() - dayFromMonday)
+      const newWeekStart = toDateKey(d.getFullYear(), d.getMonth() + 1, d.getDate())
+      const dayIndex = dayFromMonday
+      setWeekStartDate(newWeekStart)
+      setSelectedDayIndex(dayIndex)
+    }
+    setViewMode("day")
+  }
+
   const today = todayKey()
   const currentWeekStart = startOfWeekKey()
   const isCurrentWeek = weekStartDate === currentWeekStart
+
+  // 月视图派生数据
+  const monthGridDays = viewMode === "month"
+    ? getMonthGridDays(
+        Number(visibleMonthKey.slice(0, 4)),
+        Number(visibleMonthKey.slice(5, 7)),
+      )
+    : []
+  const monthEventsByDate = viewMode === "month" ? buildEventsByDate(monthWeeksData) : {}
+  const monthEventCount = viewMode === "month"
+    ? monthGridDays.reduce(
+        (total, day) =>
+          day.inCurrentMonth ? total + (monthEventsByDate[day.dateKey]?.length ?? 0) : total,
+        0,
+      )
+    : 0
+  const monthTitle = viewMode === "month"
+    ? `${visibleMonthKey.slice(0, 4)}年${Number(visibleMonthKey.slice(5, 7))}月`
+    : ""
+  const isCurrentMonth = viewMode === "month" && monthKeyFromDateKey(todayKey()) === visibleMonthKey
+
   const weekRangeLabel = formatWeekRange(
     weekData?.week_start_date ?? weekStartDate,
     weekData?.week_end_date ?? dayCellKey(weekStartDate, 6),
@@ -569,13 +877,26 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
   const selectedDate = weekData ? dayCellKey(weekData.week_start_date, selectedDayIndex) : ""
   const selectedEvents = allEvents.filter((event) => event.day_of_week === selectedDayIndex + 1)
 
+  // 日视图分组：待办优先，按截止紧迫度排序；课程/考试按开始时间排序
+  const dayTaskEvents = selectedEvents
+    .filter((e) => e.kind === "task")
+    .sort((a, b) => {
+      const aDone = a.tags.includes("完成")
+      const bDone = b.tags.includes("完成")
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return a.title.localeCompare(b.title)
+    })
+  const dayTimedEvents = selectedEvents
+    .filter((e) => e.kind !== "task")
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
         <button
           type="button"
-          onClick={handlePrevWeek}
-          aria-label="上一周"
+          onClick={handlePrevNav}
+          aria-label={viewMode === "month" ? "上一月" : "上一周"}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -584,7 +905,12 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
         <button
           type="button"
           onClick={() => {
-            if (!isCurrentWeek) {
+            if (viewMode === "month") {
+              const now = new Date()
+              const todayMonth = toDateKey(now.getFullYear(), now.getMonth() + 1, 1)
+              setVisibleMonthKey(todayMonth)
+              setSelectedDateKey(todayKey())
+            } else if (!isCurrentWeek) {
               setWeekStartDate(currentWeekStart)
             } else {
               setWeekRefresh((n) => n + 1)
@@ -592,25 +918,29 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
           }}
           className="inline-flex min-h-11 items-center rounded-md px-2.5 text-left transition-colors hover:bg-muted/60"
         >
-          <span className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold text-foreground">{monthLabel}</span>
-            <span className="mt-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-              {weekRangeLabel}
-              {isCurrentWeek ? " · 本周" : ""}
+          {viewMode === "month" ? (
+            <span className="text-sm font-semibold text-foreground">{monthTitle}</span>
+          ) : (
+            <span className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold text-foreground">{monthLabel}</span>
+              <span className="mt-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                {weekRangeLabel}
+                {isCurrentWeek ? " · 本周" : ""}
+              </span>
             </span>
-          </span>
+          )}
         </button>
 
         <button
           type="button"
-          onClick={handleNextWeek}
-          aria-label="下一周"
+          onClick={handleNextNav}
+          aria-label={viewMode === "month" ? "下一月" : "下一周"}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
 
-        {!isCurrentWeek && (
+        {viewMode !== "month" && !isCurrentWeek && (
           <button
             type="button"
             onClick={() => setWeekStartDate(currentWeekStart)}
@@ -619,24 +949,38 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
             今天
           </button>
         )}
+        {viewMode === "month" && !isCurrentMonth && (
+          <button
+            type="button"
+            onClick={() => {
+              const now = new Date()
+              const todayMonth = toDateKey(now.getFullYear(), now.getMonth() + 1, 1)
+              setVisibleMonthKey(todayMonth)
+              setSelectedDateKey(todayKey())
+            }}
+            className="h-9 shrink-0 rounded-md px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            今天
+          </button>
+        )}
 
         <div className="min-w-full flex-1 sm:min-w-0" />
 
-        <div className="grid h-9 grid-cols-2 rounded-lg bg-muted p-1 text-xs font-medium">
-          {(["week", "day"] as CalendarMode[]).map((mode) => (
+        <div className="grid h-9 grid-cols-3 rounded-lg bg-muted p-1 text-xs font-medium">
+          {(["month", "week", "day"] as CalendarMode[]).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
               aria-current={viewMode === mode ? "page" : undefined}
               className={cn(
-                "rounded-md px-3 transition-colors",
+                "rounded-md px-2 transition-colors",
                 viewMode === mode
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {mode === "week" ? "周视图" : "日视图"}
+              {mode === "month" ? "月视图" : mode === "week" ? "周视图" : "日视图"}
             </button>
           ))}
         </div>
@@ -681,13 +1025,13 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-        {loading && (
+        {viewMode !== "month" && loading && (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         )}
 
-        {!loading && error && !weekData && (
+        {viewMode !== "month" && !loading && error && !weekData && (
           <div className="p-8 text-center">
             <p className="text-sm text-muted-foreground">{error}</p>
             <p className="mt-1 text-xs text-muted-foreground/60">
@@ -703,16 +1047,67 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
           </div>
         )}
 
-        {!loading && !error && !weekData && (
+        {viewMode !== "month" && !loading && !error && !weekData && (
           <p className="py-8 text-center text-sm text-muted-foreground">暂无日历数据</p>
         )}
 
-        {!loading && weekData && allEvents.length === 0 && (
+        {viewMode !== "month" && !loading && weekData && allEvents.length === 0 && (
           <div className="mx-auto max-w-sm px-6 py-10 text-center">
             <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
             <p className="mt-3 text-sm font-medium text-foreground">本周暂无安排</p>
             <p className="mt-1 text-xs text-muted-foreground">
               有截止日期的待办、课程和考试会显示在这里。
+            </p>
+          </div>
+        )}
+
+        {/* 月视图 */}
+        {viewMode === "month" && monthLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        )}
+
+        {viewMode === "month" && !monthLoading && monthError && (
+          <div className="p-8 text-center">
+            <p className="text-sm text-muted-foreground">{monthError}</p>
+            <button
+              type="button"
+              onClick={() => setMonthRefresh((n) => n + 1)}
+              className="mt-3 inline-flex h-9 items-center rounded-md px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              重试
+            </button>
+          </div>
+        )}
+
+        {viewMode === "month" && !monthLoading && !monthError && monthWeeksData.length > 0 && (
+          <>
+            {monthEventCount === 0 && (
+              <div className="mx-auto max-w-sm px-6 pb-3 pt-6 text-center">
+                <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
+                <p className="mt-3 text-sm font-medium text-foreground">{monthTitle}暂无安排</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  仍可点击日期查看当天详情。
+                </p>
+              </div>
+            )}
+            <CalendarMonthGrid
+              gridDays={monthGridDays}
+              eventsByDate={monthEventsByDate}
+              today={today}
+              selectedDateKey={selectedDateKey}
+              onDateClick={handleMonthDateClick}
+            />
+          </>
+        )}
+
+        {viewMode === "month" && !monthLoading && !monthError && monthWeeksData.length === 0 && (
+          <div className="mx-auto max-w-sm px-6 py-10 text-center">
+            <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
+            <p className="mt-3 text-sm font-medium text-foreground">暂无月视图数据</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              请重试加载日历数据。
             </p>
           </div>
         )}
@@ -755,17 +1150,44 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                 </p>
               </div>
             ) : (
-              <div className="mx-auto max-w-2xl space-y-2">
+              <div className="mx-auto max-w-2xl space-y-4">
                 <div className="px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
                   {selectedDate} 周{DAY_SHORT[selectedDayIndex]}
                 </div>
-                {selectedEvents.map((event) => (
-                  <EventCard
-                    key={`day-${event.kind}-${event.id}`}
-                    event={event}
-                    onClick={() => handleEventClick(event)}
-                  />
-                ))}
+
+                {dayTaskEvents.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      <ListTodo className="h-3.5 w-3.5" />
+                      待办
+                    </div>
+                    {dayTaskEvents.map((event) => (
+                      <EventCard
+                        key={`day-task-${event.id}`}
+                        event={event}
+                        onClick={() => handleEventClick(event)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {dayTimedEvents.length > 0 && (
+                  <div className="space-y-2">
+                    {dayTaskEvents.length > 0 && (
+                      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        日程
+                      </div>
+                    )}
+                    {dayTimedEvents.map((event) => (
+                      <EventCard
+                        key={`day-${event.kind}-${event.id}`}
+                        event={event}
+                        onClick={() => handleEventClick(event)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
