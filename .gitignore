@@ -17,6 +17,11 @@ _TEMP/
 .reasonix
 reasonix.toml
 
+# Agent skill directories (tool-managed, not source)
+.agents/
+.claude/
+.codex/
+
 # Trellis local-state boundary is maintained in ".trellis/.gitignore"
 
 # Android signing keys
