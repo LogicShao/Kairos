@@ -7,9 +7,9 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
-use tauri_plugin_notification::NotificationExt;
 
 use super::ids;
+use super::system::show_system_notification;
 use crate::db::models::Exam;
 
 type CancelToken = Arc<AtomicBool>;
@@ -221,16 +221,7 @@ fn schedule_one_exam_inner(
             }
 
             let body = format!("考试「{exam_name}」将在 {desc} 后开始");
-            if let Err(e) = app_handle
-                .notification()
-                .builder()
-                .id(id)
-                .title(&exam_name)
-                .body(body)
-                .show()
-            {
-                log::error!("failed to show exam notification {id}: {e}");
-            }
+            show_system_notification(&app_handle, id, &exam_name, &body);
 
             // Clean up token after showing
             cancel_tokens().lock().unwrap().remove(&id);

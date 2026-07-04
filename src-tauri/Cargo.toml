@@ -27,3 +27,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], def
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-notification = "2.3.2"
 uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7.2"
+windows-registry = "0.5.3"

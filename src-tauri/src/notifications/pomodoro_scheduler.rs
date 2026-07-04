@@ -4,9 +4,9 @@ use std::thread;
 use std::time::Duration;
 
 use tauri::AppHandle;
-use tauri_plugin_notification::NotificationExt;
 
 use super::ids;
+use super::system::show_system_notification;
 
 // ── Global cancellation token ───────────────────────────────────────────────────
 //
@@ -71,16 +71,7 @@ pub fn schedule_pomodoro_notification(app_handle: &AppHandle, phase: &str, remai
         }
 
         let body = format!("番茄钟「{cn_name}」阶段已结束");
-        if let Err(e) = app_handle
-            .notification()
-            .builder()
-            .id(id)
-            .title("番茄钟")
-            .body(body)
-            .show()
-        {
-            log::error!("failed to show pomodoro notification: {e}");
-        }
+        show_system_notification(&app_handle, id, "番茄钟", &body);
 
         // Clean up token after showing
         let mut guard = current_cancel_token().lock().unwrap();
@@ -117,16 +108,7 @@ pub fn send_immediate_notification(app_handle: &AppHandle, title: &str, body: &s
     let id = ids::stable_id(&format!("pomodoro:immediate:{title}:{body}"));
 
     thread::spawn(move || {
-        if let Err(e) = app_handle
-            .notification()
-            .builder()
-            .id(id)
-            .title(title)
-            .body(body)
-            .show()
-        {
-            log::error!("failed to show immediate notification: {e}");
-        }
+        show_system_notification(&app_handle, id, &title, &body);
     });
 }
 

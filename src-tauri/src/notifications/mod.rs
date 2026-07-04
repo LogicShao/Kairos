@@ -1,6 +1,7 @@
 pub mod exam_scheduler;
 pub mod ids;
 pub mod pomodoro_scheduler;
+pub mod system;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
