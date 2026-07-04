@@ -127,3 +127,35 @@ let (start, end) = raw.split_once('-').unwrap();
 let start_raw = raw.get(..16).ok_or_else(|| format!("无法解析考试时间字段: {raw}"))?;
 let end_raw = raw.get(16..).unwrap_or_default().trim_start_matches(is_time_separator);
 ```
+
+---
+
+## Scenario: LZU API Schedule Import
+
+### 1. Scope / Trigger
+
+- Trigger: backend commands that import courses from LZU AppService APIs instead of clipboard text.
+- Applies to Rust backend files under `src-tauri/src/lzu/` and `src-tauri/src/commands/lzu.rs`.
+
+### 2. Contracts
+
+- Treat third-party API fields as optional unless the import mapper cannot proceed without them.
+- `getXlxx.data.zzx` is not guaranteed to exist. It must not be required before importing schedules.
+- If `zzx` is present, use it as the authoritative total teaching-week count.
+- If `zzx` is absent, fall back to a conservative maximum week range and continue importing.
+- If fallback mode has already collected schedule rows and a later week returns a business error, stop fetching later weeks instead of failing the whole import.
+- Course duplicate handling must reuse the existing course import deduplication helper so repeated LZU imports report skipped rows instead of inserting duplicates.
+
+### 3. Error And Logging Rules
+
+- Missing `zzx` is a recoverable compatibility case. Log it as `warn!`, not `error!`.
+- Do not include LZU tokens, headers, encrypted payloads, or raw credentials in frontend errors or logs.
+- Token-bearing query endpoints such as `getSt` must map transport errors to sanitized messages before returning them through Tauri commands.
+
+### 4. Tests Required
+
+- Unit tests must cover:
+  - `zzx` present -> use `zzx`.
+  - `zzx` absent -> fallback week limit.
+  - fallback week limit keeps a larger `dqrqszzc` value when needed.
+  - invalid `zzx` values are rejected.

@@ -16,6 +16,10 @@ _TEMP/
 .vite-hmr.pid
 .reasonix
 reasonix.toml
+.env
+.env.*
+!.env.example
+!src-tauri/.env.example
 
 # Agent skill directories (tool-managed, not source)
 .agents/
