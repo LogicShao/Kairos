@@ -10,6 +10,12 @@ export interface PomodoroState {
   is_running: boolean
   /** 已完成的 work 阶段数量；达到阈值后进入 long_break。 */
   completed_sessions: number
+  /** true = 上次退出时计时器正在运行，需用户处理中断。 */
+  interrupted: boolean
+  /** 中断对应的活跃 session id（如果有）。 */
+  interrupted_session_id: number | null
+  /** 上次记录状态的 UTC ISO 8601 时间戳，用于 UI 显示 "上次运行于..."。 */
+  last_seen_at: string | null
 }
 
 /** 与 commands::pomodoro::PomodoroConfigData 对齐，不包含数据库内部 id。 */
@@ -22,4 +28,9 @@ export interface PomodoroConfig {
   long_break_seconds: number
   /** 每完成多少个 work 阶段触发一次 long_break。 */
   sessions_before_long_break: number
+}
+
+/** resolve_pomodoro_interruption 的入参。 */
+export interface ResolvePomodoroInterruptionRequest {
+  action: "continue" | "discard" | "complete"
 }

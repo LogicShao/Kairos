@@ -60,6 +60,33 @@ pub struct CreatePomodoroSessionRequest {
     pub task_id: Option<i64>,
 }
 
+/// 番茄钟运行态持久化记录，用于应用重启后恢复本日状态。
+/// 每个应用实例最多一条记录（id = 1），date_key 跨天时被视为过期。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PomodoroRuntimeState {
+    pub id: i64,
+    /// 当前阶段："work" / "short_break" / "long_break"。
+    pub phase: String,
+    /// 当前阶段剩余秒数。
+    pub remaining_seconds: i64,
+    /// 当前阶段总秒数（用于进度环计算）。
+    pub total_seconds: i64,
+    /// 1 = 计时器正在运行，0 = 已暂停。
+    pub is_running: bool,
+    /// 当前活跃 work session 的数据库 id；休息阶段可为 NULL。
+    pub active_session_id: Option<i64>,
+    /// 本地日期 YYYY-MM-DD，用于判断状态是否属于今天。
+    pub date_key: String,
+    /// 上次更新时的 UTC ISO 8601 时间戳。
+    pub last_seen_at: String,
+    /// 1 = 上次退出时处于运行中，需要用户处理中断。
+    pub interrupted: bool,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间。
+    pub updated_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePomodoroConfigRequest {
     pub work_seconds: i64,

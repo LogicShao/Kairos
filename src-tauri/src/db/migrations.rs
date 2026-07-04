@@ -118,6 +118,25 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             VALUES (1, 1, '[1440,60]', 0, datetime('now'), datetime('now'));
             ",
         ),
+        (
+            6,
+            "pomodoro_runtime_state",
+            "
+            CREATE TABLE IF NOT EXISTS pomodoro_runtime_state (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                phase TEXT NOT NULL DEFAULT 'work' CHECK(phase IN ('work', 'short_break', 'long_break')),
+                remaining_seconds INTEGER NOT NULL DEFAULT 1500,
+                total_seconds INTEGER NOT NULL DEFAULT 1500,
+                is_running INTEGER NOT NULL DEFAULT 0,
+                active_session_id INTEGER,
+                date_key TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                interrupted INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -279,7 +298,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 7);
+        assert_eq!(table_count, 8);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -320,7 +339,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 5);
+        assert_eq!(count, 6);
     }
 
     #[test]
@@ -407,7 +426,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 5);
+        assert_eq!(count, 6);
     }
 
     #[test]

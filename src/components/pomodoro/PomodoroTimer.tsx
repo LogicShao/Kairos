@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
-import type { PomodoroState, PomodoroConfig, PomodoroPhase } from "@/types/pomodoro"
+import type {
+  PomodoroState,
+  PomodoroConfig,
+  PomodoroPhase,
+  ResolvePomodoroInterruptionRequest,
+} from "@/types/pomodoro"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
@@ -33,6 +38,7 @@ const RANGES = {
 export function PomodoroTimer() {
   const [state, setState] = useState<PomodoroState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
 
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -57,6 +63,9 @@ export function PomodoroTimer() {
           total_seconds: 1500,
           is_running: false,
           completed_sessions: 0,
+          interrupted: false,
+          interrupted_session_id: null,
+          last_seen_at: null,
         })
         setError("Tauri 不可用 — 展示离线 UI")
         return
@@ -136,6 +145,22 @@ export function PomodoroTimer() {
       setSavingConfig(false)
     }
   }, [workMinutes, shortBreakMinutes, longBreakMinutes, sessionsBeforeLongBreak])
+
+  /** 处理中断操作 */
+  const handleResolveInterruption = useCallback(async (action: "continue" | "discard" | "complete") => {
+    setResolving(true)
+    try {
+      const request: ResolvePomodoroInterruptionRequest = { action }
+      const newState = await invoke<PomodoroState>("resolve_pomodoro_interruption", {
+        request,
+      })
+      setState(newState)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setResolving(false)
+    }
+  }, [])
 
   if (!state) {
     return (
@@ -222,27 +247,70 @@ export function PomodoroTimer() {
         <p className="text-xs text-muted-foreground">{error}</p>
       )}
 
-      <div className="grid grid-cols-3 items-center w-full max-w-[18rem] mx-auto">
-        {/* 左侧占位 — 保持播放按钮视觉居中 */}
-        <div />
-        <Button
-          size="icon-lg"
-          className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
-          onClick={handleStartPause}
-          aria-label={state.is_running ? "暂停" : "开始"}
-        >
-          {state.is_running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
-          onClick={handleReset}
-          aria-label="重置"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* ─── 中断处理提示 ─── */}
+      {state.interrupted && (
+        <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+          <p className="text-sm text-amber-500 font-medium">
+            上次专注被中断
+            {state.last_seen_at && (
+              <span className="text-xs text-muted-foreground block">
+                上次运行于 {new Date(state.last_seen_at).toLocaleString("zh-CN")}
+              </span>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resolving}
+              onClick={() => handleResolveInterruption("continue")}
+            >
+              继续
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resolving}
+              onClick={() => handleResolveInterruption("discard")}
+            >
+              丢弃
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={resolving}
+              onClick={() => handleResolveInterruption("complete")}
+            >
+              补记完成
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 控制按钮（中断时不显示操作按钮，直到处理完毕） ─── */}
+      {!state.interrupted && (
+        <div className="grid grid-cols-3 items-center w-full max-w-[18rem] mx-auto">
+          {/* 左侧占位 — 保持播放按钮视觉居中 */}
+          <div />
+          <Button
+            size="icon-lg"
+            className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
+            onClick={handleStartPause}
+            aria-label={state.is_running ? "暂停" : "开始"}
+          >
+            {state.is_running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
+            onClick={handleReset}
+            aria-label="重置"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <Modal
         open={settingsOpen}

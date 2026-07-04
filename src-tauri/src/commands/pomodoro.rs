@@ -16,17 +16,83 @@ pub struct PomodoroConfigData {
     pub sessions_before_long_break: i64,
 }
 
+/// 中断处理请求入参。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvePomodoroInterruptionRequest {
+    /// "continue" | "discard" | "complete"
+    pub action: String,
+}
+
+fn persist_engine_state(conn: &Connection, eng: &PomodoroEngine) -> Result<(), String> {
+    let state = eng.get_state();
+    crate::db::pomodoro::update_runtime_state(
+        conn,
+        &state.phase,
+        state.remaining_seconds as i64,
+        state.total_seconds as i64,
+        state.is_running,
+        eng.active_session_id,
+        eng.interrupted,
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn soft_delete_active_session(conn: &Connection, eng: &mut PomodoroEngine) -> Result<(), String> {
+    if let Some(session_id) = eng.active_session_id.take() {
+        crate::db::pomodoro::soft_delete_session(conn, session_id).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn clear_interruption(eng: &mut PomodoroEngine) {
+    eng.interrupted = false;
+    eng.interrupted_session_id = None;
+}
+
+fn persist_and_cancel_notification(
+    conn: std::sync::MutexGuard<'_, Connection>,
+    eng: std::sync::MutexGuard<'_, PomodoroEngine>,
+) -> Result<(), String> {
+    persist_engine_state(&conn, &eng)?;
+    drop(conn);
+    drop(eng);
+    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
+    Ok(())
+}
+
 #[tauri::command]
 pub fn start_pomodoro(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    db: State<'_, Arc<Mutex<Connection>>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
+
+    // 清除中断标记（用户主动开始意味着接受当前状态）
+    clear_interruption(&mut eng);
+
+    // work 阶段若没有活跃 session，创建一个
+    if eng.phase == crate::timer::TimerPhase::Work && eng.active_session_id.is_none() {
+        let now = crate::db::chrono_now();
+        let req = crate::db::models::CreatePomodoroSessionRequest {
+            started_at: now,
+            session_type: "work".to_string(),
+            task_id: None,
+        };
+        let id = crate::db::pomodoro::create_session(&conn, &req).map_err(|e| e.to_string())?;
+        eng.active_session_id = Some(id);
+    }
+
     eng.start();
 
-    // Schedule a notification for the current phase end
     let state = eng.get_state();
+    persist_engine_state(&conn, &eng)?;
+
+    drop(conn);
     drop(eng);
+
+    // Schedule a notification for the current phase end
     crate::notifications::pomodoro_scheduler::schedule_pomodoro_notification(
         &app_handle,
         &state.phase,
@@ -36,21 +102,32 @@ pub fn start_pomodoro(
 }
 
 #[tauri::command]
-pub fn pause_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
+pub fn pause_pomodoro(
+    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    db: State<'_, Arc<Mutex<Connection>>>,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.pause();
-    drop(eng);
-    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
-    Ok(())
+
+    persist_and_cancel_notification(conn, eng)
 }
 
 #[tauri::command]
-pub fn reset_pomodoro(engine: State<'_, Arc<Mutex<PomodoroEngine>>>) -> Result<(), String> {
+pub fn reset_pomodoro(
+    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    db: State<'_, Arc<Mutex<Connection>>>,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
+
+    // 如果有未结束的活跃 session，软删除
+    soft_delete_active_session(&conn, &mut eng)?;
+
     eng.reset();
-    drop(eng);
-    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
-    Ok(())
+    clear_interruption(&mut eng);
+
+    persist_and_cancel_notification(conn, eng)
 }
 
 #[tauri::command]
@@ -68,6 +145,10 @@ pub fn update_pomodoro_config(
     config: PomodoroConfigData,
 ) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+
+    soft_delete_active_session(&conn, &mut eng)?;
+
     let req = UpdatePomodoroConfigRequest {
         work_seconds: config.work_seconds,
         short_break_seconds: config.short_break_seconds,
@@ -75,9 +156,9 @@ pub fn update_pomodoro_config(
         sessions_before_long_break: config.sessions_before_long_break,
     };
     crate::db::pomodoro::update_config(&conn, &req).map_err(|e| e.to_string())?;
-    drop(conn);
+    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(&conn)
+        .map_err(|e| e.to_string())? as u32;
 
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
     eng.update_config(PomodoroConfig {
         id: 1,
         work_seconds: config.work_seconds,
@@ -85,6 +166,9 @@ pub fn update_pomodoro_config(
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
     });
+    eng.completed_sessions = completed_sessions;
+    persist_engine_state(&conn, &eng)?;
+    crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
     Ok(())
 }
 
@@ -100,4 +184,48 @@ pub fn get_pomodoro_config(
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
     })
+}
+
+/// 处理中断：继续 / 丢弃 / 补记完成。
+#[tauri::command]
+pub fn resolve_pomodoro_interruption(
+    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    db: State<'_, Arc<Mutex<Connection>>>,
+    request: ResolvePomodoroInterruptionRequest,
+) -> Result<PomodoroState, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+
+    match request.action.as_str() {
+        "continue" => {
+            // 清除中断标记，保持 phase 和剩余时间，保持暂停状态
+            clear_interruption(&mut eng);
+            eng.is_running = false;
+            persist_engine_state(&conn, &eng)?;
+        }
+        "discard" => {
+            soft_delete_active_session(&conn, &mut eng)?;
+            clear_interruption(&mut eng);
+            eng.reset();
+            persist_engine_state(&conn, &eng)?;
+        }
+        "complete" => {
+            if eng.active_session_id.is_none() {
+                return Err("没有可补记的专注 session".to_string());
+            }
+            // 补全 session ended_at
+            if let Some(session_id) = eng.active_session_id {
+                let now = crate::db::chrono_now();
+                crate::db::pomodoro::update_session_end(&conn, session_id, &now)
+                    .map_err(|e| e.to_string())?;
+            }
+            eng.active_session_id = None;
+            clear_interruption(&mut eng);
+            eng.complete_phase_paused();
+            persist_engine_state(&conn, &eng)?;
+        }
+        _ => return Err(format!("未知操作: {}", request.action)),
+    }
+
+    Ok(eng.get_state())
 }

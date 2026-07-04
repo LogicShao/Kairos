@@ -110,14 +110,16 @@ pub fn get_today_briefing(
     let all_exams = crate::db::exams::get_all_exams(&conn).map_err(|e| e.to_string())?;
     let exam = build_upcoming_exam(&all_exams, &now);
 
-    // 4. Pomodoro
+    // 4. Pomodoro — 使用 DB 今日完成数以保证与番茄钟页一致
+    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(&conn)
+        .map_err(|e| e.to_string())?;
     let eng = engine.lock().map_err(|e| e.to_string())?;
     let state = eng.get_state();
     let pomodoro = PomodoroBriefing {
         is_running: state.is_running,
         phase: state.phase,
         remaining_seconds: state.remaining_seconds as i64,
-        completed_sessions: state.completed_sessions as i64,
+        completed_sessions,
     };
 
     Ok(TodayBriefingResponse {
@@ -149,10 +151,8 @@ fn weekday_label(weekday: chrono::Weekday) -> String {
 fn current_week_index(semester_start_date: &str, today: NaiveDate) -> Result<i64, String> {
     let anchor = NaiveDate::parse_from_str(semester_start_date, "%Y-%m-%d")
         .map_err(|_| format!("无法解析学期开始日期: {semester_start_date}"))?;
-    let anchor_monday =
-        anchor - Duration::days(anchor.weekday().num_days_from_monday() as i64);
-    let today_monday =
-        today - Duration::days(today.weekday().num_days_from_monday() as i64);
+    let anchor_monday = anchor - Duration::days(anchor.weekday().num_days_from_monday() as i64);
+    let today_monday = today - Duration::days(today.weekday().num_days_from_monday() as i64);
     let diff_days = today_monday.signed_duration_since(anchor_monday).num_days();
     Ok(diff_days.div_euclid(7) + 1)
 }
@@ -184,7 +184,7 @@ fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTim
         .filter(|c| {
             NaiveTime::parse_from_str(&c.start_time, "%H:%M")
                 .ok()
-                .map_or(false, |t| t > *now_time)
+                .is_some_and(|t| t > *now_time)
         })
         .min_by_key(|c| NaiveTime::parse_from_str(&c.start_time, "%H:%M").ok())
         .map(|c| NextCourse {
@@ -221,9 +221,7 @@ fn build_today_tasks(tasks: &[Task], today: NaiveDate) -> TodayTasks {
         }
 
         let due = match &task.due_date {
-            Some(d) if !d.trim().is_empty() => {
-                NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d").ok()
-            }
+            Some(d) if !d.trim().is_empty() => NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d").ok(),
             _ => None,
         };
 
@@ -244,13 +242,11 @@ fn build_today_tasks(tasks: &[Task], today: NaiveDate) -> TodayTasks {
     spotlight_candidates.sort_by(|a, b| {
         let a_score = priority_score(&a.priority);
         let b_score = priority_score(&b.priority);
-        b_score
-            .cmp(&a_score)
-            .then_with(|| {
-                let a_due = a.due_date.as_deref().unwrap_or("9999-99-99");
-                let b_due = b.due_date.as_deref().unwrap_or("9999-99-99");
-                a_due.cmp(b_due)
-            })
+        b_score.cmp(&a_score).then_with(|| {
+            let a_due = a.due_date.as_deref().unwrap_or("9999-99-99");
+            let b_due = b.due_date.as_deref().unwrap_or("9999-99-99");
+            a_due.cmp(b_due)
+        })
     });
 
     let spotlight: Vec<TaskSpotlight> = spotlight_candidates
@@ -281,7 +277,7 @@ fn build_upcoming_exam(
         .filter(|exam| {
             chrono::DateTime::parse_from_rfc3339(&exam.exam_datetime)
                 .ok()
-                .map_or(false, |start| start > *now)
+                .is_some_and(|start| start > *now)
         })
         .collect();
 
