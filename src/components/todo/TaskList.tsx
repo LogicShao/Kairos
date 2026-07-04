@@ -155,7 +155,7 @@ export function TaskList() {
             setEditingTask(null)
           }
         }}
-        variant="bottom"
+        variant="center"
         title={editingTask ? "编辑任务" : "新建任务"}
         description="填写任务标题、优先级、截止日期等信息"
       >
