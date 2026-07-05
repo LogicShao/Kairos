@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use crate::lzu::appservice::AppServiceClient;
+use crate::lzu::easytong::{EasyTongClient, EasyTongSession};
 use crate::lzu::error::LzuError;
 use crate::lzu::models::{LzuProfileSummary, LzuSession};
 
@@ -15,15 +16,18 @@ use crate::lzu::models::{LzuProfileSummary, LzuSession};
 pub struct LzuAuth {
     /// AppService HTTP client（Arc 包装以便廉价 clone）
     pub client: Arc<AppServiceClient>,
+    /// EasyTong HTTP client（Arc 包装以便廉价 clone）
+    pub easytong_client: Arc<EasyTongClient>,
     /// 当前登录会话（None 表示未登录）
     pub session: Option<LzuSession>,
 }
 
 impl LzuAuth {
     /// 创建新的认证管理器。
-    pub fn new(client: AppServiceClient) -> Self {
+    pub fn new(client: AppServiceClient, easytong_client: EasyTongClient) -> Self {
         LzuAuth {
             client: Arc::new(client),
+            easytong_client: Arc::new(easytong_client),
             session: None,
         }
     }
@@ -41,6 +45,7 @@ impl LzuAuth {
             login_token,
             gateway_token,
             st: None,
+            easytong: None,
             profile,
         });
     }
@@ -66,6 +71,17 @@ impl LzuAuth {
             None => Err(LzuError::NotLoggedIn),
         }
     }
+
+    /// 更新后端内部使用的 EasyTong 会话。
+    pub fn set_easytong_session(&mut self, easytong: EasyTongSession) -> Result<(), LzuError> {
+        match &mut self.session {
+            Some(session) => {
+                session.easytong = Some(easytong);
+                Ok(())
+            }
+            None => Err(LzuError::NotLoggedIn),
+        }
+    }
 }
 
 /// 线程安全的 LZU 认证管理器，可注册为 Tauri 管理状态。
@@ -74,6 +90,7 @@ pub type SharedLzuAuth = std::sync::Mutex<LzuAuth>;
 /// 创建共享的 LZU 认证管理器实例。
 pub fn create_shared_auth() -> Result<SharedLzuAuth, LzuError> {
     let client = AppServiceClient::new()?;
-    let auth = LzuAuth::new(client);
+    let easytong_client = EasyTongClient::new()?;
+    let auth = LzuAuth::new(client, easytong_client);
     Ok(std::sync::Mutex::new(auth))
 }

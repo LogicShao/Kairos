@@ -35,3 +35,56 @@ export interface LzuCourseImportResult {
   /** 后端生成的中文摘要。 */
   message: string
 }
+
+/** 与后端 lzu::easytong::CampusWallet 对齐。 */
+export interface LzuCampusWallet {
+  card_name: string | null
+  unit: string | null
+  wallet_money: string | null
+  wallet_name: string | null
+  is_withdraw: string | null
+  money_max: string | null
+  mon_temp: string | null
+  mon_card: string | null
+  wallet_num: string | null
+}
+
+/** 与后端 lzu::easytong::CampusCardAccount 对齐。 */
+export interface LzuCampusCardAccount {
+  card_tail: string | null
+  epid_available: boolean
+}
+
+/** 与后端 lzu::easytong::CampusCardOverview 对齐。 */
+export interface LzuCampusCardOverview {
+  account: LzuCampusCardAccount
+  wallets: LzuCampusWallet[]
+}
+
+/** 与后端 lzu::services::LzuServiceItem 对齐。 */
+export interface LzuServiceItem {
+  id: string | null
+  name: string
+  icon_url: string | null
+  category_name: string | null
+  introduce: string | null
+  requires_login: boolean
+  is_new: boolean
+  is_top: boolean
+  is_hot: boolean
+  sort: number
+}
+
+/** 与后端 lzu::services::LzuServiceCategory 对齐。 */
+export interface LzuServiceCategory {
+  id: string | null
+  name: string
+  icon_url: string | null
+  sort: number
+  services: LzuServiceItem[]
+}
+
+/** 与后端 lzu::services::LzuServiceDirectory 对齐。 */
+export interface LzuServiceDirectory {
+  categories: LzuServiceCategory[]
+}

@@ -6,8 +6,9 @@
 use crate::lzu::crypto;
 use crate::lzu::error::LzuError;
 use crate::lzu::models::{LoginResponse, ScheduleResponse, UserInfoResponse, XlxxResponse};
+use crate::lzu::services::ServiceDirectoryApiResponse;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
-use reqwest::{Client, Response};
+use reqwest::Client;
 use serde::de::DeserializeOwned;
 
 /// User-Agent 与 FasterLZU 保持一致
@@ -33,6 +34,10 @@ const GET_ST_PATH: &str = "/api/eusp-unify-terminal/app-user/getSt";
 
 /// 获取用户资料接口路径
 const USER_INFO_PATH: &str = "/api/eusp-unify-terminal/app-user/userInfo";
+
+/// 获取服务目录接口路径
+const SERVICE_DIRECTORY_PATH: &str =
+    "/api/eusp-terminal-management/api/v2/getServiceInfoDetailByTerminalRole";
 
 /// AppService HTTP client。
 ///
@@ -87,7 +92,7 @@ impl AppServiceClient {
             .send()
             .await?;
 
-        let body = read_response_body(response, "get_xlxx").await?;
+        let body = crate::lzu::http::read_response_body(response, "AppService", "get_xlxx").await?;
         parse_appservice_response(&body)
     }
 
@@ -113,7 +118,26 @@ impl AppServiceClient {
                 }
             })?;
 
-        let body = read_response_body(response, "user_info").await?;
+        let body =
+            crate::lzu::http::read_response_body(response, "AppService", "user_info").await?;
+        parse_appservice_response(&body)
+    }
+
+    /// 获取当前登录账号可见的服务目录原始响应。
+    pub async fn get_service_directory(
+        &self,
+        login_token: &str,
+    ) -> Result<ServiceDirectoryApiResponse, LzuError> {
+        let plaintext = format!("terminalId=1&loginToken={login_token}");
+        let body = self
+            .post_encrypted_body(
+                SERVICE_DIRECTORY_PATH,
+                &plaintext,
+                "",
+                Some("application/x-www-form-urlencoded"),
+                "get_service_directory",
+            )
+            .await?;
         parse_appservice_response(&body)
     }
 
@@ -132,7 +156,8 @@ impl AppServiceClient {
             .send()
             .await?;
 
-        let body = read_response_body(response, "get_schedule").await?;
+        let body =
+            crate::lzu::http::read_response_body(response, "AppService", "get_schedule").await?;
         parse_appservice_response(&body)
     }
 
@@ -181,7 +206,7 @@ impl AppServiceClient {
                     LzuError::Network("getSt 请求失败".to_string())
                 }
             })?;
-        let body = read_response_body(response, "get_st").await?;
+        let body = crate::lzu::http::read_response_body(response, "AppService", "get_st").await?;
         parse_appservice_response(&body)
     }
 
@@ -205,19 +230,8 @@ impl AppServiceClient {
             request = request.header("Content-Type", content_type);
         }
 
-        read_response_body(request.send().await?, operation).await
+        crate::lzu::http::read_response_body(request.send().await?, "AppService", operation).await
     }
-}
-
-async fn read_response_body(response: Response, operation: &str) -> Result<String, LzuError> {
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|_| LzuError::Network(format!("读取 LZU {operation} 响应失败")))?;
-
-    log::info!("LZU {operation} response status: {status}");
-    Ok(body)
 }
 
 fn parse_appservice_response<T>(body: &str) -> Result<T, LzuError>

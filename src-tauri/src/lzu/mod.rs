@@ -1,6 +1,10 @@
 pub mod appservice;
 pub mod auth;
+pub mod config;
 pub mod crypto;
+pub mod easytong;
 pub mod error;
+pub mod http;
 pub mod mapper;
 pub mod models;
+pub mod services;

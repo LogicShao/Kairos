@@ -294,6 +294,8 @@ pub fn run() {
             commands::lzu::lzu_get_auth_status,
             commands::lzu::lzu_refresh_profile,
             commands::lzu::lzu_refresh_st,
+            commands::lzu::lzu_get_campus_card_overview,
+            commands::lzu::lzu_get_service_directory,
             commands::lzu::import_lzu_courses,
             commands::briefing::get_today_briefing,
         ])

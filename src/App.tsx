@@ -12,6 +12,7 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { WidgetSettings } from "@/components/settings/WidgetSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
 import { WidgetApp } from "@/components/widget/WidgetApp"
+import { LzuServicesPage } from "@/pages/lzu/LzuServicesPage"
 import { TodayPage } from "@/pages/today/TodayPage"
 import type { MainNavigateEvent } from "@/types/widget"
 import { listenWithCleanup } from "@/lib/tauri-events"
@@ -46,6 +47,7 @@ function MainApp() {
         {active === "kairos" && <KairosHub onNavigate={setActive} />}
         {active === "courses" && <CourseSchedule onNavigate={setActive} />}
         {active === "exams" && <ExamList onNavigate={setActive} />}
+        {active === "lzu-services" && <LzuServicesPage onNavigate={setActive} />}
         {active === "notifications" && <NotificationSettings onNavigate={setActive} />}
         {active === "widget" && <WidgetSettings onNavigate={setActive} />}
         {active === "sync" && <SyncSettings onNavigate={setActive} />}

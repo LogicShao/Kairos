@@ -10,8 +10,12 @@ use tauri::State;
 
 use crate::lzu::appservice::AppServiceClient;
 use crate::lzu::auth::SharedLzuAuth;
+use crate::lzu::easytong::{
+    campus_card_overview, CampusCardOverview, EasyTongClient, EasyTongSession,
+};
 use crate::lzu::error::LzuError;
 use crate::lzu::models::{AuthStatus, LoginRequest, LzuProfileSummary, LzuSession, XlxxData};
+use crate::lzu::services::{sanitize_service_directory, LzuServiceDirectory};
 
 const FALLBACK_TOTAL_WEEKS: i64 = 24;
 
@@ -24,15 +28,19 @@ pub struct LzuCourseImportResult {
     pub message: String,
 }
 
-fn require_session(
+fn require_lzu_clients(
     lzu_auth: &SharedLzuAuth,
-) -> Result<(Arc<AppServiceClient>, LzuSession), String> {
+) -> Result<(Arc<AppServiceClient>, Arc<EasyTongClient>, LzuSession), String> {
     let auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
     let session = auth
         .session
         .clone()
         .ok_or_else(|| LzuError::NotLoggedIn.to_string())?;
-    Ok((auth.client.clone(), session))
+    Ok((auth.client.clone(), auth.easytong_client.clone(), session))
+}
+
+fn api_error(code: i64, message: String) -> String {
+    LzuError::Api { code, message }.to_string()
 }
 
 fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
@@ -110,6 +118,39 @@ async fn fetch_profile_summary(
     }
 }
 
+async fn refresh_easytong_session(
+    client: &AppServiceClient,
+    easytong_client: &EasyTongClient,
+    session: &LzuSession,
+) -> Result<(EasyTongSession, crate::lzu::easytong::EasyTongAccountInfo), String> {
+    let st_response = client
+        .get_st(&session.login_token, "")
+        .await
+        .map_err(|e| e.to_string())?;
+    if st_response.code != 1 {
+        return Err(api_error(st_response.code, st_response.message));
+    }
+    let st = st_response
+        .data
+        .ok_or_else(|| "getSt 响应缺少 data 字段".to_string())?;
+
+    let mut easytong_session = easytong_client
+        .exchange_et_token(&st)
+        .await
+        .map_err(|e| e.to_string())?;
+    let account = easytong_client
+        .get_acc_info(&easytong_session)
+        .await
+        .map_err(|e| e.to_string())?;
+    if account.code != 1 {
+        return Err(api_error(account.code, account.msg.clone()));
+    }
+
+    easytong_session.card_acc_num = account.card_acc_num.clone();
+    easytong_session.epid = account.epid.clone();
+    Ok((easytong_session, account))
+}
+
 /// 登录 LZU 统一认证。
 ///
 /// 返回登录状态摘要（不含 token 原文）。
@@ -169,7 +210,7 @@ pub async fn lzu_login(
 /// 清除本地 session，并尝试调用远端登出接口。
 #[tauri::command]
 pub async fn lzu_logout(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
-    let (client, session) = require_session(&lzu_auth)?;
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
     // 调用远端登出（不持有锁）
     match client
@@ -211,7 +252,7 @@ pub fn lzu_get_auth_status(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthSta
 /// 刷新当前 LZU 登录账号的低敏身份摘要。
 #[tauri::command]
 pub async fn lzu_refresh_profile(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
-    let (client, session) = require_session(&lzu_auth)?;
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
     let profile = fetch_profile_summary(
         &client,
@@ -235,7 +276,7 @@ pub async fn lzu_refresh_st(
     lzu_auth: State<'_, SharedLzuAuth>,
     service_id: Option<String>,
 ) -> Result<AuthStatus, String> {
-    let (client, session) = require_session(&lzu_auth)?;
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
     let response = client
         .get_st(&session.login_token, service_id.as_deref().unwrap_or(""))
@@ -243,11 +284,7 @@ pub async fn lzu_refresh_st(
         .map_err(|e| e.to_string())?;
 
     if response.code != 1 {
-        return Err(LzuError::Api {
-            code: response.code,
-            message: response.message,
-        }
-        .to_string());
+        return Err(api_error(response.code, response.message));
     }
 
     let st = response.data.ok_or_else(|| {
@@ -264,24 +301,63 @@ pub async fn lzu_refresh_st(
     Ok(AuthStatus::from(&auth.session))
 }
 
+/// 查询 LZU 校园卡只读余额总览。
+#[tauri::command]
+pub async fn lzu_get_campus_card_overview(
+    lzu_auth: State<'_, SharedLzuAuth>,
+) -> Result<CampusCardOverview, String> {
+    let (client, easytong_client, session) = require_lzu_clients(&lzu_auth)?;
+
+    let (easytong_session, account) =
+        refresh_easytong_session(&client, &easytong_client, &session).await?;
+    let wallet_response = easytong_client
+        .get_wallet_money(&easytong_session)
+        .await
+        .map_err(|e| e.to_string())?;
+    if wallet_response.code != 1 {
+        return Err(api_error(wallet_response.code, wallet_response.msg.clone()));
+    }
+
+    {
+        let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
+        auth.set_easytong_session(easytong_session)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(campus_card_overview(&account, wallet_response))
+}
+
+/// 查询 LZU 服务目录低敏摘要。
+#[tauri::command]
+pub async fn lzu_get_service_directory(
+    lzu_auth: State<'_, SharedLzuAuth>,
+) -> Result<LzuServiceDirectory, String> {
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
+    let response = client
+        .get_service_directory(&session.login_token)
+        .await
+        .map_err(|e| e.to_string())?;
+    if response.code != 1 {
+        return Err(api_error(response.code, response.message));
+    }
+
+    Ok(sanitize_service_directory(response))
+}
+
 /// 从 LZU API 拉取课表并导入本地课程表。
 #[tauri::command]
 pub async fn import_lzu_courses(
     db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
 ) -> Result<LzuCourseImportResult, String> {
-    let (client, session) = require_session(&lzu_auth)?;
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
     let xlxx_response = client
         .get_xlxx(&session.gateway_token)
         .await
         .map_err(|e| e.to_string())?;
     if xlxx_response.code != 1 {
-        return Err(LzuError::Api {
-            code: xlxx_response.code,
-            message: xlxx_response.message,
-        }
-        .to_string());
+        return Err(api_error(xlxx_response.code, xlxx_response.message));
     }
 
     let xlxx = xlxx_response
@@ -304,11 +380,7 @@ pub async fn import_lzu_courses(
                 );
                 break;
             }
-            return Err(LzuError::Api {
-                code: schedule_response.code,
-                message: schedule_response.message,
-            }
-            .to_string());
+            return Err(api_error(schedule_response.code, schedule_response.message));
         }
         if let Some(mut courses) = schedule_response.data {
             remote_courses.append(&mut courses);

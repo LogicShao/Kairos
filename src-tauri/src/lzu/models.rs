@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::lzu::easytong::EasyTongSession;
+
 // ─── 登录 ───
 
 /// 登录请求体（明文原型，将被 AES 加密后发送）。
@@ -160,6 +162,8 @@ pub struct LzuSession {
     pub gateway_token: String,
     /// 最近一次刷新的服务票据，仅供后端内部链路使用
     pub st: Option<String>,
+    /// EasyTong 运行期会话，仅供后端内部只读一卡通链路使用。
+    pub easytong: Option<EasyTongSession>,
     /// 当前登录账号的低敏身份摘要。
     pub profile: Option<LzuProfileSummary>,
 }

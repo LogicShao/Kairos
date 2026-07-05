@@ -14,8 +14,6 @@
 
 use aes::cipher::{block_padding::NoPadding, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use hex;
-use std::path::PathBuf;
-
 type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
@@ -31,28 +29,8 @@ fn zero_pad(data: &[u8]) -> Vec<u8> {
 }
 
 fn configured_key() -> Result<[u8; 16], crate::lzu::error::LzuError> {
-    let value = read_configured_key()
-        .map_err(|_| crate::lzu::error::LzuError::Config(format!("缺少 {AES_KEY_ENV} 环境变量")))?;
+    let value = crate::lzu::config::read_secret(AES_KEY_ENV)?;
     key_from_utf8(&value)
-}
-
-fn read_configured_key() -> Result<String, std::env::VarError> {
-    match std::env::var(AES_KEY_ENV) {
-        Ok(value) => Ok(value),
-        Err(err) => {
-            load_local_env_file();
-            std::env::var(AES_KEY_ENV).map_err(|_| err)
-        }
-    }
-}
-
-fn load_local_env_file() {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env.local");
-    if path.exists() {
-        if let Err(err) = dotenvy::from_path(&path) {
-            log::warn!("读取 src-tauri/.env.local 失败: {err}");
-        }
-    }
 }
 
 fn key_from_utf8(value: &str) -> Result<[u8; 16], crate::lzu::error::LzuError> {

@@ -122,7 +122,15 @@ function SidebarNavButton({
 export function AppShell({ active, onNavigate, children }: AppShellProps) {
   const { theme, toggle } = useTheme()
   const isActive = (key: string) => active === key
-  const isKairosArea = ["kairos", "courses", "exams", "notifications", "widget", "sync"].includes(active)
+  const isKairosArea = [
+    "kairos",
+    "courses",
+    "exams",
+    "lzu-services",
+    "notifications",
+    "widget",
+    "sync",
+  ].includes(active)
 
   return (
     <div className="relative z-0 flex flex-col h-screen overflow-hidden">
