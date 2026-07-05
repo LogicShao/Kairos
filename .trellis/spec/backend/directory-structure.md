@@ -187,6 +187,13 @@ pub struct Task {
 >
 > **限制**：应用退出后定时器丢失；不适合长时间延迟（>30min）。
 > **未来方向**：Android 端可考虑 AlarmManager；桌面端可考虑 OS 级调度器。
+>
+> **Windows Toast 图标规则**
+>
+> `tauri-winrt-notification` 使用自定义 AppUserModelID 发送未打包应用 Toast 时，`IconUri` 必须指向实际图片资源，不要指向 exe 文件。
+> - 将 `icons/Square44x44Logo.png` 通过 `bundle.resources` 打进 Windows 安装目录。
+> - 发送 Toast 前注册 `SOFTWARE\Classes\AppUserModelId\<identifier>`，`DisplayName` 与 `IconUri` 都要更新。
+> - Toast 本身也设置 `appLogoOverride`，避免只依赖 Windows 对 AppUserModelID 图标的缓存。
 
 ---
 

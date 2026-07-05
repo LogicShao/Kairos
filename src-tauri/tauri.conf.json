@@ -33,6 +33,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "icons/Square44x44Logo.png": "Square44x44Logo.png"
+    },
     "windows": {
       "certificateThumbprint": "A193C69DA78951F6F3204332288A84713C046312",
       "digestAlgorithm": "sha256",
