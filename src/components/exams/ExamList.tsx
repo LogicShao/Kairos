@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/errors"
 import { ArrowLeft, Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
 
 const FIELD_CLASS =
@@ -99,6 +100,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
   const [exams, setExams] = useState<Exam[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingExam, setEditingExam] = useState<Exam | null>(null)
   const [form, setForm] = useState<ExamFormData>(emptyForm())
@@ -190,14 +192,22 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
       setShowForm(false)
       setEditingExam(null)
       await fetchExams()
+      setActionError(null)
+    } catch (e) {
+      setActionError(userErrorMessage(e, "保存考试失败"))
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: number) {
-    await invoke("delete_exam", { id })
-    await fetchExams()
+    try {
+      await invoke("delete_exam", { id })
+      await fetchExams()
+      setActionError(null)
+    } catch (e) {
+      setActionError(userErrorMessage(e, "删除考试失败"))
+    }
   }
 
   async function handleReadClipboard() {
@@ -265,6 +275,10 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
           </Button>
         </div>
       </div>
+
+      {actionError && (
+        <p className="text-center text-sm text-destructive">{actionError}</p>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-12">

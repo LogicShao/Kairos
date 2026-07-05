@@ -9,6 +9,7 @@ export interface NextCourse {
 
 export interface TodayCourses {
   today_count: number
+  current_course: NextCourse | null
   next_course: NextCourse | null
 }
 

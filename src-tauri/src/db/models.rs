@@ -22,6 +22,47 @@ pub struct UpdateNotificationConfig {
     pub android_channel_created: Option<bool>,
 }
 
+/// 桌面小组件本地配置。id 固定为 1，enabled 表示应用启动时是否恢复窗口。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WidgetConfig {
+    pub id: i64,
+    /// 1 = 启动并显示 widget 窗口，0 = 不创建/隐藏 widget 窗口。
+    pub enabled: bool,
+    /// "small"、"medium" 或 "large"，同时决定默认窗口尺寸和渲染布局。
+    pub mode: String,
+    /// 前端视觉透明度，范围 0.6..=1.0；Tauri 窗口仅负责透明背景。
+    pub opacity: f64,
+    /// 1 = widget 窗口置顶。
+    pub always_on_top: bool,
+    /// 1 = 禁止前端拖动保存位置。
+    pub locked: bool,
+    /// 窗口左上角物理像素 x 坐标；None 表示首次创建使用系统默认位置。
+    pub x: Option<i64>,
+    /// 窗口左上角物理像素 y 坐标；None 表示首次创建使用系统默认位置。
+    pub y: Option<i64>,
+    /// 窗口宽度，逻辑像素。
+    pub width: i64,
+    /// 窗口高度，逻辑像素。
+    pub height: i64,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间。
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UpdateWidgetConfigRequest {
+    pub enabled: Option<bool>,
+    pub mode: Option<String>,
+    pub opacity: Option<f64>,
+    pub always_on_top: Option<bool>,
+    pub locked: Option<bool>,
+    pub x: Option<i64>,
+    pub y: Option<i64>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PomodoroConfig {
     pub id: i64,

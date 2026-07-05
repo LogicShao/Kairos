@@ -9,6 +9,7 @@ import { Fab } from "@/components/shared/fab"
 import { FilterChip } from "@/components/shared/filter-chip"
 import { PageShell } from "@/components/shared/page-shell"
 import { cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/errors"
 import { Calendar, Circle, CheckCircle2, ListTodo, Plus, Trash2 } from "lucide-react"
 
 interface PriorityConfig {
@@ -118,26 +119,42 @@ export function TaskList() {
   }, [statusFilter, priorityFilter])
 
   async function handleCreate(data: CreateTaskRequest) {
-    await invoke("create_task", { cmd: data })
-    setShowForm(false)
-    await fetchTasks()
+    try {
+      await invoke("create_task", { cmd: data })
+      setShowForm(false)
+      await fetchTasks()
+    } catch (e) {
+      setError(userErrorMessage(e, "创建任务失败"))
+    }
   }
 
   async function handleUpdate(data: UpdateTaskRequest) {
     if (!editingTask) return
-    await invoke("update_task", { id: editingTask.id, cmd: data })
-    setEditingTask(null)
-    await fetchTasks()
+    try {
+      await invoke("update_task", { id: editingTask.id, cmd: data })
+      setEditingTask(null)
+      await fetchTasks()
+    } catch (e) {
+      setError(userErrorMessage(e, "更新任务失败"))
+    }
   }
 
   async function handleDelete(id: number) {
-    await invoke("delete_task", { id })
-    await fetchTasks()
+    try {
+      await invoke("delete_task", { id })
+      await fetchTasks()
+    } catch (e) {
+      setError(userErrorMessage(e, "删除任务失败"))
+    }
   }
 
   async function handleComplete(task: Task) {
-    await invoke("update_task", { id: task.id, cmd: { status: "done" } })
-    await fetchTasks()
+    try {
+      await invoke("update_task", { id: task.id, cmd: { status: "done" } })
+      await fetchTasks()
+    } catch (e) {
+      setError(userErrorMessage(e, "完成任务失败"))
+    }
   }
 
   function openNewForm() {
@@ -187,6 +204,10 @@ export function TaskList() {
           onChange={setPriorityFilter}
         />
       </div>
+
+      {error && tasks.length > 0 && (
+        <p className="mb-3 text-center text-sm text-destructive">{error}</p>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-12">

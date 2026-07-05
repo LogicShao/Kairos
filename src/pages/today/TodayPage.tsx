@@ -105,7 +105,12 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
               <>
                 <span className="font-semibold text-foreground">{courses.today_count}</span>
                 <span className="text-xs text-muted-foreground"> 节课</span>
-                {courses.next_course && (
+                {courses.current_course && (
+                  <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
+                    当前 {courses.current_course.start_time} @ {courses.current_course.location}
+                  </span>
+                )}
+                {!courses.current_course && courses.next_course && (
                   <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
                     下一节 {courses.next_course.start_time} @ {courses.next_course.location}
                   </span>

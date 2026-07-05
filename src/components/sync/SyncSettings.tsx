@@ -1,14 +1,42 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { ArrowLeft, RefreshCw, Check, X } from "lucide-react"
-import type { SyncConfig, SyncResult } from "@/types/sync"
+import type {
+  SyncConfig,
+  SyncFinishedEvent,
+  SyncResult,
+  UpdateSyncConfigRequest,
+} from "@/types/sync"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/errors"
+import { listenWithCleanup } from "@/lib/tauri-events"
 
 interface SyncSettingsProps {
   onNavigate: (key: string) => void
+}
+
+interface SyncDraft {
+  server_url: string
+  username: string
+  auto_sync: boolean
+}
+
+function draftFromConfig(config: SyncConfig): SyncDraft {
+  return {
+    server_url: config.server_url,
+    username: config.username,
+    auto_sync: config.auto_sync,
+  }
+}
+
+function draftsEqual(a: SyncDraft, b: SyncDraft): boolean {
+  return (
+    a.server_url === b.server_url &&
+    a.username === b.username &&
+    a.auto_sync === b.auto_sync
+  )
 }
 
 function inputClass(hasError: boolean): string {
@@ -27,6 +55,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
   const [serverUrl, setServerUrl] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [passwordDirty, setPasswordDirty] = useState(false)
   const [autoSync, setAutoSync] = useState(false)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
 
@@ -36,94 +65,143 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
   const [syncStatus, setSyncStatus] = useState<"idle" | "loading" | "done">("idle")
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
-  const latestDraftRef = useRef<SyncConfig | null>(null)
-  const lastPersistedRef = useRef<SyncConfig | null>(null)
+  const configRef = useRef<SyncConfig | null>(null)
+  const latestDraftRef = useRef<SyncDraft | null>(null)
+  const lastPersistedRef = useRef<SyncDraft | null>(null)
+  const passwordDraftRef = useRef("")
+  const passwordDirtyRef = useRef(false)
 
-  // ── 初始加载 ──────────────────────────────────────────
-  useEffect(() => {
-    invoke<SyncConfig>("get_sync_config")
-      .then((cfg) => {
-        setConfig(cfg)
-        setServerUrl(cfg.server_url)
-        setUsername(cfg.username)
-        setPassword(cfg.password)
-        setAutoSync(cfg.auto_sync)
-        setLastSyncAt(cfg.last_sync_at)
-        latestDraftRef.current = cfg
-        lastPersistedRef.current = cfg
-      })
-      .catch(console.error)
-  }, [])
+  const applyConfig = useCallback((cfg: SyncConfig, updateEditableFields: boolean) => {
+    setConfig(cfg)
+    configRef.current = cfg
+    setLastSyncAt(cfg.last_sync_at)
 
-  // ── 监听后端同步完成事件（手动 + 自动） ──────────────────
-  useEffect(() => {
-    let unlisten: UnlistenFn | undefined
+    const persistedDraft = draftFromConfig(cfg)
+    lastPersistedRef.current = persistedDraft
 
-    listen<{ last_sync_at: string }>("sync-finished", (event) => {
-      setLastSyncAt(event.payload.last_sync_at)
-    })
-      .then((fn) => {
-        unlisten = fn
-      })
-      .catch(console.error)
-
-    return () => {
-      unlisten?.()
+    if (updateEditableFields) {
+      setServerUrl(cfg.server_url)
+      setUsername(cfg.username)
+      setAutoSync(cfg.auto_sync)
+      setPassword("")
+      setPasswordDirty(false)
+      passwordDraftRef.current = ""
+      passwordDirtyRef.current = false
+      latestDraftRef.current = persistedDraft
     }
   }, [])
 
+  // ── 初始加载 ──────────────────────────────────────────
+  useEffect(() => {
+    let disposed = false
+
+    invoke<SyncConfig>("get_sync_config")
+      .then((cfg) => {
+        if (disposed) return
+        applyConfig(cfg, true)
+      })
+      .catch((err) => {
+        if (disposed) return
+        setSyncError(userErrorMessage(err, "无法加载同步配置"))
+      })
+
+    return () => {
+      disposed = true
+    }
+  }, [applyConfig])
+
+  // ── 监听后端同步完成事件（手动 + 自动） ──────────────────
+  useEffect(() => {
+    let disposed = false
+    const cleanup = listenWithCleanup<SyncFinishedEvent>(
+      "sync-finished",
+      (event) => {
+        if (disposed) return
+        setLastSyncAt(event.payload.last_sync_at)
+        invoke<SyncConfig>("get_sync_config")
+          .then((cfg) => {
+            if (disposed) return
+            applyConfig(cfg, false)
+          })
+          .catch((err) => {
+            if (disposed) return
+            setSyncError(userErrorMessage(err, "无法刷新同步状态"))
+          })
+      },
+      (err) => {
+        setSyncError(userErrorMessage(err, "无法监听同步事件"))
+      },
+    )
+
+    return () => {
+      disposed = true
+      cleanup()
+    }
+  }, [applyConfig])
+
   // ── 顺序化保存配置：先写库，返回 Promise<SyncConfig> ──────
   const saveConfig = useCallback(
-    async (overrides?: Partial<SyncConfig>): Promise<SyncConfig> => {
-      if (!config) {
+    async (overrides?: Partial<SyncDraft>): Promise<SyncConfig> => {
+      const currentConfig = configRef.current ?? config
+      if (!currentConfig) {
         throw new Error("Config not loaded")
       }
-      const updated: SyncConfig = {
-        ...config,
+      const draft: SyncDraft = {
         server_url: serverUrl,
         username,
-        password,
         auto_sync: autoSync,
         ...overrides,
       }
-      await invoke("update_sync_config", { config: updated })
-      setConfig(updated)
-      lastPersistedRef.current = updated
-      latestDraftRef.current = updated
-      return updated
+      const request: UpdateSyncConfigRequest = {
+        ...draft,
+      }
+      if (passwordDirty) {
+        request.password = password
+      }
+
+      await invoke("update_sync_config", { config: request })
+      const saved = await invoke<SyncConfig>("get_sync_config")
+      applyConfig(saved, true)
+      return saved
     },
-    [config, serverUrl, username, password, autoSync],
+    [applyConfig, autoSync, config, password, passwordDirty, serverUrl, username],
   )
 
   useEffect(() => {
     if (!config) return
 
     latestDraftRef.current = {
-      ...config,
       server_url: serverUrl,
       username,
-      password,
       auto_sync: autoSync,
     }
-  }, [config, serverUrl, username, password, autoSync])
+    passwordDraftRef.current = password
+    passwordDirtyRef.current = passwordDirty
+  }, [config, serverUrl, username, password, passwordDirty, autoSync])
 
   useEffect(() => {
     return () => {
+      const currentConfig = configRef.current
       const draft = latestDraftRef.current
       const persisted = lastPersistedRef.current
-      if (!draft || !persisted) return
+      if (!currentConfig || !draft || !persisted) return
 
-      const hasUnsavedChanges =
-        draft.server_url !== persisted.server_url ||
-        draft.username !== persisted.username ||
-        draft.password !== persisted.password ||
-        draft.auto_sync !== persisted.auto_sync
+      const hasUnsavedChanges = !draftsEqual(draft, persisted) || passwordDirtyRef.current
 
       if (!hasUnsavedChanges) return
 
-      void invoke("update_sync_config", { config: draft }).then(() => {
-        lastPersistedRef.current = draft
-      })
+      const request: UpdateSyncConfigRequest = {
+        ...draft,
+      }
+      if (passwordDirtyRef.current) {
+        request.password = passwordDraftRef.current
+      }
+
+      void invoke("update_sync_config", { config: request })
+        .then(() => {
+          lastPersistedRef.current = draft
+        })
+        .catch(() => undefined)
     }
   }, [])
 
@@ -138,7 +216,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
       setTestMessage(ok ? "连接成功" : "无法连接到服务器")
     } catch (err) {
       setTestStatus("fail")
-      setTestMessage(typeof err === "string" ? err : "连接失败")
+      setTestMessage(userErrorMessage(err, "连接失败"))
     }
   }, [saveConfig])
 
@@ -154,13 +232,12 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
       setSyncStatus("done")
       // 同步成功后重新读取 last_sync_at（避免前端猜测时间）
       const cfg = await invoke<SyncConfig>("get_sync_config")
-      setConfig(cfg)
-      setLastSyncAt(cfg.last_sync_at)
+      applyConfig(cfg, false)
     } catch (err) {
-      setSyncError(typeof err === "string" ? err : "同步失败")
+      setSyncError(userErrorMessage(err, "同步失败"))
       setSyncStatus("done")
     }
-  }, [saveConfig])
+  }, [applyConfig, saveConfig])
 
   // ── 自动同步开关：先保存状态，再触发后端启停 ─────────────
   const handleAutoSyncToggle = useCallback(async () => {
@@ -171,12 +248,14 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
     } catch (err) {
       // 保存失败时回退 UI 状态
       setAutoSync(!nextAutoSync)
-      console.error("Failed to save auto_sync config:", err)
+      setSyncError(userErrorMessage(err, "保存自动同步设置失败"))
     }
   }, [autoSync, saveConfig])
 
-  const showPassword = password.length > 0
-  const passwordMasked = showPassword ? "●".repeat(Math.min(password.length, 12)) : ""
+  const passwordPlaceholder =
+    config?.password_configured && !passwordDirty
+      ? "已保存密码，留空不变"
+      : "••••••••"
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-4">
@@ -238,9 +317,12 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
               <input
                 type="password"
                 className={inputClass(false)}
-                placeholder={passwordMasked || "••••••••"}
+                placeholder={passwordPlaceholder}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordDirty(true)
+                }}
               />
             </div>
 

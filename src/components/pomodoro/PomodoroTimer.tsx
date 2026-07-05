@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import type {
   PomodoroState,
   PomodoroConfig,
   PomodoroPhase,
   ResolvePomodoroInterruptionRequest,
 } from "@/types/pomodoro"
+import type { SyncFinishedEvent } from "@/types/sync"
 import { cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/errors"
+import { listenWithCleanup } from "@/lib/tauri-events"
 import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
 import { Modal } from "@/components/shared/modal"
@@ -50,13 +52,21 @@ export function PomodoroTimer() {
   const [configLoading, setConfigLoading] = useState(false)
 
   useEffect(() => {
-    let unlistenTick: UnlistenFn | undefined
+    let disposed = false
+    let cleanupTick: (() => void) | undefined
+    let cleanupSyncFinished: (() => void) | undefined
+
+    async function refreshState() {
+      const nextState = await invoke<PomodoroState>("get_pomodoro_state")
+      if (disposed) return
+      setState(nextState)
+    }
 
     async function init() {
       try {
-        const initial = await invoke<PomodoroState>("get_pomodoro_state")
-        setState(initial)
+        await refreshState()
       } catch {
+        if (disposed) return
         setState({
           phase: "work",
           remaining_seconds: 1500,
@@ -71,33 +81,65 @@ export function PomodoroTimer() {
         return
       }
 
-      try {
-        unlistenTick = await listen<PomodoroState>("pomodoro-tick", (event) => {
+      if (disposed) return
+
+      cleanupTick = listenWithCleanup<PomodoroState>(
+        "pomodoro-tick",
+        (event) => {
           setState(event.payload)
-        })
-      } catch {
-        setError("无法监听计时器事件")
-      }
+        },
+        () => {
+          setError("无法监听计时器事件")
+        },
+      )
+
+      cleanupSyncFinished = listenWithCleanup<SyncFinishedEvent>(
+        "sync-finished",
+        () => {
+          refreshState().catch(() => {
+            if (!disposed) {
+              setError("无法刷新同步后的专注状态")
+            }
+          })
+        },
+        () => {
+          setError("无法监听同步事件")
+        },
+      )
     }
 
     init()
 
     return () => {
-      unlistenTick?.()
+      disposed = true
+      cleanupTick?.()
+      cleanupSyncFinished?.()
     }
   }, [])
 
   const handleStartPause = useCallback(() => {
     if (!state) return
     if (state.is_running) {
-      invoke("pause_pomodoro").catch(console.error)
+      invoke("pause_pomodoro")
+        .then(() => setError(null))
+        .catch((err) => {
+          setError(userErrorMessage(err, "暂停番茄钟失败"))
+        })
     } else {
-      invoke("start_pomodoro").catch(console.error)
+      invoke("start_pomodoro")
+        .then(() => setError(null))
+        .catch((err) => {
+          setError(userErrorMessage(err, "启动番茄钟失败"))
+        })
     }
   }, [state])
 
   const handleReset = useCallback(() => {
-    invoke("reset_pomodoro").catch(console.error)
+    invoke("reset_pomodoro")
+      .then(() => setError(null))
+      .catch((err) => {
+        setError(userErrorMessage(err, "重置番茄钟失败"))
+      })
   }, [])
 
   const handleOpenSettings = useCallback(async () => {
@@ -139,8 +181,9 @@ export function PomodoroTimer() {
       setSettingsOpen(false)
       const newState = await invoke<PomodoroState>("get_pomodoro_state")
       setState(newState)
+      setError(null)
     } catch (e) {
-      console.error(e)
+      setError(userErrorMessage(e, "保存番茄钟设置失败"))
     } finally {
       setSavingConfig(false)
     }
@@ -155,8 +198,9 @@ export function PomodoroTimer() {
         request,
       })
       setState(newState)
+      setError(null)
     } catch (e) {
-      console.error(e)
+      setError(userErrorMessage(e, "处理中断状态失败"))
     } finally {
       setResolving(false)
     }

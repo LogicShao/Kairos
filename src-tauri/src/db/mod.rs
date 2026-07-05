@@ -6,6 +6,7 @@ pub mod notifications;
 pub mod pomodoro;
 pub mod sync;
 pub mod tasks;
+pub mod widget;
 
 use rusqlite::{Connection, Result};
 

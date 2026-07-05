@@ -1,4 +1,4 @@
-import { Bell, BookOpen, CalendarClock, Check, Cloud, Moon, Palette, Settings, Sun } from "lucide-react"
+import { Bell, BookOpen, CalendarClock, Check, Cloud, MonitorCog, Moon, Palette, Settings, Sun } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
 import { ACCENT_OPTIONS, useTheme } from "@/hooks/use-theme"
@@ -35,6 +35,12 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "通知设置",
     description: "管理番茄钟提醒与考试考前通知",
     icon: Bell,
+  },
+  {
+    key: "widget",
+    label: "桌面小组件",
+    description: "管理悬浮窗口、尺寸与置顶",
+    icon: MonitorCog,
   },
   {
     key: "sync",

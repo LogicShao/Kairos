@@ -37,6 +37,17 @@ fn persist_engine_state(conn: &Connection, eng: &PomodoroEngine) -> Result<(), S
     .map_err(|e| e.to_string())
 }
 
+/// 从 session 历史重算派生轮数，避免同步导入后内存运行态滞后。
+fn refresh_completed_sessions_from_history(
+    conn: &Connection,
+    eng: &mut PomodoroEngine,
+) -> Result<(), String> {
+    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(conn)
+        .map_err(|e| e.to_string())? as u32;
+    eng.completed_sessions = completed_sessions;
+    Ok(())
+}
+
 fn soft_delete_active_session(conn: &Connection, eng: &mut PomodoroEngine) -> Result<(), String> {
     if let Some(session_id) = eng.active_session_id.take() {
         crate::db::pomodoro::soft_delete_session(conn, session_id).map_err(|e| e.to_string())?;
@@ -133,8 +144,11 @@ pub fn reset_pomodoro(
 #[tauri::command]
 pub fn get_pomodoro_state(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    db: State<'_, Arc<Mutex<Connection>>>,
 ) -> Result<PomodoroState, String> {
-    let eng = engine.lock().map_err(|e| e.to_string())?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    refresh_completed_sessions_from_history(&conn, &mut eng)?;
     Ok(eng.get_state())
 }
 
@@ -156,8 +170,6 @@ pub fn update_pomodoro_config(
         sessions_before_long_break: config.sessions_before_long_break,
     };
     crate::db::pomodoro::update_config(&conn, &req).map_err(|e| e.to_string())?;
-    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(&conn)
-        .map_err(|e| e.to_string())? as u32;
 
     eng.update_config(PomodoroConfig {
         id: 1,
@@ -166,7 +178,7 @@ pub fn update_pomodoro_config(
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
     });
-    eng.completed_sessions = completed_sessions;
+    refresh_completed_sessions_from_history(&conn, &mut eng)?;
     persist_engine_state(&conn, &eng)?;
     crate::notifications::pomodoro_scheduler::cancel_pomodoro_notification();
     Ok(())
@@ -228,4 +240,32 @@ pub fn resolve_pomodoro_interruption(
     }
 
     Ok(eng.get_state())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_completed_sessions_from_history_uses_database_source() {
+        let conn = crate::db::get_connection(":memory:").expect("Failed to open test DB");
+        let config = crate::db::pomodoro::get_config(&conn).expect("Failed to get config");
+        let mut eng = PomodoroEngine::new(config);
+
+        let now = crate::db::chrono_now();
+        let req = crate::db::models::CreatePomodoroSessionRequest {
+            started_at: now.clone(),
+            session_type: "work".to_string(),
+            task_id: None,
+        };
+        let session_id =
+            crate::db::pomodoro::create_session(&conn, &req).expect("Failed to create session");
+        crate::db::pomodoro::update_session_end(&conn, session_id, &now)
+            .expect("Failed to end session");
+
+        refresh_completed_sessions_from_history(&conn, &mut eng)
+            .expect("Failed to refresh completed sessions");
+
+        assert_eq!(eng.completed_sessions, 1);
+    }
 }

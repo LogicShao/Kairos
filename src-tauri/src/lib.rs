@@ -208,6 +208,10 @@ pub fn run() {
             app.manage(db_conn.clone());
             app.manage(engine);
 
+            if let Err(e) = commands::widget::restore_widget_on_startup(app.handle(), &db_conn) {
+                log::error!("failed to restore widget window on startup: {e}");
+            }
+
             // ─── 考试通知调度 ───
             if notifications_available {
                 match db_conn.lock() {
@@ -279,6 +283,12 @@ pub fn run() {
             commands::notifications::get_notification_config,
             commands::notifications::update_notification_config,
             commands::notifications::request_notification_permission,
+            commands::widget::get_widget_config,
+            commands::widget::update_widget_config,
+            commands::widget::show_widget,
+            commands::widget::hide_widget,
+            commands::widget::save_widget_position,
+            commands::widget::open_main_window,
             commands::lzu::lzu_login,
             commands::lzu::lzu_logout,
             commands::lzu::lzu_get_auth_status,

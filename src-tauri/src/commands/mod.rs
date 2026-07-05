@@ -7,3 +7,4 @@ pub mod pomodoro;
 pub mod schedule;
 pub mod sync;
 pub mod tasks;
+pub mod widget;

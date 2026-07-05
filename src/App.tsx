@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { AppBackground } from "@/components/shared/AppBackground"
 import { AppShell } from "@/components/shared/AppShell"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -9,11 +10,28 @@ import { CourseSchedule } from "@/components/courses/CourseSchedule"
 import { ExamList } from "@/components/exams/ExamList"
 import { KairosHub } from "@/components/kairos/KairosHub"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
+import { WidgetSettings } from "@/components/settings/WidgetSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
+import { WidgetApp } from "@/components/widget/WidgetApp"
 import { TodayPage } from "@/pages/today/TodayPage"
+import type { MainNavigateEvent } from "@/types/widget"
 
-function App() {
+function MainApp() {
   const [active, setActive] = useState("calendar")
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+
+    listen<MainNavigateEvent>("main-navigate", (event) => {
+      setActive(event.payload.target)
+    }).then((fn) => {
+      unlisten = fn
+    })
+
+    return () => {
+      unlisten?.()
+    }
+  }, [])
 
   return (
     <>
@@ -33,10 +51,16 @@ function App() {
         {active === "courses" && <CourseSchedule onNavigate={setActive} />}
         {active === "exams" && <ExamList onNavigate={setActive} />}
         {active === "notifications" && <NotificationSettings onNavigate={setActive} />}
+        {active === "widget" && <WidgetSettings onNavigate={setActive} />}
         {active === "sync" && <SyncSettings onNavigate={setActive} />}
       </AppShell>
     </>
   )
+}
+
+function App() {
+  const isWidget = new URLSearchParams(window.location.search).get("view") === "widget"
+  return isWidget ? <WidgetApp /> : <MainApp />
 }
 
 export default App

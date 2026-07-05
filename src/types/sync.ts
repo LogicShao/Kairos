@@ -1,9 +1,8 @@
-/** 与后端 db::models::SyncConfig 对齐，是 WebDAV 同步的本地配置记录。 */
+/** 与后端 commands::sync::SyncConfigView 对齐，是前端可见的 WebDAV 同步配置摘要。 */
 export interface SyncConfig {
   id: number
   server_url: string
   username: string
-  password: string
   auto_sync: boolean
   /** 上次成功同步时间，UTC ISO 8601；null 表示尚未同步。 */
   last_sync_at: string | null
@@ -13,6 +12,23 @@ export interface SyncConfig {
   device_id: string | null
   /** 数据集 UUID，同一同步文件的所有设备共享。 */
   dataset_id: string | null
+  /** 后端是否已保存 WebDAV 密码；密码原文不回传给前端。 */
+  password_configured: boolean
+}
+
+/** update_sync_config 命令入参；password 省略表示保留后端已保存的密码。 */
+export interface UpdateSyncConfigRequest {
+  server_url: string
+  username: string
+  auto_sync: boolean
+  /** 新密码；省略表示保留，空字符串表示清空。 */
+  password?: string
+}
+
+/** 后端 sync-finished 事件 payload；只在 last_sync_at 已持久化后发送。 */
+export interface SyncFinishedEvent {
+  /** 上次成功同步时间，UTC ISO 8601。 */
+  last_sync_at: string
 }
 
 /** 与后端 sync::exporter::SyncStats 对齐，描述一次 sync_now 的合并结果。 */

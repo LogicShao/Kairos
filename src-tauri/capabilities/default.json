@@ -3,10 +3,13 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "widget"
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "clipboard-manager:allow-read-text",
     "notification:default"
   ]
 }

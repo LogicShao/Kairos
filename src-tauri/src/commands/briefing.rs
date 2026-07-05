@@ -24,6 +24,7 @@ pub struct NextCourse {
 #[derive(Debug, Clone, Serialize)]
 pub struct TodayCourses {
     pub today_count: i64,
+    pub current_course: Option<NextCourse>,
     pub next_course: Option<NextCourse>,
 }
 
@@ -178,6 +179,20 @@ fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTim
 
     let today_count = today_courses.len() as i64;
 
+    let current_course = today_courses
+        .iter()
+        .filter(|c| {
+            let Some(start) = NaiveTime::parse_from_str(&c.start_time, "%H:%M").ok() else {
+                return false;
+            };
+            let Some(end) = NaiveTime::parse_from_str(&c.end_time, "%H:%M").ok() else {
+                return false;
+            };
+            start <= *now_time && *now_time < end
+        })
+        .min_by_key(|c| NaiveTime::parse_from_str(&c.start_time, "%H:%M").ok())
+        .map(course_brief);
+
     // 下一节课：在今天课程中找 start_time > now 的最早一节
     let next_course = today_courses
         .iter()
@@ -187,16 +202,21 @@ fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTim
                 .is_some_and(|t| t > *now_time)
         })
         .min_by_key(|c| NaiveTime::parse_from_str(&c.start_time, "%H:%M").ok())
-        .map(|c| NextCourse {
-            title: c.name.clone(),
-            start_time: c.start_time.clone(),
-            end_time: c.end_time.clone(),
-            location: c.location.clone(),
-        });
+        .map(course_brief);
 
     TodayCourses {
         today_count,
+        current_course,
         next_course,
+    }
+}
+
+fn course_brief(course: &&Course) -> NextCourse {
+    NextCourse {
+        title: course.name.clone(),
+        start_time: course.start_time.clone(),
+        end_time: course.end_time.clone(),
+        location: course.location.clone(),
     }
 }
 
@@ -486,6 +506,7 @@ mod tests {
         }];
         let result = build_today_courses(&courses, today, &now_time);
         assert_eq!(result.today_count, 0);
+        assert!(result.current_course.is_none());
         assert!(result.next_course.is_none());
     }
 
@@ -532,6 +553,8 @@ mod tests {
         ];
         let result = build_today_courses(&courses, today, &now_time);
         assert_eq!(result.today_count, 2);
+        assert!(result.current_course.is_some());
+        assert_eq!(result.current_course.as_ref().unwrap().title, "上午课程");
         // Next course should be the afternoon one (starts at 14:00, which is > 09:00)
         assert!(result.next_course.is_some());
         assert_eq!(result.next_course.as_ref().unwrap().title, "下午课程");

@@ -137,6 +137,30 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             );
             ",
         ),
+        (
+            7,
+            "widget_config",
+            "
+            CREATE TABLE IF NOT EXISTS widget_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                mode TEXT NOT NULL DEFAULT 'medium' CHECK(mode IN ('small', 'medium', 'large')),
+                opacity REAL NOT NULL DEFAULT 0.92 CHECK(opacity >= 0.6 AND opacity <= 1.0),
+                always_on_top INTEGER NOT NULL DEFAULT 1,
+                locked INTEGER NOT NULL DEFAULT 0,
+                x INTEGER,
+                y INTEGER,
+                width INTEGER NOT NULL DEFAULT 320 CHECK(width BETWEEN 220 AND 520),
+                height INTEGER NOT NULL DEFAULT 220 CHECK(height BETWEEN 140 AND 420),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO widget_config
+                (id, enabled, mode, opacity, always_on_top, locked, width, height, created_at, updated_at)
+            VALUES
+                (1, 0, 'medium', 0.92, 1, 0, 320, 220, datetime('now'), datetime('now'));
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -298,7 +322,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 8);
+        assert_eq!(table_count, 9);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -335,11 +359,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly five migration records (v1 + v2 + v3 + v4 + v5) applied once each
+        // Should have exactly seven migration records applied once each.
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 6);
+        assert_eq!(count, 7);
     }
 
     #[test]
@@ -426,7 +450,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 6);
+        assert_eq!(count, 7);
     }
 
     #[test]

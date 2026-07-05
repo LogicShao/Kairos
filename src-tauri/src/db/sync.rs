@@ -62,18 +62,13 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
 pub fn update_sync_config(conn: &Connection, config: &SyncConfig) -> Result<()> {
     conn.execute(
         "UPDATE sync_config
-         SET server_url = ?1, username = ?2, password = ?3, auto_sync = ?4, last_sync_at = ?5,
-             remote_etag = ?6, device_id = ?7, dataset_id = ?8
-         WHERE id = ?9",
+         SET server_url = ?1, username = ?2, password = ?3, auto_sync = ?4
+         WHERE id = ?5",
         params![
             config.server_url,
             config.username,
             config.password,
             config.auto_sync as i64,
-            config.last_sync_at,
-            config.remote_etag,
-            config.device_id,
-            config.dataset_id,
             config.id,
         ],
     )?;
@@ -127,10 +122,12 @@ mod tests {
     }
 
     #[test]
-    fn test_update_sync_config() {
+    fn test_update_sync_config_preserves_protocol_metadata() {
         let conn = setup_db();
 
-        let _ = get_sync_config(&conn).expect("Failed to get initial config");
+        let initial = get_sync_config(&conn).expect("Failed to get initial config");
+        update_last_sync_at(&conn, "2024-07-01T12:00:00Z").expect("Failed to set last_sync_at");
+        update_remote_etag(&conn, Some("\"etag-existing\"")).expect("Failed to set remote_etag");
 
         let updated = SyncConfig {
             id: 1,
@@ -138,10 +135,10 @@ mod tests {
             username: "user".to_string(),
             password: "pass".to_string(),
             auto_sync: true,
-            last_sync_at: Some("2024-06-01T10:00:00Z".to_string()),
-            remote_etag: Some("\"etag-1\"".to_string()),
-            device_id: Some("device-1".to_string()),
-            dataset_id: Some("dataset-1".to_string()),
+            last_sync_at: Some("stale-frontend-value".to_string()),
+            remote_etag: Some("\"stale-etag\"".to_string()),
+            device_id: Some("stale-device".to_string()),
+            dataset_id: Some("stale-dataset".to_string()),
         };
         update_sync_config(&conn, &updated).expect("Failed to update config");
 
@@ -150,10 +147,10 @@ mod tests {
         assert_eq!(config.username, "user");
         assert_eq!(config.password, "pass");
         assert!(config.auto_sync);
-        assert_eq!(config.last_sync_at.as_deref(), Some("2024-06-01T10:00:00Z"));
-        assert_eq!(config.remote_etag.as_deref(), Some("\"etag-1\""));
-        assert_eq!(config.device_id.as_deref(), Some("device-1"));
-        assert_eq!(config.dataset_id.as_deref(), Some("dataset-1"));
+        assert_eq!(config.last_sync_at.as_deref(), Some("2024-07-01T12:00:00Z"));
+        assert_eq!(config.remote_etag.as_deref(), Some("\"etag-existing\""));
+        assert_eq!(config.device_id, initial.device_id);
+        assert_eq!(config.dataset_id, initial.dataset_id);
     }
 
     #[test]

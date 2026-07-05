@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/errors"
 import {
   Plus,
   Pencil,
@@ -38,6 +39,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [semesterFilter, setSemesterFilter] = useState(() => {
     const now = new Date()
     const y = now.getFullYear()
@@ -174,6 +176,8 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
 
   function refreshAll() {
     void fetchCourses()
+      .then(() => setActionError(null))
+      .catch((e) => setActionError(userErrorMessage(e, "刷新课程列表失败")))
     setWeekRefresh((n) => n + 1)
   }
 
@@ -234,14 +238,21 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       setShowForm(false)
       setEditingCourse(null)
       refreshAll()
+      setActionError(null)
+    } catch (e) {
+      setActionError(userErrorMessage(e, "保存课程失败"))
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: number) {
-    await invoke("delete_course", { id })
-    refreshAll()
+    try {
+      await invoke("delete_course", { id })
+      refreshAll()
+    } catch (e) {
+      setActionError(userErrorMessage(e, "删除课程失败"))
+    }
   }
 
   async function handleReadClipboard() {
@@ -352,7 +363,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       setResetDate("")
       refreshAll()
     } catch {
-      setWeekError("重置学期起始日失败")
+      setActionError("重置学期起始日失败")
     } finally {
       setResetting(false)
     }
@@ -507,6 +518,12 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
           )}
         </div>
       </div>
+
+      {actionError && (
+        <p className="px-3 pb-2 text-center text-sm text-destructive">
+          {actionError}
+        </p>
+      )}
 
       {/* ─── Date strip (desktop: aligned with 48px + 7fr grid) ─── */}
       <div className="hidden md:block shrink-0 pb-1">
