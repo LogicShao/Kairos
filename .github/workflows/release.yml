@@ -9,7 +9,22 @@ permissions:
   contents: write
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Kairos ${{ github.ref_name }}"
+          body: "Automated release for ${{ github.ref_name }}"
+          draft: true
+          prerelease: false
+
   desktop-release:
+    needs: prepare-release
+
     strategy:
       fail-fast: false
       matrix:
@@ -21,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -34,7 +49,7 @@ jobs:
             patchelf
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -112,11 +127,11 @@ jobs:
 
   android-release:
     runs-on: ubuntu-22.04
-    needs: desktop-release
+    needs: prepare-release
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -137,7 +152,7 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
