@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { AppBackground } from "@/components/shared/AppBackground"
 import { AppShell } from "@/components/shared/AppShell"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -15,22 +14,19 @@ import { SyncSettings } from "@/components/sync/SyncSettings"
 import { WidgetApp } from "@/components/widget/WidgetApp"
 import { TodayPage } from "@/pages/today/TodayPage"
 import type { MainNavigateEvent } from "@/types/widget"
+import { listenWithCleanup } from "@/lib/tauri-events"
 
 function MainApp() {
   const [active, setActive] = useState("calendar")
 
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined
-
-    listen<MainNavigateEvent>("main-navigate", (event) => {
-      setActive(event.payload.target)
-    }).then((fn) => {
-      unlisten = fn
-    })
-
-    return () => {
-      unlisten?.()
-    }
+    return listenWithCleanup<MainNavigateEvent>(
+      "main-navigate",
+      (event) => {
+        setActive(event.payload.target)
+      },
+      () => undefined,
+    )
   }, [])
 
   return (

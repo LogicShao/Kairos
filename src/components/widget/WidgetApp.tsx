@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+import type { UnlistenFn } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import type { TodayBriefingResponse } from "@/types/briefing"
 import type { PomodoroState } from "@/types/pomodoro"
 import type { MainNavigationTarget, SaveWidgetPositionRequest, WidgetConfig } from "@/types/widget"
+import type { SyncFinishedEvent } from "@/types/sync"
 import { LargeWidget } from "@/components/widget/LargeWidget"
 import { MediumWidget } from "@/components/widget/MediumWidget"
 import { SmallWidget } from "@/components/widget/SmallWidget"
 import { WidgetFrame } from "@/components/widget/WidgetFrame"
+import { userErrorMessage } from "@/lib/errors"
+import { listenWithCleanup } from "@/lib/tauri-events"
 
 async function fetchWidgetData(): Promise<[WidgetConfig, TodayBriefingResponse, PomodoroState]> {
   return Promise.all([
@@ -39,7 +42,7 @@ export function WidgetApp() {
       setBriefing(nextBriefing)
       setPomodoro(nextPomodoro)
     } catch (err) {
-      setError(typeof err === "string" ? err : "无法加载小组件")
+      setError(userErrorMessage(err, "无法加载小组件"))
     } finally {
       setLoading(false)
     }
@@ -57,7 +60,7 @@ export function WidgetApp() {
       })
       .catch((err) => {
         if (cancelled) return
-        setError(typeof err === "string" ? err : "无法加载小组件")
+        setError(userErrorMessage(err, "无法加载小组件"))
       })
       .finally(() => {
         if (cancelled) return
@@ -70,36 +73,42 @@ export function WidgetApp() {
   }, [])
 
   useEffect(() => {
-    let unlistenConfig: UnlistenFn | undefined
-    let unlistenPomodoro: UnlistenFn | undefined
-    let unlistenSync: UnlistenFn | undefined
-
-    listen<WidgetConfig>("widget-config-updated", (event) => {
-      setConfig(event.payload)
-    }).then((fn) => {
-      unlistenConfig = fn
-    })
-
-    listen<PomodoroState>("pomodoro-tick", (event) => {
-      setPomodoro(event.payload)
-    }).then((fn) => {
-      unlistenPomodoro = fn
-    })
-
-    listen("sync-finished", () => {
-      void refreshData()
-    }).then((fn) => {
-      unlistenSync = fn
-    })
+    const cleanupConfig = listenWithCleanup<WidgetConfig>(
+      "widget-config-updated",
+      (event) => {
+        setConfig(event.payload)
+      },
+      (err) => {
+        setError(userErrorMessage(err, "无法监听小组件配置"))
+      },
+    )
+    const cleanupPomodoro = listenWithCleanup<PomodoroState>(
+      "pomodoro-tick",
+      (event) => {
+        setPomodoro(event.payload)
+      },
+      (err) => {
+        setError(userErrorMessage(err, "无法监听番茄钟状态"))
+      },
+    )
+    const cleanupSync = listenWithCleanup<SyncFinishedEvent>(
+      "sync-finished",
+      () => {
+        void refreshData()
+      },
+      (err) => {
+        setError(userErrorMessage(err, "无法监听同步事件"))
+      },
+    )
 
     const interval = window.setInterval(() => {
       void refreshData()
     }, 60_000)
 
     return () => {
-      unlistenConfig?.()
-      unlistenPomodoro?.()
-      unlistenSync?.()
+      cleanupConfig()
+      cleanupPomodoro()
+      cleanupSync()
       window.clearInterval(interval)
     }
   }, [refreshData])
@@ -108,6 +117,7 @@ export function WidgetApp() {
     const appWindow = getCurrentWindow()
     let unlisten: UnlistenFn | undefined
     let timer: ReturnType<typeof window.setTimeout> | undefined
+    let disposed = false
 
     appWindow.onMoved((event) => {
       const latestConfig = configRef.current
@@ -117,19 +127,39 @@ export function WidgetApp() {
         window.clearTimeout(timer)
       }
       timer = window.setTimeout(() => {
+        if (disposed) return
         const request: SaveWidgetPositionRequest = {
           x: event.payload.x,
           y: event.payload.y,
           width: latestConfig.width,
           height: latestConfig.height,
         }
-        void invoke<WidgetConfig>("save_widget_position", { request }).then(setConfig)
+        void invoke<WidgetConfig>("save_widget_position", { request })
+          .then((nextConfig) => {
+            if (!disposed) {
+              setConfig(nextConfig)
+            }
+          })
+          .catch((err) => {
+            if (!disposed) {
+              setError(userErrorMessage(err, "保存小组件位置失败"))
+            }
+          })
       }, 600)
     }).then((fn) => {
+      if (disposed) {
+        fn()
+        return
+      }
       unlisten = fn
+    }).catch((err) => {
+      if (!disposed) {
+        setError(userErrorMessage(err, "无法监听小组件位置"))
+      }
     })
 
     return () => {
+      disposed = true
       if (timer) {
         window.clearTimeout(timer)
       }
@@ -140,19 +170,19 @@ export function WidgetApp() {
   const handleDragStart = useCallback(() => {
     if (configRef.current?.locked) return
     void getCurrentWindow().startDragging().catch((err) => {
-      setError(typeof err === "string" ? err : "无法拖动小组件")
+      setError(userErrorMessage(err, "无法拖动小组件"))
     })
   }, [])
 
   const handleClose = useCallback(() => {
     void invoke<WidgetConfig>("hide_widget").catch((err) => {
-      setError(typeof err === "string" ? err : "无法关闭小组件")
+      setError(userErrorMessage(err, "无法关闭小组件"))
     })
   }, [])
 
   const handleOpen = useCallback((target: MainNavigationTarget) => {
     void invoke("open_main_window", { target }).catch((err) => {
-      setError(typeof err === "string" ? err : "无法打开主窗口")
+      setError(userErrorMessage(err, "无法打开主窗口"))
     })
   }, [])
 
@@ -166,7 +196,7 @@ export function WidgetApp() {
       setPomodoro(nextPomodoro)
       await refreshData()
     } catch (err) {
-      setError(typeof err === "string" ? err : "番茄钟操作失败")
+      setError(userErrorMessage(err, "番茄钟操作失败"))
     } finally {
       setPomodoroBusy(false)
     }
