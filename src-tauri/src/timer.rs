@@ -271,6 +271,28 @@ mod tests {
         }
     }
 
+    fn tick_times(engine: &mut PomodoroEngine, count: usize) -> Option<PomodoroPhaseTransition> {
+        let mut last_transition = None;
+        for _ in 0..count {
+            last_transition = engine.tick();
+        }
+        last_transition
+    }
+
+    fn assert_work_to_short_break(
+        result: Option<PomodoroPhaseTransition>,
+        ended_session_id: Option<i64>,
+    ) {
+        assert_eq!(
+            result,
+            Some(PomodoroPhaseTransition {
+                ended_phase: TimerPhase::Work,
+                next_phase: TimerPhase::ShortBreak,
+                ended_session_id,
+            })
+        );
+    }
+
     #[test]
     fn new_engine_starts_in_work_paused() {
         let engine = PomodoroEngine::new(default_config());
@@ -306,18 +328,9 @@ mod tests {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
 
-        engine.tick();
-        engine.tick();
-        let result = engine.tick();
+        let result = tick_times(&mut engine, 3);
 
-        assert_eq!(
-            result,
-            Some(PomodoroPhaseTransition {
-                ended_phase: TimerPhase::Work,
-                next_phase: TimerPhase::ShortBreak,
-                ended_session_id: None,
-            })
-        );
+        assert_work_to_short_break(result, None);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
         assert_eq!(engine.completed_sessions, 1);
@@ -329,19 +342,15 @@ mod tests {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
 
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.completed_sessions, 1);
 
-        engine.tick();
+        tick_times(&mut engine, 1);
         assert_eq!(engine.phase, TimerPhase::Work);
         assert_eq!(engine.remaining_seconds, 3);
 
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::LongBreak);
         assert_eq!(engine.completed_sessions, 2);
         assert_eq!(engine.remaining_seconds, 2);
@@ -352,12 +361,10 @@ mod tests {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
 
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
 
-        engine.tick();
+        tick_times(&mut engine, 1);
         assert_eq!(engine.phase, TimerPhase::Work);
         assert_eq!(engine.remaining_seconds, 3);
     }
@@ -366,12 +373,11 @@ mod tests {
     fn pause_stops_ticking() {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
-        engine.tick();
+        tick_times(&mut engine, 1);
         assert_eq!(engine.remaining_seconds, 2);
 
         engine.pause();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 2);
         assert_eq!(engine.remaining_seconds, 2);
         assert!(!engine.is_running);
     }
@@ -380,8 +386,7 @@ mod tests {
     fn reset_restores_full_duration() {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 2);
         assert_eq!(engine.remaining_seconds, 1);
 
         engine.reset();
@@ -436,8 +441,7 @@ mod tests {
         let mut engine = PomodoroEngine::new(config);
         engine.start();
 
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 2);
         assert_eq!(engine.phase, TimerPhase::LongBreak);
         assert_eq!(engine.remaining_seconds, 3);
         assert_eq!(engine.completed_sessions, 1);
@@ -447,9 +451,7 @@ mod tests {
     fn reset_during_break_restores_break_duration() {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
 
@@ -473,9 +475,7 @@ mod tests {
     fn tick_at_zero_no_double_advance() {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
     }
@@ -484,19 +484,17 @@ mod tests {
     fn pause_during_break_and_resume() {
         let mut engine = PomodoroEngine::new(default_config());
         engine.start();
-        engine.tick();
-        engine.tick();
-        engine.tick();
+        tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
 
         engine.pause();
-        engine.tick();
+        tick_times(&mut engine, 1);
         assert_eq!(engine.remaining_seconds, 1);
         assert!(!engine.is_running);
 
         engine.start();
-        engine.tick();
+        tick_times(&mut engine, 1);
         assert_eq!(engine.phase, TimerPhase::Work);
         assert_eq!(engine.remaining_seconds, 3);
     }
@@ -601,18 +599,9 @@ mod tests {
         engine.active_session_id = Some(99);
         engine.start();
 
-        engine.tick();
-        engine.tick();
-        let result = engine.tick();
+        let result = tick_times(&mut engine, 3);
 
-        assert_eq!(
-            result,
-            Some(PomodoroPhaseTransition {
-                ended_phase: TimerPhase::Work,
-                next_phase: TimerPhase::ShortBreak,
-                ended_session_id: Some(99),
-            })
-        );
+        assert_work_to_short_break(result, Some(99));
         assert!(engine.active_session_id.is_none());
     }
 
