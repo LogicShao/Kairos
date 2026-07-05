@@ -1,9 +1,25 @@
+/** 与后端 lzu::models::LzuProfileSummary 对齐（src-tauri/src/lzu/models.rs）。 */
+export interface LzuProfileSummary {
+  /** 姓名，用于登录身份确认。 */
+  display_name: string | null
+  /** 人员编号；资料缺失时后端回退到登录用户名。 */
+  person_no: string | null
+  /** 学院、部门或单位名称。 */
+  department: string | null
+  /** 人员类别。 */
+  role: string | null
+  /** 校园卡号后 4 位；后端不会返回完整卡号。 */
+  campus_card_tail: string | null
+}
+
 /** 与后端 lzu::models::AuthStatus 对齐（src-tauri/src/lzu/models.rs）。 */
 export interface LzuAuthStatus {
   /** 是否已登录。 */
   is_logged_in: boolean
   /** 登录用户名，未登录时为 null。 */
-  username?: string | null
+  username: string | null
+  /** 当前登录账号的低敏身份摘要；未登录或资料获取失败时为 null。 */
+  profile: LzuProfileSummary | null
 }
 
 /** 与后端 commands::lzu::LzuCourseImportResult 对齐（src-tauri/src/commands/lzu.rs）。 */

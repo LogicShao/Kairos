@@ -55,8 +55,6 @@ impl From<reqwest::Error> for LzuError {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
             LzuError::Timeout(e.to_string())
-        } else if e.is_connect() {
-            LzuError::Network(e.to_string())
         } else {
             LzuError::Network(e.to_string())
         }

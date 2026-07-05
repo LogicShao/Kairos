@@ -5,7 +5,7 @@
 
 use crate::lzu::crypto;
 use crate::lzu::error::LzuError;
-use crate::lzu::models::{LoginResponse, ScheduleResponse, XlxxResponse};
+use crate::lzu::models::{LoginResponse, ScheduleResponse, UserInfoResponse, XlxxResponse};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
@@ -30,6 +30,9 @@ const SCHEDULE_PATH: &str = "/api/lzu-teaching-research/kcb/getZdyCourse";
 
 /// 获取 ST 接口路径
 const GET_ST_PATH: &str = "/api/eusp-unify-terminal/app-user/getSt";
+
+/// 获取用户资料接口路径
+const USER_INFO_PATH: &str = "/api/eusp-unify-terminal/app-user/userInfo";
 
 /// AppService HTTP client。
 ///
@@ -85,6 +88,32 @@ impl AppServiceClient {
             .await?;
 
         let body = read_response_body(response, "get_xlxx").await?;
+        parse_appservice_response(&body)
+    }
+
+    /// 获取 LZU 当前登录用户资料。
+    pub async fn user_info(
+        &self,
+        login_token: &str,
+        gateway_token: &str,
+    ) -> Result<UserInfoResponse, LzuError> {
+        let response = self
+            .client
+            .get(format!("{BASE_URL}{USER_INFO_PATH}"))
+            .header("Authorization", gateway_token)
+            .header("Content-Type", "text/plain")
+            .query(&[("loginToken", login_token)])
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    LzuError::Timeout("userInfo 请求超时".to_string())
+                } else {
+                    LzuError::Network("userInfo 请求失败".to_string())
+                }
+            })?;
+
+        let body = read_response_body(response, "user_info").await?;
         parse_appservice_response(&body)
     }
 

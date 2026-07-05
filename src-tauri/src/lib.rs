@@ -107,7 +107,10 @@ pub fn run() {
                 let phase_change;
                 let state;
                 {
-                    let mut eng = tick_engine.lock().unwrap();
+                    let Ok(mut eng) = tick_engine.lock() else {
+                        log::error!("failed to lock pomodoro engine; stopping tick worker");
+                        break;
+                    };
                     phase_change = eng.tick();
                     state = eng.get_state();
                 }
@@ -207,25 +210,33 @@ pub fn run() {
 
             // ─── 考试通知调度 ───
             if notifications_available {
-                let c = db_conn.lock().unwrap();
-                let handle = app.handle().clone();
-                if let Err(e) =
-                    notifications::exam_scheduler::schedule_exam_notifications(&c, &handle)
-                {
-                    log::error!("failed to schedule exam notifications on startup: {e}");
+                match db_conn.lock() {
+                    Ok(c) => {
+                        let handle = app.handle().clone();
+                        if let Err(e) =
+                            notifications::exam_scheduler::schedule_exam_notifications(&c, &handle)
+                        {
+                            log::error!("failed to schedule exam notifications on startup: {e}");
+                        }
+                    }
+                    Err(e) => log::error!("failed to lock database for exam notifications: {e}"),
                 }
             }
 
             // ─── 自动同步状态初始化 ───
             let auto_sync_state = AutoSyncState::new();
             {
-                let c = db_conn.lock().unwrap();
-                if let Ok(cfg) = db::sync::get_sync_config(&c) {
-                    if cfg.auto_sync && !cfg.server_url.is_empty() {
-                        let path = db_path_str.clone();
-                        let handle = app.handle().clone();
-                        sync::spawn_auto_sync_worker(path, &auto_sync_state, handle);
+                match db_conn.lock() {
+                    Ok(c) => {
+                        if let Ok(cfg) = db::sync::get_sync_config(&c) {
+                            if cfg.auto_sync && !cfg.server_url.is_empty() {
+                                let path = db_path_str.clone();
+                                let handle = app.handle().clone();
+                                sync::spawn_auto_sync_worker(path, &auto_sync_state, handle);
+                            }
+                        }
                     }
+                    Err(e) => log::error!("failed to lock database for auto sync startup: {e}"),
                 }
             }
             app.manage(Arc::new(Mutex::new(auto_sync_state)));
@@ -271,6 +282,7 @@ pub fn run() {
             commands::lzu::lzu_login,
             commands::lzu::lzu_logout,
             commands::lzu::lzu_get_auth_status,
+            commands::lzu::lzu_refresh_profile,
             commands::lzu::lzu_refresh_st,
             commands::lzu::import_lzu_courses,
             commands::briefing::get_today_briefing,

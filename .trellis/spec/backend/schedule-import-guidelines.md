@@ -145,12 +145,16 @@ let end_raw = raw.get(16..).unwrap_or_default().trim_start_matches(is_time_separ
 - If `zzx` is absent, fall back to a conservative maximum week range and continue importing.
 - If fallback mode has already collected schedule rows and a later week returns a business error, stop fetching later weeks instead of failing the whole import.
 - Course duplicate handling must reuse the existing course import deduplication helper so repeated LZU imports report skipped rows instead of inserting duplicates.
+- AppService `userInfo` must be reduced to a backend-owned low-sensitivity profile summary before crossing the Tauri IPC boundary.
+- Allowed profile summary fields are display name (`xm`), person number (`rybh` or login username fallback), department (`dwmc`), role (`rylb`), and campus card tail only.
+- Profile fetch failure must not clear the LZU session and must not block schedule import; return `AuthStatus.profile = None/null` instead.
 
 ### 3. Error And Logging Rules
 
 - Missing `zzx` is a recoverable compatibility case. Log it as `warn!`, not `error!`.
 - Do not include LZU tokens, headers, encrypted payloads, or raw credentials in frontend errors or logs.
-- Token-bearing query endpoints such as `getSt` must map transport errors to sanitized messages before returning them through Tauri commands.
+- Do not include raw `userInfo` payloads or sensitive personal fields (`sfzjh`, `yddh`, `dzxx`, full `xykh`) in frontend responses, logs, or sync data.
+- Token-bearing query endpoints such as `getSt` and `userInfo` must map transport errors to sanitized messages before returning them through Tauri commands.
 
 ### 4. Tests Required
 
@@ -159,3 +163,5 @@ let end_raw = raw.get(16..).unwrap_or_default().trim_start_matches(is_time_separ
   - `zzx` absent -> fallback week limit.
   - fallback week limit keeps a larger `dqrqszzc` value when needed.
   - invalid `zzx` values are rejected.
+  - `userInfo` profile summary keeps only whitelisted fields.
+  - campus card masking returns only the last 4 digits and hides too-short values.

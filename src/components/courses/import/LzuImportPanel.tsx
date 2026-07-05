@@ -2,7 +2,15 @@ import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { LzuAuthStatus, LzuCourseImportResult } from "@/types/lzu"
 import { Button } from "@/components/ui/button"
-import { LogIn, LogOut, Download, User, Loader2, AlertCircle } from "lucide-react"
+import {
+  LogIn,
+  LogOut,
+  Download,
+  User,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react"
 import { FIELD_CLASS } from "../utils"
 
 interface LzuImportPanelProps {
@@ -16,6 +24,7 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
+  const [statusLoading, setStatusLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [importLoading, setImportLoading] = useState(false)
   const [importResult, setImportResult] = useState<LzuCourseImportResult | null>(null)
@@ -29,7 +38,8 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
         const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
         if (!cancelled) setAuthStatus(status)
       } catch {
-        if (!cancelled) setAuthStatus({ is_logged_in: false, username: null })
+        if (!cancelled)
+          setAuthStatus({ is_logged_in: false, username: null, profile: null })
       } finally {
         if (!cancelled) setAuthLoading(false)
       }
@@ -62,6 +72,19 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
     }
   }
 
+  async function handleRefreshStatus() {
+    setStatusLoading(true)
+    setImportError(null)
+    try {
+      const status = await invoke<LzuAuthStatus>("lzu_refresh_profile")
+      setAuthStatus(status)
+    } catch (e) {
+      setImportError(typeof e === "string" ? e : "刷新身份信息失败。")
+    } finally {
+      setStatusLoading(false)
+    }
+  }
+
   async function handleLogout() {
     setLoginLoading(true)
     try {
@@ -70,7 +93,7 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
       setImportResult(null)
       setImportError(null)
     } catch {
-      setAuthStatus({ is_logged_in: false, username: null })
+      setAuthStatus({ is_logged_in: false, username: null, profile: null })
     } finally {
       setLoginLoading(false)
     }
@@ -94,6 +117,9 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
       setImportLoading(false)
     }
   }
+
+  const profile = authStatus?.profile ?? null
+  const displayName = profile?.display_name ?? authStatus?.username ?? "已登录"
 
   // ── Loading state (initial auth check) ──
   if (authLoading) {
@@ -172,29 +198,60 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
   return (
     <div className="space-y-4">
       {/* Account summary */}
-      <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/60 p-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium text-foreground">
-            {authStatus.username ?? "已登录"}
-          </span>
+      <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 bg-background/60 p-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </p>
+            {profile ? (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {profile.person_no && <span>编号 {profile.person_no}</span>}
+                {profile.department && <span>{profile.department}</span>}
+                {profile.role && <span>{profile.role}</span>}
+                {profile.campus_card_tail && (
+                  <span>卡尾号 {profile.campus_card_tail}</span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">身份信息暂不可用</p>
+            )}
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={loginLoading}
-          onClick={() => void handleLogout()}
-        >
-          {loginLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <>
-              <LogOut className="mr-1 h-3.5 w-3.5" />
-              退出
-            </>
-          )}
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-11 min-w-11 p-2 md:min-h-0 md:min-w-0"
+            aria-label="刷新身份信息"
+            disabled={statusLoading || loginLoading}
+            onClick={() => void handleRefreshStatus()}
+          >
+            {statusLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={loginLoading}
+            onClick={() => void handleLogout()}
+          >
+            {loginLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <>
+                <LogOut className="mr-1 h-3.5 w-3.5" />
+                退出
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Import button */}

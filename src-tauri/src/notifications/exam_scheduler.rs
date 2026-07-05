@@ -146,7 +146,9 @@ pub fn cancel_exam_notifications(
     let offsets: Vec<i64> = serde_json::from_str(&config.exam_offsets_json)
         .map_err(|e| format!("invalid exam_offsets_json: {e}"))?;
 
-    let mut tokens = cancel_tokens().lock().unwrap();
+    let mut tokens = cancel_tokens()
+        .lock()
+        .map_err(|e| format!("failed to lock exam notification tokens: {e}"))?;
     for &offset in &offsets {
         let id = build_notification_id("exam", &exam.sync_id, offset);
         if let Some(token) = tokens.get(&id) {
@@ -164,7 +166,9 @@ pub fn cancel_all_exam_notifications() -> Result<(), String> {
     // 线程在 show 前会读取取消标记，因此这里不需要再扫描 exams/offsets 二次 remove。
     // 之前在持有 tokens 锁时再次调用 cancel_tokens().lock()，会在启动重建路径中自锁卡死。
 
-    let mut tokens = cancel_tokens().lock().unwrap();
+    let mut tokens = cancel_tokens()
+        .lock()
+        .map_err(|e| format!("failed to lock exam notification tokens: {e}"))?;
     for token in tokens.values() {
         token.store(true, Ordering::SeqCst);
     }
@@ -198,17 +202,21 @@ fn schedule_one_exam_inner(
         let app_handle = app_handle.clone();
         let exam_name = exam.course_name.clone();
         let desc = offset_description(offset);
-
-        // Register a cancellation token
-        let cancel_token = Arc::new(AtomicBool::new(false));
-        cancel_tokens()
-            .lock()
-            .unwrap()
-            .insert(id, cancel_token.clone());
-
         let wait_ms = (scheduled_time - Utc::now()).num_milliseconds();
         if wait_ms <= 0 {
             continue;
+        }
+
+        // Register a cancellation token
+        let cancel_token = Arc::new(AtomicBool::new(false));
+        match cancel_tokens().lock() {
+            Ok(mut tokens) => {
+                tokens.insert(id, cancel_token.clone());
+            }
+            Err(e) => {
+                log::error!("failed to lock exam notification tokens: {e}");
+                continue;
+            }
         }
 
         thread::spawn(move || {
@@ -224,7 +232,12 @@ fn schedule_one_exam_inner(
             show_system_notification(&app_handle, id, &exam_name, &body);
 
             // Clean up token after showing
-            cancel_tokens().lock().unwrap().remove(&id);
+            match cancel_tokens().lock() {
+                Ok(mut tokens) => {
+                    tokens.remove(&id);
+                }
+                Err(e) => log::error!("failed to lock exam notification tokens: {e}"),
+            }
         });
     }
 }

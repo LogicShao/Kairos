@@ -18,6 +18,19 @@ fn current_cancel_token() -> &'static Arc<Mutex<Option<Arc<AtomicBool>>>> {
     TOKEN.get_or_init(|| Arc::new(Mutex::new(None)))
 }
 
+fn update_current_cancel_token(update: impl FnOnce(&mut Option<Arc<AtomicBool>>)) -> bool {
+    match current_cancel_token().lock() {
+        Ok(mut guard) => {
+            update(&mut guard);
+            true
+        }
+        Err(e) => {
+            log::error!("failed to lock pomodoro notification token: {e}");
+            false
+        }
+    }
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
 fn phase_name_cn(phase: &str) -> &str {
@@ -51,12 +64,13 @@ pub fn schedule_pomodoro_notification(app_handle: &AppHandle, phase: &str, remai
     let cancel_token = Arc::new(AtomicBool::new(false));
 
     // Replace any existing token (cancel the previous one first)
-    {
-        let mut guard = current_cancel_token().lock().unwrap();
-        if let Some(ref old) = *guard {
+    if !update_current_cancel_token(|current| {
+        if let Some(ref old) = *current {
             old.store(true, Ordering::SeqCst);
         }
-        *guard = Some(cancel_token.clone());
+        *current = Some(cancel_token.clone());
+    }) {
+        return;
     }
 
     let app_handle = app_handle.clone();
@@ -74,12 +88,13 @@ pub fn schedule_pomodoro_notification(app_handle: &AppHandle, phase: &str, remai
         show_system_notification(&app_handle, id, "番茄钟", &body);
 
         // Clean up token after showing
-        let mut guard = current_cancel_token().lock().unwrap();
-        if let Some(ref token) = *guard {
-            if Arc::ptr_eq(token, &cancel_token) {
-                *guard = None;
+        update_current_cancel_token(|current| {
+            if let Some(ref token) = *current {
+                if Arc::ptr_eq(token, &cancel_token) {
+                    *current = None;
+                }
             }
-        }
+        });
     });
 }
 
@@ -88,11 +103,12 @@ pub fn schedule_pomodoro_notification(app_handle: &AppHandle, phase: &str, remai
 /// Sets the cancel flag so the background thread will skip showing the
 /// notification. Safe to call even if no notification is currently scheduled.
 pub fn cancel_pomodoro_notification() {
-    let mut guard = current_cancel_token().lock().unwrap();
-    if let Some(ref token) = *guard {
-        token.store(true, Ordering::SeqCst);
-    }
-    *guard = None;
+    update_current_cancel_token(|current| {
+        if let Some(ref token) = *current {
+            token.store(true, Ordering::SeqCst);
+        }
+        *current = None;
+    });
 }
 
 /// Send an immediate (non-scheduled) system notification.

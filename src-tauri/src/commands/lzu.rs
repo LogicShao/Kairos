@@ -11,7 +11,7 @@ use tauri::State;
 use crate::lzu::appservice::AppServiceClient;
 use crate::lzu::auth::SharedLzuAuth;
 use crate::lzu::error::LzuError;
-use crate::lzu::models::{AuthStatus, LoginRequest, LzuSession, XlxxData};
+use crate::lzu::models::{AuthStatus, LoginRequest, LzuProfileSummary, LzuSession, XlxxData};
 
 const FALLBACK_TOTAL_WEEKS: i64 = 24;
 
@@ -69,6 +69,37 @@ fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
     Ok((total_weeks, false))
 }
 
+async fn fetch_profile_summary(
+    client: &AppServiceClient,
+    login_token: &str,
+    gateway_token: &str,
+    fallback_username: &str,
+) -> Result<Option<LzuProfileSummary>, ()> {
+    match client.user_info(login_token, gateway_token).await {
+        Ok(response) if response.code == 1 => match response.data {
+            Some(data) => Ok(Some(LzuProfileSummary::from_user_info(
+                &data,
+                fallback_username,
+            ))),
+            None => {
+                log::warn!("LZU 用户资料响应缺少 data 字段，已跳过身份摘要");
+                Ok(None)
+            }
+        },
+        Ok(response) => {
+            log::warn!(
+                "LZU 用户资料接口返回异常，已跳过身份摘要: code={}",
+                response.code
+            );
+            Err(())
+        }
+        Err(_) => {
+            log::warn!("LZU 用户资料拉取失败，已跳过身份摘要");
+            Err(())
+        }
+    }
+}
+
 /// 登录 LZU 统一认证。
 ///
 /// 返回登录状态摘要（不含 token 原文）。
@@ -110,9 +141,14 @@ pub async fn lzu_login(
         LzuError::LoginFailed("登录响应缺少 gateway_token".to_string()).to_string()
     })?;
 
+    let profile = fetch_profile_summary(&client, &login_token, &gateway_token, &username)
+        .await
+        .ok()
+        .flatten();
+
     // 4. 重新上锁，更新 session
     let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
-    auth.set_session(username, login_token, gateway_token);
+    auth.set_session(username, login_token, gateway_token, profile);
 
     log::info!("LZU 登录成功");
     Ok(AuthStatus::from(&auth.session))
@@ -159,6 +195,25 @@ pub async fn lzu_logout(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus
 #[tauri::command]
 pub fn lzu_get_auth_status(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
     let auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
+    Ok(AuthStatus::from(&auth.session))
+}
+
+/// 刷新当前 LZU 登录账号的低敏身份摘要。
+#[tauri::command]
+pub async fn lzu_refresh_profile(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
+    let (client, session) = require_session(&lzu_auth)?;
+
+    let profile = fetch_profile_summary(
+        &client,
+        &session.login_token,
+        &session.gateway_token,
+        &session.username,
+    )
+    .await
+    .map_err(|_| "刷新 LZU 身份信息失败".to_string())?;
+
+    let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
+    auth.set_profile(profile).map_err(|e| e.to_string())?;
     Ok(AuthStatus::from(&auth.session))
 }
 

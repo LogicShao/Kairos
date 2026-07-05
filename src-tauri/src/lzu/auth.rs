@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::lzu::appservice::AppServiceClient;
 use crate::lzu::error::LzuError;
-use crate::lzu::models::LzuSession;
+use crate::lzu::models::{LzuProfileSummary, LzuSession};
 
 /// LZU 认证管理器。
 ///
@@ -29,12 +29,19 @@ impl LzuAuth {
     }
 
     /// 设置登录 session（由 command 层在登录成功后调用）。
-    pub fn set_session(&mut self, username: String, login_token: String, gateway_token: String) {
+    pub fn set_session(
+        &mut self,
+        username: String,
+        login_token: String,
+        gateway_token: String,
+        profile: Option<LzuProfileSummary>,
+    ) {
         self.session = Some(LzuSession {
             username,
             login_token,
             gateway_token,
             st: None,
+            profile,
         });
     }
 
@@ -43,6 +50,17 @@ impl LzuAuth {
         match &mut self.session {
             Some(session) => {
                 session.st = Some(st);
+                Ok(())
+            }
+            None => Err(LzuError::NotLoggedIn),
+        }
+    }
+
+    /// 更新当前 session 的低敏身份摘要。
+    pub fn set_profile(&mut self, profile: Option<LzuProfileSummary>) -> Result<(), LzuError> {
+        match &mut self.session {
+            Some(session) => {
+                session.profile = profile;
                 Ok(())
             }
             None => Err(LzuError::NotLoggedIn),
