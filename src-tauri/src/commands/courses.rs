@@ -131,7 +131,7 @@ pub fn reset_all_semester_start_dates(
     date: String,
 ) -> Result<usize, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
-    crate::db::courses::update_all_semester_start_dates(&conn, &date).map_err(|e| e.to_string())
+    reset_semester_start_dates(&conn, &date)
 }
 
 #[tauri::command]
@@ -185,6 +185,14 @@ pub(crate) fn import_new_courses(
     ))
 }
 
+fn reset_semester_start_dates(conn: &Connection, date: &str) -> Result<usize, String> {
+    let course_count = crate::db::courses::update_all_semester_start_dates(conn, date)
+        .map_err(|e| e.to_string())?;
+    crate::db::semester::update_all_semester_context_start_dates(conn, date)
+        .map_err(|e| e.to_string())?;
+    Ok(course_count)
+}
+
 fn course_import_key(course: &Course) -> String {
     [
         course.semester.as_str(),
@@ -219,6 +227,8 @@ fn course_request_import_key(course: &CreateCourseRequest) -> String {
 mod tests {
     use super::*;
     use crate::db::migrations;
+    use crate::db::models::UpsertSemesterContextRequest;
+    use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
 
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
@@ -262,5 +272,42 @@ mod tests {
         let courses =
             crate::db::courses::get_all_courses(&conn, Some("2026S1")).expect("get courses");
         assert_eq!(courses.len(), 1);
+    }
+
+    #[test]
+    fn test_reset_semester_start_dates_updates_contexts() {
+        let conn = setup_db();
+        let course = sample_course();
+        crate::db::courses::create_course(&conn, &course).expect("create course");
+        crate::db::semester::upsert_semester_context(
+            &conn,
+            &UpsertSemesterContextRequest {
+                source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+                academic_year: Some("2026".to_string()),
+                term: Some("1".to_string()),
+                term_label: "2026S1".to_string(),
+                start_date: "2026-02-24".to_string(),
+                current_week: Some(3),
+                total_weeks: None,
+            },
+        )
+        .expect("upsert context");
+
+        let updated =
+            reset_semester_start_dates(&conn, "2026-03-02").expect("reset semester dates");
+
+        assert_eq!(updated, 1);
+        let courses =
+            crate::db::courses::get_all_courses(&conn, Some("2026S1")).expect("get courses");
+        assert_eq!(courses[0].semester_start_date, "2026-03-02");
+
+        let context = crate::db::semester::find_semester_context(
+            &conn,
+            LZU_SEMESTER_CONTEXT_SOURCE,
+            "2026S1",
+        )
+        .expect("find context")
+        .expect("context exists");
+        assert_eq!(context.start_date, "2026-03-02");
     }
 }

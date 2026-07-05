@@ -372,6 +372,16 @@ pub fn build_calendar_week(
     })
 }
 
+pub fn current_week_index_from_start(
+    semester_start_date: &str,
+    date: NaiveDate,
+) -> Result<i64, String> {
+    let anchor = NaiveDate::parse_from_str(semester_start_date, "%Y-%m-%d")
+        .map_err(|_| format!("无法解析学期开始日期: {semester_start_date}"))?;
+    let week_start = date - Duration::days(date.weekday().num_days_from_monday() as i64);
+    Ok(compute_week_index(anchor, week_start))
+}
+
 fn resolve_semester_start_date(
     courses: &[&Course],
     requested: Option<&str>,
@@ -767,5 +777,14 @@ mod tests {
         assert!(course_events.is_empty());
         assert_eq!(task_events.len(), 1);
         assert_eq!(task_events[0].title, "暑假读书计划");
+    }
+
+    #[test]
+    fn test_current_week_index_from_start() {
+        let today = NaiveDate::from_ymd_opt(2026, 2, 26).unwrap();
+        assert_eq!(current_week_index_from_start("2026-02-24", today), Ok(1));
+
+        let later = NaiveDate::from_ymd_opt(2026, 3, 5).unwrap();
+        assert_eq!(current_week_index_from_start("2026-02-24", later), Ok(2));
     }
 }

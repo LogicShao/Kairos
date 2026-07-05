@@ -1,12 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-use chrono::{Datelike, Duration, FixedOffset, NaiveDate, NaiveTime};
+use chrono::{Datelike, FixedOffset, NaiveDate, NaiveTime};
 use rusqlite::Connection;
 use serde::Serialize;
 use tauri::State;
 
-use crate::db::models::{Course, Exam, Task};
-use crate::schedule::matches_week_pattern;
+use crate::db::models::{Course, Exam, SemesterContext, Task};
+use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
+use crate::schedule::{current_week_index_from_start, matches_week_pattern};
 use crate::timer::PomodoroEngine;
 
 // ─── Sub-structs ───────────────────────────────────────────────────────────────
@@ -100,7 +104,9 @@ pub fn get_today_briefing(
     // 1. Courses
     let all_courses =
         crate::db::courses::get_all_courses(&conn, None).map_err(|e| e.to_string())?;
-    let courses = build_today_courses(&all_courses, today, &now.time());
+    let semester_contexts =
+        crate::db::semester::get_all_semester_contexts(&conn).map_err(|e| e.to_string())?;
+    let courses = build_today_courses(&all_courses, &semester_contexts, today, &now.time());
 
     // 2. Tasks
     let all_tasks = crate::db::tasks::get_all_tasks(&conn, None, None, "created_at", "DESC")
@@ -148,20 +154,16 @@ fn weekday_label(weekday: chrono::Weekday) -> String {
     .to_string()
 }
 
-/// 计算从学期锚点到今天的教学周序号（最小 1）。
-fn current_week_index(semester_start_date: &str, today: NaiveDate) -> Result<i64, String> {
-    let anchor = NaiveDate::parse_from_str(semester_start_date, "%Y-%m-%d")
-        .map_err(|_| format!("无法解析学期开始日期: {semester_start_date}"))?;
-    let anchor_monday = anchor - Duration::days(anchor.weekday().num_days_from_monday() as i64);
-    let today_monday = today - Duration::days(today.weekday().num_days_from_monday() as i64);
-    let diff_days = today_monday.signed_duration_since(anchor_monday).num_days();
-    Ok(diff_days.div_euclid(7) + 1)
-}
-
 /// 规则引擎：今日课程数 + 下一节未开始课程。
-fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTime) -> TodayCourses {
+fn build_today_courses(
+    courses: &[Course],
+    semester_contexts: &[SemesterContext],
+    today: NaiveDate,
+    now_time: &NaiveTime,
+) -> TodayCourses {
     // ISO weekday: 1 = 周一，7 = 周日。
     let today_weekday = today.weekday().num_days_from_monday() as i64 + 1;
+    let context_start_dates = semester_context_start_dates(semester_contexts);
 
     let today_courses: Vec<&Course> = courses
         .iter()
@@ -169,7 +171,7 @@ fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTim
             if c.day_of_week != today_weekday {
                 return false;
             }
-            let week_index = match current_week_index(&c.semester_start_date, today) {
+            let week_index = match course_week_index(c, &context_start_dates, today) {
                 Ok(idx) => idx,
                 Err(_) => return false,
             };
@@ -209,6 +211,29 @@ fn build_today_courses(courses: &[Course], today: NaiveDate, now_time: &NaiveTim
         current_course,
         next_course,
     }
+}
+
+fn semester_context_start_dates(contexts: &[SemesterContext]) -> HashMap<String, String> {
+    contexts
+        .iter()
+        .filter(|context| context.source == LZU_SEMESTER_CONTEXT_SOURCE)
+        .filter(|context| !context.start_date.trim().is_empty())
+        .map(|context| (context.term_label.clone(), context.start_date.clone()))
+        .collect()
+}
+
+fn course_week_index(
+    course: &Course,
+    context_start_dates: &HashMap<String, String>,
+    today: NaiveDate,
+) -> Result<i64, String> {
+    if let Some(start_date) = context_start_dates.get(&course.semester) {
+        if let Ok(week_index) = current_week_index_from_start(start_date, today) {
+            return Ok(week_index);
+        }
+    }
+
+    current_week_index_from_start(&course.semester_start_date, today)
 }
 
 fn course_brief(course: &&Course) -> NextCourse {
@@ -358,22 +383,53 @@ mod tests {
         }
     }
 
+    fn sample_course(
+        id: i64,
+        name: &str,
+        day_of_week: i64,
+        start_time: &str,
+        end_time: &str,
+        semester_start_date: &str,
+    ) -> Course {
+        Course {
+            id,
+            sync_id: format!("course-{id}"),
+            name: name.to_string(),
+            day_of_week,
+            start_time: start_time.to_string(),
+            end_time: end_time.to_string(),
+            week_pattern: "1-17周全周".to_string(),
+            semester_start_date: semester_start_date.to_string(),
+            location: "教室A".to_string(),
+            teacher: "李老师".to_string(),
+            color: "#3B82F6".to_string(),
+            semester: "2026S1".to_string(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            deleted_at: None,
+        }
+    }
+
+    fn sample_context(term_label: &str, start_date: &str) -> SemesterContext {
+        SemesterContext {
+            id: 1,
+            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            academic_year: Some("2026".to_string()),
+            term: Some("1".to_string()),
+            term_label: term_label.to_string(),
+            start_date: start_date.to_string(),
+            current_week: Some(1),
+            total_weeks: None,
+            refreshed_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
     #[test]
     fn test_weekday_label() {
         assert_eq!(weekday_label(chrono::Weekday::Mon), "周一");
         assert_eq!(weekday_label(chrono::Weekday::Sun), "周日");
-    }
-
-    #[test]
-    fn test_current_week_index() {
-        // semester starts 2026-02-24 (Tuesday), Monday of week 1 is 2026-02-23
-        let today = NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(); // Thursday
-        let idx = current_week_index("2026-02-24", today).expect("week index");
-        assert_eq!(idx, 1);
-
-        let later = NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(); // Thursday of week 2
-        let idx = current_week_index("2026-02-24", later).expect("week index");
-        assert_eq!(idx, 2);
     }
 
     #[test]
@@ -487,24 +543,15 @@ mod tests {
         // 2026-06-28 is Sunday (ISO weekday 7)
         let today = NaiveDate::from_ymd_opt(2026, 6, 28).unwrap();
         let now_time = NaiveTime::from_hms_opt(10, 0, 0).unwrap();
-        let courses = vec![Course {
-            id: 1,
-            sync_id: "course-1".to_string(),
-            name: "周一课程".to_string(),
-            day_of_week: 1, // Monday
-            start_time: "10:00".to_string(),
-            end_time: "11:40".to_string(),
-            week_pattern: "1-17周全周".to_string(),
-            semester_start_date: "2026-02-24".to_string(),
-            location: "秦岭堂A114".to_string(),
-            teacher: "李老师".to_string(),
-            color: "#3B82F6".to_string(),
-            semester: "2026S1".to_string(),
-            created_at: String::new(),
-            updated_at: String::new(),
-            deleted_at: None,
-        }];
-        let result = build_today_courses(&courses, today, &now_time);
+        let courses = vec![sample_course(
+            1,
+            "周一课程",
+            1,
+            "10:00",
+            "11:40",
+            "2026-02-24",
+        )];
+        let result = build_today_courses(&courses, &[], today, &now_time);
         assert_eq!(result.today_count, 0);
         assert!(result.current_course.is_none());
         assert!(result.next_course.is_none());
@@ -516,48 +563,60 @@ mod tests {
         let today = NaiveDate::from_ymd_opt(2026, 6, 19).unwrap();
         let now_time = NaiveTime::from_hms_opt(9, 0, 0).unwrap(); // 09:00
         let courses = vec![
-            Course {
-                id: 1,
-                sync_id: "course-1".to_string(),
-                name: "上午课程".to_string(),
-                day_of_week: 5, // Friday
-                start_time: "08:00".to_string(),
-                end_time: "09:40".to_string(),
-                week_pattern: "1-17周全周".to_string(),
-                semester_start_date: "2026-02-24".to_string(),
-                location: "教室A".to_string(),
-                teacher: "李老师".to_string(),
-                color: "#3B82F6".to_string(),
-                semester: "2026S1".to_string(),
-                created_at: String::new(),
-                updated_at: String::new(),
-                deleted_at: None,
-            },
-            Course {
-                id: 2,
-                sync_id: "course-2".to_string(),
-                name: "下午课程".to_string(),
-                day_of_week: 5,
-                start_time: "14:00".to_string(),
-                end_time: "15:40".to_string(),
-                week_pattern: "1-17周全周".to_string(),
-                semester_start_date: "2026-02-24".to_string(),
-                location: "教室B".to_string(),
-                teacher: "王老师".to_string(),
-                color: "#3B82F6".to_string(),
-                semester: "2026S1".to_string(),
-                created_at: String::new(),
-                updated_at: String::new(),
-                deleted_at: None,
-            },
+            sample_course(1, "上午课程", 5, "08:00", "09:40", "2026-02-24"),
+            sample_course(2, "下午课程", 5, "14:00", "15:40", "2026-02-24"),
         ];
-        let result = build_today_courses(&courses, today, &now_time);
+        let result = build_today_courses(&courses, &[], today, &now_time);
         assert_eq!(result.today_count, 2);
         assert!(result.current_course.is_some());
         assert_eq!(result.current_course.as_ref().unwrap().title, "上午课程");
         // Next course should be the afternoon one (starts at 14:00, which is > 09:00)
         assert!(result.next_course.is_some());
         assert_eq!(result.next_course.as_ref().unwrap().title, "下午课程");
+    }
+
+    #[test]
+    fn test_build_today_courses_uses_semester_context_start_date() {
+        let today = NaiveDate::from_ymd_opt(2026, 6, 19).unwrap();
+        let now_time = NaiveTime::from_hms_opt(7, 0, 0).unwrap();
+        let courses = vec![sample_course(
+            1,
+            "上下文校准课程",
+            5,
+            "08:00",
+            "09:40",
+            "2026-02-03",
+        )];
+        let contexts = vec![sample_context("2026S1", "2026-02-24")];
+
+        let result = build_today_courses(&courses, &contexts, today, &now_time);
+
+        assert_eq!(result.today_count, 1);
+        assert_eq!(
+            result
+                .next_course
+                .as_ref()
+                .map(|course| course.title.as_str()),
+            Some("上下文校准课程")
+        );
+    }
+
+    #[test]
+    fn test_build_today_courses_falls_back_when_context_missing() {
+        let today = NaiveDate::from_ymd_opt(2026, 6, 19).unwrap();
+        let now_time = NaiveTime::from_hms_opt(7, 0, 0).unwrap();
+        let courses = vec![sample_course(
+            1,
+            "课程字段锚点",
+            5,
+            "08:00",
+            "09:40",
+            "2026-02-24",
+        )];
+
+        let result = build_today_courses(&courses, &[], today, &now_time);
+
+        assert_eq!(result.today_count, 1);
     }
 
     #[test]

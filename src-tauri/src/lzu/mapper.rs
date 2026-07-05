@@ -2,7 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use crate::db::models::CreateCourseRequest;
+use chrono::NaiveDate;
+
+use crate::db::models::{CreateCourseRequest, UpsertSemesterContextRequest};
+use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
 use crate::importers::infer_color;
 use crate::lzu::models::{CourseInfo, XlxxData};
 
@@ -37,6 +40,7 @@ pub fn map_course(info: &CourseInfo, xlxx: &XlxxData) -> Result<CreateCourseRequ
     let week_pattern = format_week_pattern(&weeks)?;
     let semester = infer_semester(info, xlxx)?;
     let semester_start_date = required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?;
+    validate_date(semester_start_date, "学期开始日期 ksrq")?;
 
     Ok(CreateCourseRequest {
         name: name.to_string(),
@@ -55,11 +59,76 @@ pub fn map_course(info: &CourseInfo, xlxx: &XlxxData) -> Result<CreateCourseRequ
     })
 }
 
+pub fn map_semester_context(
+    xlxx: &XlxxData,
+    semester_hint: Option<&str>,
+) -> Result<UpsertSemesterContextRequest, String> {
+    let start_date = required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?;
+    validate_date(start_date, "学期开始日期 ksrq")?;
+
+    let academic_year = normalized_optional(&xlxx.xn);
+    let term = normalized_optional(&xlxx.xqm).or_else(|| normalized_optional(&xlxx.xq));
+    let term_label = normalized_str(semester_hint.unwrap_or_default())
+        .or_else(|| derive_term_label(academic_year.as_deref(), term.as_deref()))
+        .ok_or_else(|| "缺少本地学期标识".to_string())?;
+
+    Ok(UpsertSemesterContextRequest {
+        source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+        academic_year,
+        term,
+        term_label,
+        start_date: start_date.to_string(),
+        current_week: parse_optional_positive_week(xlxx.dqrqszzc.as_deref(), "当前周次 dqrqszzc")?,
+        total_weeks: parse_optional_positive_week(xlxx.zzx.as_deref(), "总周次 zzx")?,
+    })
+}
+
+pub(crate) fn parse_positive_week(raw: &str, field: &str) -> Result<i64, String> {
+    let week = raw
+        .trim()
+        .parse::<i64>()
+        .map_err(|_| format!("无法解析 LZU {field}: {raw}"))?;
+    if week < 1 {
+        return Err(format!("LZU {field} 无效: {week}"));
+    }
+    Ok(week)
+}
+
+fn parse_optional_positive_week(raw: Option<&str>, field: &str) -> Result<Option<i64>, String> {
+    raw.map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| parse_positive_week(value, field))
+        .transpose()
+}
+
 fn required_text<'a>(value: Option<&'a str>, field: &str) -> Result<&'a str, String> {
     value
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("缺少{field}"))
+}
+
+fn validate_date(value: &str, field: &str) -> Result<(), String> {
+    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .map(|_| ())
+        .map_err(|_| format!("无法解析{field}: {value}"))
+}
+
+fn normalized_optional(value: &Option<String>) -> Option<String> {
+    value.as_deref().and_then(normalized_str)
+}
+
+fn normalized_str(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn derive_term_label(academic_year: Option<&str>, term: Option<&str>) -> Option<String> {
+    Some(format!("{}S{}", academic_year?, term?))
 }
 
 fn parse_class_bitmap(bitmap: &str) -> Result<(String, String), String> {
@@ -208,6 +277,48 @@ mod tests {
         assert_eq!(mapped.week_pattern, "1-4周全周");
         assert_eq!(mapped.semester_start_date, "2026-02-24");
         assert_eq!(mapped.semester, "2026S1");
+    }
+
+    #[test]
+    fn test_map_semester_context_keeps_missing_total_weeks_unknown() {
+        let mut xlxx = sample_xlxx();
+        xlxx.zzx = None;
+
+        let context = map_semester_context(&xlxx, Some("2026S1")).expect("map semester context");
+
+        assert_eq!(context.source, LZU_SEMESTER_CONTEXT_SOURCE);
+        assert_eq!(context.academic_year.as_deref(), Some("2026"));
+        assert_eq!(context.term.as_deref(), Some("1"));
+        assert_eq!(context.term_label, "2026S1");
+        assert_eq!(context.start_date, "2026-02-24");
+        assert_eq!(context.current_week, Some(1));
+        assert_eq!(context.total_weeks, None);
+    }
+
+    #[test]
+    fn test_map_semester_context_derives_term_label_without_hint() {
+        let context = map_semester_context(&sample_xlxx(), None).expect("map semester context");
+        assert_eq!(context.term_label, "2026S1");
+        assert_eq!(context.total_weeks, Some(16));
+    }
+
+    #[test]
+    fn test_map_semester_context_rejects_invalid_start_date() {
+        let mut xlxx = sample_xlxx();
+        xlxx.ksrq = Some("2026/02/24".to_string());
+
+        assert!(map_semester_context(&xlxx, Some("2026S1")).is_err());
+    }
+
+    #[test]
+    fn test_map_semester_context_rejects_invalid_weeks() {
+        let mut xlxx = sample_xlxx();
+        xlxx.dqrqszzc = Some("0".to_string());
+        assert!(map_semester_context(&xlxx, Some("2026S1")).is_err());
+
+        xlxx.dqrqszzc = Some("1".to_string());
+        xlxx.zzx = Some("bad".to_string());
+        assert!(map_semester_context(&xlxx, Some("2026S1")).is_err());
     }
 
     #[test]

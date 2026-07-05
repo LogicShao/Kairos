@@ -165,3 +165,41 @@ let end_raw = raw.get(16..).unwrap_or_default().trim_start_matches(is_time_separ
   - invalid `zzx` values are rejected.
   - `userInfo` profile summary keeps only whitelisted fields.
   - campus card masking returns only the last 4 digits and hides too-short values.
+
+---
+
+## Scenario: LZU Semester Context Persistence
+
+### 1. Scope / Trigger
+
+- Trigger: LZU `getXlxx` data is consumed by schedule import, week schedule, calendar week, Today briefing, or manual semester-start reset.
+- Applies to backend files under `src-tauri/src/lzu/`, `src-tauri/src/db/semester.rs`, `src-tauri/src/commands/{lzu,schedule,briefing,courses}.rs`, and `src-tauri/src/schedule.rs`.
+
+### 2. Contracts
+
+- Persist only low-sensitivity semester context in SQLite table `semester_context`.
+- Allowed persisted fields are source, academic year, term, local term label, start date, current week, total weeks, and timestamps.
+- The only current source value is `db::semester::LZU_SEMESTER_CONTEXT_SOURCE` (`"lzu"`). Do not duplicate the source string in command modules.
+- Do not persist LZU tokens, credentials, account identifiers, headers, encrypted payloads, raw `getXlxx` response bodies, or raw profile data.
+- `term_label` must align with local course `semester` values such as `2026S1` so schedule/briefing can match courses to context.
+- `zzx` missing from `getXlxx` must persist as `total_weeks = None`; runtime fallback week limits are allowed for fetching schedules but must not be written as fake totals.
+- `dqrqszzc` is import-time reference data only. Current week for views must be derived from `start_date` and the local date.
+
+### 3. Resolution Priority
+
+- Week schedule and calendar commands resolve semester start date in this order:
+  1. Explicit command `semester_start_date`.
+  2. `semester_context.start_date` for source `lzu` and matching `term_label`.
+  3. Existing course `semester_start_date` fallback.
+- Today briefing resolves each course by `course.semester` against `semester_context.term_label`, then falls back to the course field when no context exists.
+- Manual `reset_all_semester_start_dates` must update both active course rows and local semester contexts, otherwise later views can bypass the user's correction.
+
+### 4. Tests Required
+
+- Unit tests must cover:
+  - context upsert and lookup by `source + term_label`;
+  - `zzx = None` persists `total_weeks = None`;
+  - invalid or non-positive week values are rejected before persistence;
+  - schedule command helper prefers explicit dates over context dates;
+  - Today uses context start dates and falls back to course dates when context is absent;
+  - manual semester-start reset updates both course rows and semester contexts.

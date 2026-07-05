@@ -35,17 +35,6 @@ fn require_session(
     Ok((auth.client.clone(), session))
 }
 
-fn parse_positive_week(raw: &str, field: &str) -> Result<i64, String> {
-    let week = raw
-        .trim()
-        .parse::<i64>()
-        .map_err(|_| format!("无法解析 LZU {field}: {raw}"))?;
-    if week < 1 {
-        return Err(format!("LZU {field} 无效: {week}"));
-    }
-    Ok(week)
-}
-
 fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
     if let Some(raw) = xlxx
         .zzx
@@ -53,7 +42,10 @@ fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        return Ok((parse_positive_week(raw, "总周次 zzx")?, true));
+        return Ok((
+            crate::lzu::mapper::parse_positive_week(raw, "总周次 zzx")?,
+            true,
+        ));
     }
 
     let current_week = xlxx
@@ -61,12 +53,30 @@ fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|value| parse_positive_week(value, "当前周次 dqrqszzc"))
+        .map(|value| crate::lzu::mapper::parse_positive_week(value, "当前周次 dqrqszzc"))
         .transpose()?
         .unwrap_or(1);
     let total_weeks = FALLBACK_TOTAL_WEEKS.max(current_week);
     log::warn!("LZU 学期信息缺少 zzx，按 {total_weeks} 周尝试拉取课表");
     Ok((total_weeks, false))
+}
+
+fn persist_lzu_semester_context(
+    conn: &Connection,
+    xlxx: &XlxxData,
+    semester_hint: Option<&str>,
+) -> Result<(), String> {
+    let req = match crate::lzu::mapper::map_semester_context(xlxx, semester_hint) {
+        Ok(req) => req,
+        Err(err) => {
+            log::warn!("LZU 学期上下文未保存: {err}");
+            return Ok(());
+        }
+    };
+
+    crate::db::semester::upsert_semester_context(conn, &req)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 async fn fetch_profile_summary(
@@ -319,6 +329,9 @@ pub async fn import_lzu_courses(
     }
 
     if courses.is_empty() {
+        let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
+        persist_lzu_semester_context(&conn, &xlxx, None)?;
+
         return Ok(LzuCourseImportResult {
             parsed,
             imported: 0,
@@ -331,6 +344,7 @@ pub async fn import_lzu_courses(
     let semester = courses[0].semester.clone();
     let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
     let result = crate::commands::courses::import_new_courses(&conn, &courses, &semester)?;
+    persist_lzu_semester_context(&conn, &xlxx, Some(&semester))?;
 
     Ok(LzuCourseImportResult {
         parsed,
