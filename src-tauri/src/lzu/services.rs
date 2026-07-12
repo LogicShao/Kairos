@@ -48,6 +48,8 @@ pub struct ServiceInfoData {
     pub is_hot: Option<i64>,
     #[serde(default)]
     pub introduce: Option<String>,
+    #[serde(default)]
+    pub h5_service_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +78,7 @@ pub struct LzuServiceItem {
     pub is_top: bool,
     pub is_hot: bool,
     pub sort: i64,
+    pub h5_service_url: Option<String>,
 }
 
 pub fn sanitize_service_directory(response: ServiceDirectoryApiResponse) -> LzuServiceDirectory {
@@ -99,6 +102,7 @@ pub fn sanitize_service_directory(response: ServiceDirectoryApiResponse) -> LzuS
                     is_top: flag(service.is_top),
                     is_hot: flag(service.is_hot),
                     sort: service.service_sort.unwrap_or(0),
+                    h5_service_url: normalized_optional(service.h5_service_url),
                 })
                 .collect();
             services
@@ -179,7 +183,6 @@ mod tests {
         assert!(directory.categories[0].services[0].is_hot);
 
         let serialized = serde_json::to_string(&directory).expect("serialize directory");
-        assert!(!serialized.contains("h5_service_url"));
         assert!(!serialized.contains("sign_key"));
         assert!(!serialized.contains("secret"));
     }

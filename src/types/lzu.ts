@@ -73,6 +73,7 @@ export interface LzuServiceItem {
   is_top: boolean
   is_hot: boolean
   sort: number
+  h5_service_url: string | null
 }
 
 /** 与后端 lzu::services::LzuServiceCategory 对齐。 */

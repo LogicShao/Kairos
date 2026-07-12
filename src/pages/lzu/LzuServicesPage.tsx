@@ -1,28 +1,45 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   AlertCircle,
   ArrowLeft,
   CreditCard,
+  ExternalLink,
   Grid2X2,
   Loader2,
+  LogIn,
+  LogOut,
   RefreshCw,
   Search,
+  User,
 } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
 import type {
+  LzuAuthStatus,
   LzuCampusCardOverview,
   LzuServiceCategory,
   LzuServiceDirectory,
 } from "@/types/lzu"
 import { cn } from "@/lib/utils"
 
+const FIELD_CLASS =
+  "w-full rounded-lg border border-border/70 bg-background/70 px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary"
+
 interface LzuServicesPageProps {
   onNavigate: (key: string) => void
 }
 
 export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
+  // ── auth ──
+  const [authStatus, setAuthStatus] = useState<LzuAuthStatus | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
+
+  // ── card / directory ──
   const [card, setCard] = useState<LzuCampusCardOverview | null>(null)
   const [directory, setDirectory] = useState<LzuServiceDirectory | null>(null)
   const [cardLoading, setCardLoading] = useState(false)
@@ -31,6 +48,57 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
   const [directoryError, setDirectoryError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
 
+  // ── auth helpers ──
+  const checkAuth = useCallback(async () => {
+    try {
+      const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
+      setAuthStatus(status)
+    } catch {
+      setAuthStatus({ is_logged_in: false, username: null, profile: null })
+    } finally {
+      setAuthLoading(false)
+    }
+  }, [])
+
+  async function handleLogin() {
+    if (!username.trim() || !password.trim()) {
+      setLoginError("请输入账号和密码")
+      return
+    }
+    setLoginLoading(true)
+    setLoginError(null)
+    try {
+      const status = await invoke<LzuAuthStatus>("lzu_login", {
+        username: username.trim(),
+        password,
+      })
+      setAuthStatus(status)
+      setUsername("")
+      setPassword("")
+    } catch (e) {
+      setLoginError(typeof e === "string" ? e : "登录失败，请检查账号和密码。")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  async function handleLogout() {
+    setLoginLoading(true)
+    try {
+      const status = await invoke<LzuAuthStatus>("lzu_logout")
+      setAuthStatus(status)
+      setCard(null)
+      setDirectory(null)
+      setCardError(null)
+      setDirectoryError(null)
+    } catch {
+      setAuthStatus({ is_logged_in: false, username: null, profile: null })
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  // ── card / directory helpers ──
   async function loadCard() {
     setCardLoading(true)
     setCardError(null)
@@ -57,13 +125,31 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
     }
   }
 
+  async function handleOpenService(service: { id: string | null; name: string; h5_service_url: string | null }) {
+    if (!service.id || !service.h5_service_url) return
+    try {
+      await invoke("lzu_open_service", {
+        serviceId: service.id,
+        h5Url: service.h5_service_url,
+      })
+    } catch (e) {
+      console.warn("failed to open service:", e)
+    }
+  }
+
+  // ── init ──
   useEffect(() => {
+    void checkAuth()
+  }, [checkAuth])
+
+  useEffect(() => {
+    if (!authStatus?.is_logged_in) return
     const timer = window.setTimeout(() => {
       void loadCard()
       void loadDirectory()
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [])
+  }, [authStatus?.is_logged_in])
 
   const filteredCategories = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -89,7 +175,112 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
   }, [directory, query])
 
   const primaryWallet = card?.wallets.find((wallet) => wallet.wallet_money) ?? null
+  const profile = authStatus?.profile ?? null
+  const displayName = profile?.display_name ?? authStatus?.username ?? "已登录"
 
+  // ── loading auth state ──
+  if (authLoading) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // ── not logged in: login form ──
+  if (!authStatus?.is_logged_in) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+          <div className="flex items-start gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-11 md:h-7"
+              onClick={() => onNavigate("kairos")}
+            >
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
+              返回
+            </Button>
+          </div>
+
+          <AcrylicPanel className="bg-card p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CreditCard className="h-5 w-5" />
+              </span>
+              <div>
+                <h1 className="text-lg font-semibold text-foreground">LZU 校园服务</h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  登录以查看校园卡余额与服务目录
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">账号</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="学号/工号"
+                  className={FIELD_CLASS}
+                  autoComplete="username"
+                  disabled={loginLoading}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">密码</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="统一认证密码"
+                  className={FIELD_CLASS}
+                  autoComplete="current-password"
+                  disabled={loginLoading}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleLogin()
+                  }}
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <p className="mt-3 flex items-start gap-1.5 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{loginError}</span>
+              </p>
+            )}
+
+            <Button
+              type="button"
+              className="mt-4 w-full"
+              size="sm"
+              disabled={loginLoading || !username.trim() || !password.trim()}
+              onClick={() => void handleLogin()}
+            >
+              {loginLoading ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  登录中...
+                </>
+              ) : (
+                <>
+                  <LogIn className="mr-1.5 h-3.5 w-3.5" />
+                  登录
+                </>
+              )}
+            </Button>
+          </AcrylicPanel>
+        </div>
+      </div>
+    )
+  }
+
+  // ── logged in: card + directory ──
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-4">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
@@ -104,13 +295,41 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             返回
           </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Grid2X2 className="h-4 w-4" />
-            LZU
+          <div className="flex items-center gap-3">
+            {/* identity badge */}
+            <div className="hidden items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 sm:flex">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="truncate text-xs font-medium text-foreground">{displayName}</span>
+              {profile?.campus_card_tail && (
+                <span className="text-xs text-muted-foreground">卡尾号 {profile.campus_card_tail}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">
+                <Grid2X2 className="h-4 w-4" />
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-11 md:h-7"
+                disabled={loginLoading}
+                onClick={() => void handleLogout()}
+              >
+                {loginLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="mr-1 h-3.5 w-3.5" />
+                    退出
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="flex flex-col gap-4">
           <AcrylicPanel className="bg-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -247,13 +466,25 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
                     {category.services.map((service) => (
                       <div
                         key={service.id ?? `${category.name}-${service.name}`}
-                        className="min-h-24 rounded-lg border border-border/60 bg-background/60 p-3"
+                        role={service.h5_service_url ? "button" : undefined}
+                        tabIndex={service.h5_service_url ? 0 : undefined}
+                        onClick={() => void handleOpenService(service)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleOpenService(service)
+                        }}
+                        className={cn(
+                          "min-h-24 rounded-lg border border-border/60 bg-background/60 p-3",
+                          service.h5_service_url && "cursor-pointer transition-colors hover:border-primary/40 hover:bg-background/80",
+                        )}
                       >
                         <div className="flex items-start gap-2.5">
                           <ServiceIcon service={service} />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-foreground">
-                              {service.name}
+                            <div className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                              <span className="truncate">{service.name}</span>
+                              {service.h5_service_url && (
+                                <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                              )}
                             </div>
                             {service.introduce && (
                               <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
