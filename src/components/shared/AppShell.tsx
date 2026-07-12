@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
-import { CalendarDays, CalendarIcon, CheckSquare, Cloud, Moon, Sun, Timer } from "lucide-react"
+import { CalendarDays, CalendarIcon, CheckSquare, Cloud, Moon, Settings, Sun, Timer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/hooks/use-theme"
 import kairosLogo from "@/assets/kairos-logo.svg"
@@ -18,7 +18,7 @@ const DESKTOP_NAV: NavItem[] = [
   { key: "pomodoro", label: "专注", icon: Timer },
   { key: "todo", label: "待办事项", icon: CheckSquare },
   { key: "calendar", label: "日历", icon: CalendarIcon },
-  { key: "kairos", label: "Kairos", logoSrc: kairosLogo },
+  { key: "kairos", label: "设置", icon: Settings },
 ]
 
 /** 移动端底部主入口（5 个） */
@@ -27,7 +27,7 @@ const MOBILE_MAIN: NavItem[] = [
   { key: "pomodoro", label: "专注", icon: Timer },
   { key: "todo", label: "待办", icon: CheckSquare },
   { key: "calendar", label: "日历", icon: CalendarIcon },
-  { key: "kairos", label: "Kairos", logoSrc: kairosLogo },
+  { key: "kairos", label: "设置", icon: Settings },
 ]
 
 interface AppShellProps {
