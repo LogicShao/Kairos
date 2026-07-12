@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use rusqlite::Connection;
+
 use crate::lzu::appservice::AppServiceClient;
 use crate::lzu::easytong::{EasyTongClient, EasyTongSession};
 use crate::lzu::error::LzuError;
@@ -80,6 +82,44 @@ impl LzuAuth {
                 Ok(())
             }
             None => Err(LzuError::NotLoggedIn),
+        }
+    }
+
+    /// 持久化当前会话到 SQLite。
+    pub fn persist(&self, conn: &Connection) -> Result<(), LzuError> {
+        match &self.session {
+            Some(s) => {
+                crate::db::lzu_session::upsert_session(
+                    conn,
+                    &s.username,
+                    &s.login_token,
+                    &s.gateway_token,
+                    s.profile.as_ref(),
+                )
+                .map_err(|e| LzuError::Internal(format!("保存登录状态失败: {e}")))?;
+                Ok(())
+            }
+            None => {
+                crate::db::lzu_session::delete_session(conn)
+                    .map_err(|e| LzuError::Internal(format!("清除登录状态失败: {e}")))?;
+                Ok(())
+            }
+        }
+    }
+
+    /// 从 SQLite 恢复会话（仅内存，不写回）。
+    pub fn restore_from_db(&mut self, conn: &Connection) {
+        if let Ok(Some(row)) = crate::db::lzu_session::get_session(conn) {
+            let profile: Option<LzuProfileSummary> =
+                serde_json::from_str(&row.profile_json).ok().flatten();
+            self.session = Some(LzuSession {
+                username: row.username,
+                login_token: row.login_token,
+                gateway_token: row.gateway_token,
+                st: None,
+                easytong: None,
+                profile,
+            });
         }
     }
 }

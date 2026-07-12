@@ -43,6 +43,21 @@ fn api_error(code: i64, message: String) -> String {
     LzuError::Api { code, message }.to_string()
 }
 
+/// 清除登录态（内存 + SQLite），用于 token 过期等异常场景。
+fn clear_session(lzu_auth: &SharedLzuAuth, db: &Arc<Mutex<Connection>>) {
+    if let Ok(mut auth) = lzu_auth.lock() {
+        auth.session = None;
+        match db.lock() {
+            Ok(conn) => {
+                if let Err(e) = auth.persist(&conn) {
+                    log::error!("LZU session clear persist failed: {e}");
+                }
+            }
+            Err(e) => log::error!("failed to lock DB for LZU session clear: {e}"),
+        }
+    }
+}
+
 fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
     if let Some(raw) = xlxx
         .zzx
@@ -156,6 +171,7 @@ async fn refresh_easytong_session(
 /// 返回登录状态摘要（不含 token 原文）。
 #[tauri::command]
 pub async fn lzu_login(
+    db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
     username: String,
     password: String,
@@ -201,6 +217,16 @@ pub async fn lzu_login(
     let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
     auth.set_session(username, login_token, gateway_token, profile);
 
+    // 持久化到本地 SQLite，重启后自动恢复。
+    match db.lock() {
+        Ok(conn) => {
+            if let Err(e) = auth.persist(&conn) {
+                log::error!("LZU 登录持久化失败: {e}");
+            }
+        }
+        Err(e) => log::error!("failed to lock DB for LZU session persist: {e}"),
+    }
+
     log::info!("LZU 登录成功");
     Ok(AuthStatus::from(&auth.session))
 }
@@ -209,7 +235,10 @@ pub async fn lzu_login(
 ///
 /// 清除本地 session，并尝试调用远端登出接口。
 #[tauri::command]
-pub async fn lzu_logout(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
+pub async fn lzu_logout(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    lzu_auth: State<'_, SharedLzuAuth>,
+) -> Result<AuthStatus, String> {
     let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
     // 调用远端登出（不持有锁）
@@ -233,9 +262,19 @@ pub async fn lzu_logout(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus
         }
     }
 
-    // 3. 清除本地 session
+    // 3. 清除本地 session（内存 + SQLite）
     let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
     auth.session = None;
+
+    match db.lock() {
+        Ok(conn) => {
+            if let Err(e) = auth.persist(&conn) {
+                log::error!("LZU 登出持久化清除失败: {e}");
+            }
+        }
+        Err(e) => log::error!("failed to lock DB for LZU session clear: {e}"),
+    }
+
     log::info!("LZU 本地会话已清除");
     Ok(AuthStatus::from(&auth.session))
 }
@@ -304,17 +343,28 @@ pub async fn lzu_refresh_st(
 /// 查询 LZU 校园卡只读余额总览。
 #[tauri::command]
 pub async fn lzu_get_campus_card_overview(
+    db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
 ) -> Result<CampusCardOverview, String> {
     let (client, easytong_client, session) = require_lzu_clients(&lzu_auth)?;
 
     let (easytong_session, account) =
-        refresh_easytong_session(&client, &easytong_client, &session).await?;
+        match refresh_easytong_session(&client, &easytong_client, &session).await {
+            Ok(v) => v,
+            Err(e) => {
+                clear_session(&lzu_auth, &db);
+                return Err(e);
+            }
+        };
     let wallet_response = easytong_client
         .get_wallet_money(&easytong_session)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            clear_session(&lzu_auth, &db);
+            e.to_string()
+        })?;
     if wallet_response.code != 1 {
+        clear_session(&lzu_auth, &db);
         return Err(api_error(wallet_response.code, wallet_response.msg.clone()));
     }
 
@@ -330,18 +380,72 @@ pub async fn lzu_get_campus_card_overview(
 /// 查询 LZU 服务目录低敏摘要。
 #[tauri::command]
 pub async fn lzu_get_service_directory(
+    db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
 ) -> Result<LzuServiceDirectory, String> {
     let (client, _, session) = require_lzu_clients(&lzu_auth)?;
     let response = client
         .get_service_directory(&session.login_token)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            clear_session(&lzu_auth, &db);
+            e.to_string()
+        })?;
     if response.code != 1 {
+        clear_session(&lzu_auth, &db);
         return Err(api_error(response.code, response.message));
     }
 
     Ok(sanitize_service_directory(response))
+}
+
+/// 在应用内 WebView 窗口中打开 LZU 服务。
+///
+/// 流程：getSt → 构造 URL（含 PersonID、st、ticket）→ 新 Tauri 窗口加载。
+#[tauri::command]
+pub async fn lzu_open_service(
+    app_handle: tauri::AppHandle,
+    db: State<'_, Arc<Mutex<Connection>>>,
+    lzu_auth: State<'_, SharedLzuAuth>,
+    service_id: String,
+    h5_url: String,
+) -> Result<(), String> {
+    let (client, _, session) = require_lzu_clients(&lzu_auth)?;
+
+    let response = client
+        .get_st(&session.login_token, &service_id)
+        .await
+        .map_err(|e| {
+            clear_session(&lzu_auth, &db);
+            e.to_string()
+        })?;
+
+    if response.code != 1 {
+        clear_session(&lzu_auth, &db);
+        return Err(api_error(response.code, response.message));
+    }
+
+    let st = response
+        .data
+        .ok_or_else(|| {
+            clear_session(&lzu_auth, &db);
+            api_error(response.code, "getSt 响应缺少 data 字段".to_string())
+        })?;
+
+    let person_id = &session.username;
+    let url = format!("{h5_url}?PersonID={person_id}&st={st}&ticket={st}");
+
+    tauri::WebviewWindowBuilder::new(
+        &app_handle,
+        "lzu-service",
+        tauri::WebviewUrl::External(url.parse().map_err(|e| format!("无效 URL: {e}"))?),
+    )
+    .title("LZU 服务")
+    .inner_size(420.0, 720.0)
+    .build()
+    .map_err(|e| format!("无法创建服务窗口: {e}"))?;
+
+    Ok(())
 }
 
 /// 从 LZU API 拉取课表并导入本地课程表。

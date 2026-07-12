@@ -183,6 +183,21 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 ON semester_context(source, refreshed_at);
             ",
         ),
+        (
+            9,
+            "lzu_session",
+            "
+            CREATE TABLE IF NOT EXISTS lzu_session (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                username TEXT NOT NULL,
+                login_token TEXT NOT NULL,
+                gateway_token TEXT NOT NULL,
+                profile_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -344,7 +359,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 10);
+        assert_eq!(table_count, 11);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -385,7 +400,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 8);
+        assert_eq!(count, 9);
     }
 
     #[test]
@@ -472,7 +487,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 8);
+        assert_eq!(count, 9);
     }
 
     #[test]

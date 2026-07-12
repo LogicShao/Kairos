@@ -248,6 +248,20 @@ pub fn run() {
             // ─── LZU 认证状态初始化 ───
             let lzu_auth =
                 crate::lzu::auth::create_shared_auth().expect("failed to create LZU auth manager");
+
+            // 从本地 SQLite 恢复登录态（token + profile），避免每次启动重新登录。
+            {
+                match db_conn.lock() {
+                    Ok(c) => {
+                        match lzu_auth.lock() {
+                            Ok(mut auth) => auth.restore_from_db(&c),
+                            Err(e) => log::error!("failed to lock LZU auth for restore: {e}"),
+                        }
+                    }
+                    Err(e) => log::error!("failed to lock DB for LZU session restore: {e}"),
+                }
+            }
+
             app.manage(lzu_auth);
             Ok(())
         })
@@ -296,6 +310,7 @@ pub fn run() {
             commands::lzu::lzu_refresh_st,
             commands::lzu::lzu_get_campus_card_overview,
             commands::lzu::lzu_get_service_directory,
+            commands::lzu::lzu_open_service,
             commands::lzu::import_lzu_courses,
             commands::briefing::get_today_briefing,
         ])
