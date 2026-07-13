@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   AlertCircle,
@@ -49,17 +49,6 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
   const [query, setQuery] = useState("")
 
   // ── auth helpers ──
-  const checkAuth = useCallback(async () => {
-    try {
-      const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
-      setAuthStatus(status)
-    } catch {
-      setAuthStatus({ is_logged_in: false, username: null, profile: null })
-    } finally {
-      setAuthLoading(false)
-    }
-  }, [])
-
   async function handleLogin() {
     if (!username.trim() || !password.trim()) {
       setLoginError("请输入账号和密码")
@@ -139,8 +128,23 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
 
   // ── init ──
   useEffect(() => {
-    void checkAuth()
-  }, [checkAuth])
+    let cancelled = false
+    async function load() {
+      try {
+        const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
+        if (!cancelled) setAuthStatus(status)
+      } catch {
+        if (!cancelled)
+          setAuthStatus({ is_logged_in: false, username: null, profile: null })
+      } finally {
+        if (!cancelled) setAuthLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!authStatus?.is_logged_in) return
