@@ -208,6 +208,7 @@ pub fn run() {
             app.manage(db_conn.clone());
             app.manage(engine);
 
+            #[cfg(not(target_os = "android"))]
             if let Err(e) = commands::widget::restore_widget_on_startup(app.handle(), &db_conn) {
                 log::error!("failed to restore widget window on startup: {e}");
             }
@@ -297,11 +298,17 @@ pub fn run() {
             commands::notifications::get_notification_config,
             commands::notifications::update_notification_config,
             commands::notifications::request_notification_permission,
+            #[cfg(not(target_os = "android"))]
             commands::widget::get_widget_config,
+            #[cfg(not(target_os = "android"))]
             commands::widget::update_widget_config,
+            #[cfg(not(target_os = "android"))]
             commands::widget::show_widget,
+            #[cfg(not(target_os = "android"))]
             commands::widget::hide_widget,
+            #[cfg(not(target_os = "android"))]
             commands::widget::save_widget_position,
+            #[cfg(not(target_os = "android"))]
             commands::widget::open_main_window,
             commands::lzu::lzu_login,
             commands::lzu::lzu_logout,

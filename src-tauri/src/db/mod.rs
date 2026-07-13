@@ -8,6 +8,7 @@ pub mod pomodoro;
 pub mod semester;
 pub mod sync;
 pub mod tasks;
+#[cfg(not(target_os = "android"))]
 pub mod widget;
 
 use rusqlite::{Connection, Result};
