@@ -35,9 +35,8 @@ pub fn update_notification_config(
 }
 
 /// 请求系统通知权限。
-/// 当前为桩实现，权限请求将在后续 Phase C/D 中接入插件。
 #[tauri::command]
-pub fn request_notification_permission() -> Result<(), String> {
-    log::info!("Notification permission requested (stub)");
-    Ok(())
+pub fn request_notification_permission(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let state = crate::notifications::system::request_system_notification_permission(&app_handle)?;
+    Ok(crate::notifications::system::permission_state_key(state).to_string())
 }

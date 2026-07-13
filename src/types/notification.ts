@@ -19,3 +19,9 @@ export interface UpdateNotificationConfig {
   exam_offsets_json?: string
   android_channel_created?: boolean
 }
+
+export type NotificationPermissionState =
+  | "granted"
+  | "denied"
+  | "prompt"
+  | "prompt-with-rationale"

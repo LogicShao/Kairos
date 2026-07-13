@@ -8,7 +8,7 @@ use tauri::path::BaseDirectory;
 use tauri::AppHandle;
 #[cfg(windows)]
 use tauri::Manager;
-use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_notification::{NotificationExt, PermissionState};
 
 #[cfg(windows)]
 /// Windows toast sender identity. Must match `tauri.conf.json` identifier.
@@ -30,6 +30,28 @@ pub fn show_system_notification(app_handle: &AppHandle, id: i32, title: &str, bo
     #[cfg(not(windows))]
     {
         show_tauri_notification(app_handle, id, title, body);
+    }
+}
+
+pub fn request_system_notification_permission(
+    app_handle: &AppHandle,
+) -> Result<PermissionState, String> {
+    if !super::is_available() {
+        return Err("通知插件不可用".to_string());
+    }
+
+    app_handle
+        .notification()
+        .request_permission()
+        .map_err(|e| e.to_string())
+}
+
+pub fn permission_state_key(state: PermissionState) -> &'static str {
+    match state {
+        PermissionState::Granted => "granted",
+        PermissionState::Denied => "denied",
+        PermissionState::Prompt => "prompt",
+        PermissionState::PromptWithRationale => "prompt-with-rationale",
     }
 }
 
@@ -127,4 +149,20 @@ fn windows_notification_icon_path(app_handle: &AppHandle) -> Result<PathBuf, Str
         .ok_or_else(|| {
             format!("failed to find Windows notification icon {WINDOWS_NOTIFICATION_ICON}")
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permission_state_key_matches_plugin_values() {
+        assert_eq!(permission_state_key(PermissionState::Granted), "granted");
+        assert_eq!(permission_state_key(PermissionState::Denied), "denied");
+        assert_eq!(permission_state_key(PermissionState::Prompt), "prompt");
+        assert_eq!(
+            permission_state_key(PermissionState::PromptWithRationale),
+            "prompt-with-rationale"
+        );
+    }
 }

@@ -77,6 +77,12 @@ pub fn start_pomodoro(
     db: State<'_, Arc<Mutex<Connection>>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    if let Err(e) =
+        crate::notifications::system::request_system_notification_permission(&app_handle)
+    {
+        log::warn!("failed to request notification permission before starting pomodoro: {e}");
+    }
+
     let conn = db.lock().map_err(|e| e.to_string())?;
     let mut eng = engine.lock().map_err(|e| e.to_string())?;
 

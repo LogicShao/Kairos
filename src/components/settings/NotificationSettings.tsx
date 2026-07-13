@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { ArrowLeft, Bell, BellOff } from "lucide-react"
-import type { NotificationConfig, UpdateNotificationConfig } from "@/types/notification"
+import type {
+  NotificationConfig,
+  NotificationPermissionState,
+  UpdateNotificationConfig,
+} from "@/types/notification"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
+import { userErrorMessage } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 
 interface NotificationSettingsProps {
@@ -34,6 +39,19 @@ function offsetsToJson(offsets: number[]): string {
   return JSON.stringify(offsets)
 }
 
+function notificationPermissionMessage(state: NotificationPermissionState): string {
+  switch (state) {
+    case "granted":
+      return "通知权限已允许"
+    case "denied":
+      return "通知权限被拒绝，请在系统设置中允许 Kairos 通知"
+    case "prompt-with-rationale":
+      return "系统需要再次确认通知权限"
+    case "prompt":
+      return "系统尚未授予通知权限"
+  }
+}
+
 export function NotificationSettings({ onNavigate }: NotificationSettingsProps) {
   const [config, setConfig] = useState<NotificationConfig | null>(null)
   const [enabled, setEnabled] = useState(true)
@@ -41,6 +59,8 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [permissionBusy, setPermissionBusy] = useState(false)
+  const [permissionMessage, setPermissionMessage] = useState<string | null>(null)
 
   const latestDraftRef = useRef<UpdateNotificationConfig | null>(null)
   const lastPersistedRef = useRef<UpdateNotificationConfig | null>(null)
@@ -133,10 +153,21 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
   )
 
   const handleRequestPermission = useCallback(async () => {
+    setPermissionBusy(true)
+    setPermissionMessage(null)
+    setError(null)
     try {
-      await invoke("request_notification_permission")
+      const state = await invoke<NotificationPermissionState>("request_notification_permission")
+      const message = notificationPermissionMessage(state)
+      if (state === "denied") {
+        setError(message)
+      } else {
+        setPermissionMessage(message)
+      }
     } catch (err) {
-      setError(typeof err === "string" ? err : "权限请求失败")
+      setError(userErrorMessage(err, "权限请求失败"))
+    } finally {
+      setPermissionBusy(false)
     }
   }, [])
 
@@ -266,10 +297,15 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
         <Button
           variant="outline"
           onClick={handleRequestPermission}
+          disabled={permissionBusy}
           className="min-h-11 w-full border-primary/40 text-primary hover:bg-primary/5 md:min-h-0"
         >
-          请求通知权限
+          {permissionBusy ? "请求中..." : "请求通知权限"}
         </Button>
+
+        {permissionMessage && (
+          <p className="text-center text-sm text-muted-foreground">{permissionMessage}</p>
+        )}
 
         {error && (
           <p className="text-center text-sm text-destructive">{error}</p>
