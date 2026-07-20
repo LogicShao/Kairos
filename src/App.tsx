@@ -19,7 +19,7 @@ import type { MainNavigateEvent } from "@/types/widget"
 import { listenWithCleanup } from "@/lib/tauri-events"
 
 function MainApp() {
-  const [active, setActive] = useState("calendar")
+  const [active, setActive] = useState("today")
 
   useEffect(() => {
     return listenWithCleanup<MainNavigateEvent>(

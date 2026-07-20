@@ -18,6 +18,16 @@ function formatRemaining(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
 }
 
+function formatClock(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+}
+
 function BriefingBlock({
   icon: Icon,
   iconColor,
@@ -122,12 +132,14 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
                 <span className="text-xs text-muted-foreground"> 节课</span>
                 {courses.current_course && (
                   <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
-                    当前 {courses.current_course.start_time} @ {courses.current_course.location}
+                    当前 {courses.current_course.title} · {courses.current_course.start_time}
+                    {courses.current_course.location && ` @ ${courses.current_course.location}`}
                   </span>
                 )}
                 {!courses.current_course && courses.next_course && (
                   <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
-                    下一节 {courses.next_course.start_time} @ {courses.next_course.location}
+                    下一节 {courses.next_course.title} · {courses.next_course.start_time}
+                    {courses.next_course.location && ` @ ${courses.next_course.location}`}
                   </span>
                 )}
               </>
@@ -182,6 +194,7 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
                   {exam.days_until === 0
                     ? "今天考试"
                     : `剩余 ${exam.days_until} 天`}
+                  {formatClock(exam.exam_datetime) && ` · ${formatClock(exam.exam_datetime)}`}
                   {exam.location && ` · ${exam.location}`}
                 </span>
               </>

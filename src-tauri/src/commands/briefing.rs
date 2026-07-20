@@ -297,6 +297,24 @@ fn priority_score(priority: &str) -> i64 {
     }
 }
 
+fn task_due_rank(task: &Task, today: NaiveDate) -> i64 {
+    let Some(due_date) = task
+        .due_date
+        .as_deref()
+        .and_then(|date| NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok())
+    else {
+        return 0;
+    };
+
+    if due_date < today {
+        2
+    } else if due_date == today {
+        1
+    } else {
+        0
+    }
+}
+
 /// 规则引擎：逾期数 + 今日到期数 + spotlight（高优先级优先、有截止日期优先）。
 fn build_today_tasks(tasks: &[Task], today: NaiveDate) -> TodayTasks {
     let mut overdue_count = 0i64;
@@ -326,15 +344,20 @@ fn build_today_tasks(tasks: &[Task], today: NaiveDate) -> TodayTasks {
         }
     }
 
-    // Spotlight 排序：高优先级优先，然后较早截止日期优先
+    // Spotlight 排序：逾期优先，然后高优先级优先，再按较早截止日期优先。
     spotlight_candidates.sort_by(|a, b| {
+        let a_due_rank = task_due_rank(a, today);
+        let b_due_rank = task_due_rank(b, today);
         let a_score = priority_score(&a.priority);
         let b_score = priority_score(&b.priority);
-        b_score.cmp(&a_score).then_with(|| {
-            let a_due = a.due_date.as_deref().unwrap_or("9999-99-99");
-            let b_due = b.due_date.as_deref().unwrap_or("9999-99-99");
-            a_due.cmp(b_due)
-        })
+        b_due_rank
+            .cmp(&a_due_rank)
+            .then_with(|| b_score.cmp(&a_score))
+            .then_with(|| {
+                let a_due = a.due_date.as_deref().unwrap_or("9999-99-99");
+                let b_due = b.due_date.as_deref().unwrap_or("9999-99-99");
+                a_due.cmp(b_due)
+            })
     });
 
     let spotlight: Vec<TaskSpotlight> = spotlight_candidates
@@ -515,11 +538,9 @@ mod tests {
         ];
         let result = build_today_tasks(&tasks, today);
         assert_eq!(result.spotlight.len(), 3);
-        // High priority first
-        assert_eq!(result.spotlight[0].title, "高优先级今日");
-        // Then medium priority (earlier due date first)
-        assert_eq!(result.spotlight[1].title, "中优先级逾期");
-        assert_eq!(result.spotlight[2].title, "低优先级逾期");
+        assert_eq!(result.spotlight[0].title, "中优先级逾期");
+        assert_eq!(result.spotlight[1].title, "低优先级逾期");
+        assert_eq!(result.spotlight[2].title, "高优先级今日");
     }
 
     #[test]
