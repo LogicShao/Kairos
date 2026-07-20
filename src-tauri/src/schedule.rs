@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveDate};
 use serde::Serialize;
 
 use crate::db::models::{Course, Exam, Task};
+use crate::term_phase::{CurrentPhaseStatus, PHASE_TEACHING};
 
 /// 未绑定课程的考试使用固定警示色（Red-600），避免前端自行猜测考试默认颜色。
 const EXAM_FALLBACK_COLOR: &str = "#DC2626";
@@ -45,6 +46,10 @@ pub struct WeekScheduleResponse {
     pub week_start_date: String,
     /// 当前周周日日期。
     pub week_end_date: String,
+    /// "teaching"、"exam"、"break" 或 "unknown"。
+    pub phase_type: String,
+    /// false 时前端显示阶段空状态，不展示课程。
+    pub courses_visible: bool,
     pub items: Vec<WeekScheduleItem>,
 }
 
@@ -83,6 +88,10 @@ pub struct CalendarWeekResponse {
     pub week_start_date: String,
     /// 当前周周日日期，格式 YYYY-MM-DD。
     pub week_end_date: String,
+    /// "teaching"、"exam"、"break" 或 "unknown"。
+    pub phase_type: String,
+    /// false 时课程事件被隐藏。
+    pub courses_visible: bool,
     pub events: Vec<CalendarEvent>,
 }
 
@@ -92,6 +101,7 @@ pub fn build_week_schedule(
     semester: &str,
     week_index: i64,
     requested_semester_start_date: Option<&str>,
+    phase_status: Option<&CurrentPhaseStatus>,
 ) -> Result<WeekScheduleResponse, String> {
     if week_index < 1 {
         return Err("week_index 必须大于等于 1".to_string());
@@ -117,24 +127,35 @@ pub fn build_week_schedule(
         .map(|course| (course.id, course.color.clone()))
         .collect();
 
-    let mut items: Vec<WeekScheduleItem> = semester_courses
-        .into_iter()
-        .filter(|course| matches_week_pattern(&course.week_pattern, week_index))
-        .map(|course| WeekScheduleItem {
-            kind: "course".to_string(),
-            id: course.id,
-            title: course.name.clone(),
-            day_of_week: course.day_of_week,
-            start_time: course.start_time.clone(),
-            end_time: course.end_time.clone(),
-            location: course.location.clone(),
-            teacher: course.teacher.clone(),
-            color: course.color.clone(),
-            notes: String::new(),
-            week_pattern: course.week_pattern.clone(),
-            course_id: Some(course.id),
-        })
-        .collect();
+    let phase_type = phase_status
+        .map(|status| status.phase_type.clone())
+        .unwrap_or_else(|| PHASE_TEACHING.to_string());
+    let courses_visible = phase_status
+        .map(|status| status.courses_visible)
+        .unwrap_or(true);
+
+    let mut items: Vec<WeekScheduleItem> = if courses_visible {
+        semester_courses
+            .into_iter()
+            .filter(|course| matches_week_pattern(&course.week_pattern, week_index))
+            .map(|course| WeekScheduleItem {
+                kind: "course".to_string(),
+                id: course.id,
+                title: course.name.clone(),
+                day_of_week: course.day_of_week,
+                start_time: course.start_time.clone(),
+                end_time: course.end_time.clone(),
+                location: course.location.clone(),
+                teacher: course.teacher.clone(),
+                color: course.color.clone(),
+                notes: String::new(),
+                week_pattern: course.week_pattern.clone(),
+                course_id: Some(course.id),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
     for exam in semester_exams {
@@ -189,6 +210,8 @@ pub fn build_week_schedule(
         semester_start_date: anchor.format("%Y-%m-%d").to_string(),
         week_start_date: week_start.format("%Y-%m-%d").to_string(),
         week_end_date: week_end.format("%Y-%m-%d").to_string(),
+        phase_type,
+        courses_visible,
         items,
     })
 }
@@ -199,6 +222,7 @@ const TASK_COLOR: &str = "#D97706";
 /// 区别于未完成任务但不改变数据库 task 状态，仅影响日历渲染。
 const TASK_COMPLETED_COLOR: &str = "#14B8A6";
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_calendar_week(
     courses: &[Course],
     exams: &[Exam],
@@ -207,6 +231,7 @@ pub fn build_calendar_week(
     week_index: i64,
     requested_semester_start_date: Option<&str>,
     requested_week_start_date: Option<&str>,
+    phase_status: Option<&CurrentPhaseStatus>,
 ) -> Result<CalendarWeekResponse, String> {
     if week_index < 1 {
         return Err("week_index 必须大于等于 1".to_string());
@@ -236,25 +261,36 @@ pub fn build_calendar_week(
         .map(|course| (course.id, course.color.clone()))
         .collect();
 
-    let mut events: Vec<CalendarEvent> = semester_courses
-        .into_iter()
-        .filter(|course| {
-            effective_week_index >= 1
-                && matches_week_pattern(&course.week_pattern, effective_week_index)
-        })
-        .map(|course| CalendarEvent {
-            kind: "course".to_string(),
-            id: course.id,
-            title: course.name.clone(),
-            day_of_week: course.day_of_week,
-            start_time: course.start_time.clone(),
-            end_time: course.end_time.clone(),
-            location: course.location.clone(),
-            color: course.color.clone(),
-            tags: Vec::new(),
-            source_link: "courses".to_string(),
-        })
-        .collect();
+    let phase_type = phase_status
+        .map(|status| status.phase_type.clone())
+        .unwrap_or_else(|| PHASE_TEACHING.to_string());
+    let courses_visible = phase_status
+        .map(|status| status.courses_visible)
+        .unwrap_or(true);
+
+    let mut events: Vec<CalendarEvent> = if courses_visible {
+        semester_courses
+            .into_iter()
+            .filter(|course| {
+                effective_week_index >= 1
+                    && matches_week_pattern(&course.week_pattern, effective_week_index)
+            })
+            .map(|course| CalendarEvent {
+                kind: "course".to_string(),
+                id: course.id,
+                title: course.name.clone(),
+                day_of_week: course.day_of_week,
+                start_time: course.start_time.clone(),
+                end_time: course.end_time.clone(),
+                location: course.location.clone(),
+                color: course.color.clone(),
+                tags: Vec::new(),
+                source_link: "courses".to_string(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
     for exam in exams {
@@ -368,6 +404,8 @@ pub fn build_calendar_week(
         semester_start_date: anchor.format("%Y-%m-%d").to_string(),
         week_start_date: week_start.format("%Y-%m-%d").to_string(),
         week_end_date: week_end.format("%Y-%m-%d").to_string(),
+        phase_type,
+        courses_visible,
         events,
     })
 }
@@ -565,6 +603,7 @@ mod tests {
             "2026S1",
             1,
             Some("2026-02-24"),
+            None,
         )
         .expect("build schedule");
 
@@ -584,6 +623,7 @@ mod tests {
             "2026S1",
             1,
             Some("2026-02-24"),
+            None,
             None,
         )
         .expect("build calendar week");
@@ -606,6 +646,7 @@ mod tests {
             "2026S1",
             1,
             Some("2026-02-24"),
+            None,
             None,
         )
         .expect("build calendar week");
@@ -630,6 +671,7 @@ mod tests {
             "2026S1",
             1,
             Some("2026-02-24"),
+            None,
             None,
         )
         .expect("build calendar week");
@@ -656,6 +698,7 @@ mod tests {
             1,
             Some("2026-02-24"),
             None,
+            None,
         )
         .expect("build calendar week");
 
@@ -674,6 +717,7 @@ mod tests {
             "2026S1",
             1,
             Some("2026-02-24"),
+            None,
             None,
         )
         .expect("build calendar week");
@@ -710,6 +754,7 @@ mod tests {
             1,
             Some("2026-02-24"),
             None,
+            None,
         )
         .expect("build calendar week");
 
@@ -736,6 +781,7 @@ mod tests {
             1,
             None,
             None,
+            None,
         )
         .expect("build calendar week");
 
@@ -758,6 +804,7 @@ mod tests {
             1,
             Some("2026-02-24"),
             Some("2026-07-20"),
+            None,
         )
         .expect("build calendar week");
 

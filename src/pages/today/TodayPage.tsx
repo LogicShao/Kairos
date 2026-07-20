@@ -5,6 +5,13 @@ import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
 import type { TodayBriefingResponse } from "@/types/briefing"
 
+const PHASE_LABELS: Record<TodayBriefingResponse["phase"]["phase_type"], string> = {
+  unknown: "未识别阶段",
+  teaching: "教学周",
+  exam: "考试周",
+  break: "假期",
+}
+
 function formatRemaining(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
@@ -78,7 +85,7 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
     )
   }
 
-  const { date, weekday_label, courses, tasks, exam, pomodoro } = briefing
+  const { date, weekday_label, courses, tasks, exam, pomodoro, phase } = briefing
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-6">
@@ -90,6 +97,14 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
             <p className="mt-0.5 text-xs text-muted-foreground">
               {date} {weekday_label}
             </p>
+          </div>
+          <div className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-right">
+            <p className="text-xs font-medium text-foreground">{PHASE_LABELS[phase.phase_type]}</p>
+            {phase.current_week && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                第 {phase.current_week} 周
+              </p>
+            )}
           </div>
         </div>
 

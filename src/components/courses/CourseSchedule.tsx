@@ -35,6 +35,13 @@ import { CourseFormModal } from "./CourseFormModal"
 import { ImportModal } from "./ImportModal"
 import { CourseDetailModal } from "./CourseDetailModal"
 
+const PHASE_LABELS: Record<WeekScheduleResponse["phase_type"], string> = {
+  unknown: "未识别阶段",
+  teaching: "教学周",
+  exam: "考试周",
+  break: "假期",
+}
+
 export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => void }) {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
@@ -609,7 +616,23 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
               </p>
             )}
 
-            {!weekLoading && weekData && (
+            {!weekLoading && weekData && !weekData.courses_visible && (
+              <div className="flex min-h-[280px] items-center justify-center p-6">
+                <AcrylicPanel className="w-full max-w-sm p-5 text-center">
+                  <p className="text-sm font-semibold text-foreground">
+                    {PHASE_LABELS[weekData.phase_type]}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    当前阶段不显示课程安排
+                  </p>
+                  <p className="mt-2 text-[11px] text-muted-foreground/70">
+                    第 {weekData.week_index} 周 · {weekData.week_start_date} 至 {weekData.week_end_date}
+                  </p>
+                </AcrylicPanel>
+              </div>
+            )}
+
+            {!weekLoading && weekData && weekData.courses_visible && (
               <WeekGrid
                 weekData={weekData}
                 today={today}

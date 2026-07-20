@@ -5,6 +5,7 @@ pub mod lzu;
 pub mod notifications;
 pub mod schedule;
 pub mod sync;
+pub mod term_phase;
 pub mod timer;
 
 use std::sync::{Arc, Mutex};
@@ -253,12 +254,10 @@ pub fn run() {
             // 从本地 SQLite 恢复登录态（token + profile），避免每次启动重新登录。
             {
                 match db_conn.lock() {
-                    Ok(c) => {
-                        match lzu_auth.lock() {
-                            Ok(mut auth) => auth.restore_from_db(&c),
-                            Err(e) => log::error!("failed to lock LZU auth for restore: {e}"),
-                        }
-                    }
+                    Ok(c) => match lzu_auth.lock() {
+                        Ok(mut auth) => auth.restore_from_db(&c),
+                        Err(e) => log::error!("failed to lock LZU auth for restore: {e}"),
+                    },
                     Err(e) => log::error!("failed to lock DB for LZU session restore: {e}"),
                 }
             }
@@ -298,6 +297,16 @@ pub fn run() {
             commands::notifications::get_notification_config,
             commands::notifications::update_notification_config,
             commands::notifications::request_notification_permission,
+            commands::term_phases::get_current_phase_status,
+            commands::term_phases::get_semester_contexts,
+            commands::term_phases::get_term_phases,
+            commands::term_phases::create_term_phase,
+            commands::term_phases::update_term_phase,
+            commands::term_phases::delete_term_phase,
+            commands::term_phases::get_pomodoro_profiles,
+            commands::term_phases::create_pomodoro_profile,
+            commands::term_phases::update_pomodoro_profile,
+            commands::term_phases::delete_pomodoro_profile,
             #[cfg(not(target_os = "android"))]
             commands::widget::get_widget_config,
             #[cfg(not(target_os = "android"))]

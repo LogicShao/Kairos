@@ -51,6 +51,12 @@ pub fn get_week_schedule(
     let exams = crate::db::exams::get_all_exams(&conn).map_err(|e| e.to_string())?;
     let semester_start_date =
         effective_semester_start_date(&conn, &cmd.semester, cmd.semester_start_date.as_ref())?;
+    let phase_status = crate::term_phase::get_phase_status_for_term_week(
+        &conn,
+        LZU_SEMESTER_CONTEXT_SOURCE,
+        &cmd.semester,
+        cmd.week_index,
+    )?;
 
     crate::schedule::build_week_schedule(
         &courses,
@@ -58,6 +64,7 @@ pub fn get_week_schedule(
         &cmd.semester,
         cmd.week_index,
         semester_start_date.as_deref(),
+        Some(&phase_status),
     )
 }
 
@@ -74,6 +81,12 @@ pub fn get_calendar_week(
         .map_err(|e| e.to_string())?;
     let semester_start_date =
         effective_semester_start_date(&conn, &cmd.semester, cmd.semester_start_date.as_ref())?;
+    let phase_status = crate::term_phase::get_phase_status_for_term_week(
+        &conn,
+        LZU_SEMESTER_CONTEXT_SOURCE,
+        &cmd.semester,
+        cmd.week_index,
+    )?;
 
     crate::schedule::build_calendar_week(
         &courses,
@@ -83,6 +96,7 @@ pub fn get_calendar_week(
         cmd.week_index,
         semester_start_date.as_deref(),
         cmd.week_start_date.as_deref(),
+        Some(&phase_status),
     )
 }
 

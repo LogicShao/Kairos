@@ -11,6 +11,7 @@ use tauri::State;
 use crate::db::models::{Course, Exam, SemesterContext, Task};
 use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
 use crate::schedule::{current_week_index_from_start, matches_week_pattern};
+use crate::term_phase::CurrentPhaseStatus;
 use crate::timer::PomodoroEngine;
 
 // ─── Sub-structs ───────────────────────────────────────────────────────────────
@@ -68,6 +69,17 @@ pub struct PomodoroBriefing {
     pub completed_sessions: i64,
 }
 
+/// 今日所处学期阶段摘要。
+#[derive(Debug, Clone, Serialize)]
+pub struct PhaseBriefing {
+    pub phase_type: String,
+    pub term_label: Option<String>,
+    pub current_week: Option<i64>,
+    pub courses_visible: bool,
+    pub exam_notifications_enabled: bool,
+    pub pomodoro_profile: String,
+}
+
 /// 今日概览聚合响应，供前端首页卡片渲染及后续 AI Morning Brief 复用。
 #[derive(Debug, Clone, Serialize)]
 pub struct TodayBriefingResponse {
@@ -83,6 +95,8 @@ pub struct TodayBriefingResponse {
     pub exam: Option<UpcomingExam>,
     /// 番茄钟当前状态摘要。
     pub pomodoro: PomodoroBriefing,
+    /// 当前学期阶段摘要。
+    pub phase: PhaseBriefing,
 }
 
 // ─── Tauri command ──────────────────────────────────────────────────────────────
@@ -100,13 +114,21 @@ pub fn get_today_briefing(
 
     let date = today.format("%Y-%m-%d").to_string();
     let weekday_label = weekday_label(today.weekday());
+    let phase_status = crate::term_phase::latest_lzu_phase_status(&conn)?;
+    let phase = phase_briefing(&phase_status);
 
     // 1. Courses
     let all_courses =
         crate::db::courses::get_all_courses(&conn, None).map_err(|e| e.to_string())?;
     let semester_contexts =
         crate::db::semester::get_all_semester_contexts(&conn).map_err(|e| e.to_string())?;
-    let courses = build_today_courses(&all_courses, &semester_contexts, today, &now.time());
+    let courses = build_today_courses(
+        &all_courses,
+        &semester_contexts,
+        today,
+        &now.time(),
+        &phase_status,
+    );
 
     // 2. Tasks
     let all_tasks = crate::db::tasks::get_all_tasks(&conn, None, None, "created_at", "DESC")
@@ -136,6 +158,7 @@ pub fn get_today_briefing(
         tasks,
         exam,
         pomodoro,
+        phase,
     })
 }
 
@@ -160,7 +183,16 @@ fn build_today_courses(
     semester_contexts: &[SemesterContext],
     today: NaiveDate,
     now_time: &NaiveTime,
+    phase_status: &CurrentPhaseStatus,
 ) -> TodayCourses {
+    if !phase_status.courses_visible {
+        return TodayCourses {
+            today_count: 0,
+            current_course: None,
+            next_course: None,
+        };
+    }
+
     // ISO weekday: 1 = 周一，7 = 周日。
     let today_weekday = today.weekday().num_days_from_monday() as i64 + 1;
     let context_start_dates = semester_context_start_dates(semester_contexts);
@@ -210,6 +242,17 @@ fn build_today_courses(
         today_count,
         current_course,
         next_course,
+    }
+}
+
+fn phase_briefing(status: &CurrentPhaseStatus) -> PhaseBriefing {
+    PhaseBriefing {
+        phase_type: status.phase_type.clone(),
+        term_label: status.term_label.clone(),
+        current_week: status.current_week,
+        courses_visible: status.courses_visible,
+        exam_notifications_enabled: status.exam_notifications_enabled,
+        pomodoro_profile: status.pomodoro_profile.clone(),
     }
 }
 
@@ -426,6 +469,21 @@ mod tests {
         }
     }
 
+    fn teaching_phase() -> CurrentPhaseStatus {
+        CurrentPhaseStatus {
+            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            term_label: Some("2026S1".to_string()),
+            phase_type: "teaching".to_string(),
+            current_week: Some(17),
+            start_week: None,
+            end_week: None,
+            courses_visible: true,
+            exam_notifications_enabled: true,
+            pomodoro_profile: "default".to_string(),
+            inferred: true,
+        }
+    }
+
     #[test]
     fn test_weekday_label() {
         assert_eq!(weekday_label(chrono::Weekday::Mon), "周一");
@@ -551,7 +609,7 @@ mod tests {
             "11:40",
             "2026-02-24",
         )];
-        let result = build_today_courses(&courses, &[], today, &now_time);
+        let result = build_today_courses(&courses, &[], today, &now_time, &teaching_phase());
         assert_eq!(result.today_count, 0);
         assert!(result.current_course.is_none());
         assert!(result.next_course.is_none());
@@ -566,7 +624,7 @@ mod tests {
             sample_course(1, "上午课程", 5, "08:00", "09:40", "2026-02-24"),
             sample_course(2, "下午课程", 5, "14:00", "15:40", "2026-02-24"),
         ];
-        let result = build_today_courses(&courses, &[], today, &now_time);
+        let result = build_today_courses(&courses, &[], today, &now_time, &teaching_phase());
         assert_eq!(result.today_count, 2);
         assert!(result.current_course.is_some());
         assert_eq!(result.current_course.as_ref().unwrap().title, "上午课程");
@@ -589,7 +647,7 @@ mod tests {
         )];
         let contexts = vec![sample_context("2026S1", "2026-02-24")];
 
-        let result = build_today_courses(&courses, &contexts, today, &now_time);
+        let result = build_today_courses(&courses, &contexts, today, &now_time, &teaching_phase());
 
         assert_eq!(result.today_count, 1);
         assert_eq!(
@@ -614,9 +672,31 @@ mod tests {
             "2026-02-24",
         )];
 
-        let result = build_today_courses(&courses, &[], today, &now_time);
+        let result = build_today_courses(&courses, &[], today, &now_time, &teaching_phase());
 
         assert_eq!(result.today_count, 1);
+    }
+
+    #[test]
+    fn test_build_today_courses_hides_courses_when_phase_hidden() {
+        let today = NaiveDate::from_ymd_opt(2026, 6, 19).unwrap();
+        let now_time = NaiveTime::from_hms_opt(7, 0, 0).unwrap();
+        let mut phase = teaching_phase();
+        phase.phase_type = "break".to_string();
+        phase.courses_visible = false;
+        let courses = vec![sample_course(
+            1,
+            "假期隐藏课程",
+            5,
+            "08:00",
+            "09:40",
+            "2026-02-24",
+        )];
+
+        let result = build_today_courses(&courses, &[], today, &now_time, &phase);
+
+        assert_eq!(result.today_count, 0);
+        assert!(result.next_course.is_none());
     }
 
     #[test]

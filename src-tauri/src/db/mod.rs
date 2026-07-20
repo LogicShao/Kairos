@@ -5,9 +5,11 @@ pub mod migrations;
 pub mod models;
 pub mod notifications;
 pub mod pomodoro;
+pub mod pomodoro_profiles;
 pub mod semester;
 pub mod sync;
 pub mod tasks;
+pub mod term_phases;
 #[cfg(not(target_os = "android"))]
 pub mod widget;
 

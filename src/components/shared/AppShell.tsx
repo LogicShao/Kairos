@@ -128,6 +128,7 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
     "exams",
     "lzu-services",
     "notifications",
+    "semester-phases",
     "widget",
     "sync",
   ].includes(active)

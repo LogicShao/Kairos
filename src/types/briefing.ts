@@ -1,5 +1,7 @@
 /** 与后端 commands::briefing::TodayBriefingResponse 对齐。 */
 
+import type { CurrentPhaseStatus } from "@/types/notification"
+
 export interface NextCourse {
   title: string
   start_time: string
@@ -41,6 +43,16 @@ export interface PomodoroBriefing {
   completed_sessions: number
 }
 
+export type PhaseBriefing = Pick<
+  CurrentPhaseStatus,
+  | "phase_type"
+  | "term_label"
+  | "current_week"
+  | "courses_visible"
+  | "exam_notifications_enabled"
+  | "pomodoro_profile"
+>
+
 /** get_today_briefing 命令的完整响应。 */
 export interface TodayBriefingResponse {
   date: string
@@ -49,4 +61,5 @@ export interface TodayBriefingResponse {
   tasks: TodayTasks
   exam: UpcomingExam | null
   pomodoro: PomodoroBriefing
+  phase: PhaseBriefing
 }

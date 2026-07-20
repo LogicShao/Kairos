@@ -198,6 +198,52 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             );
             ",
         ),
+        (
+            10,
+            "term_phases_and_pomodoro_profiles",
+            "
+            CREATE TABLE IF NOT EXISTS term_phases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sync_id TEXT NOT NULL,
+                term_label TEXT NOT NULL,
+                phase_type TEXT NOT NULL CHECK(phase_type IN ('teaching', 'exam', 'break')),
+                start_week INTEGER NOT NULL CHECK(start_week >= 1),
+                end_week INTEGER NOT NULL CHECK(end_week >= start_week),
+                affects_courses INTEGER NOT NULL DEFAULT 1,
+                affects_exam_notifications INTEGER NOT NULL DEFAULT 1,
+                pomodoro_profile TEXT NOT NULL DEFAULT 'default',
+                notification_rules_json TEXT NOT NULL DEFAULT '{}',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                deleted_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_term_phases_term_label
+                ON term_phases(term_label, sort_order);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_term_phases_sync_id
+                ON term_phases(sync_id)
+                WHERE sync_id IS NOT NULL AND sync_id != '';
+
+            CREATE TABLE IF NOT EXISTS pomodoro_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                work_seconds INTEGER NOT NULL DEFAULT 1500 CHECK(work_seconds >= 60),
+                short_break_seconds INTEGER NOT NULL DEFAULT 300 CHECK(short_break_seconds >= 60),
+                long_break_seconds INTEGER NOT NULL DEFAULT 900 CHECK(long_break_seconds >= 60),
+                sessions_before_long_break INTEGER NOT NULL DEFAULT 4 CHECK(sessions_before_long_break >= 1),
+                is_builtin INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            INSERT OR IGNORE INTO pomodoro_profiles
+                (name, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break, is_builtin, created_at, updated_at)
+            VALUES
+                ('default', 1500, 300, 900, 4, 1, datetime('now'), datetime('now')),
+                ('intense', 3000, 600, 1800, 3, 1, datetime('now'), datetime('now')),
+                ('relaxed', 1500, 600, 1200, 4, 1, datetime('now'), datetime('now'));
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -359,7 +405,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 11);
+        assert_eq!(table_count, 13);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -400,7 +446,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 9);
+        assert_eq!(count, 10);
     }
 
     #[test]
@@ -487,7 +533,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 9);
+        assert_eq!(count, 10);
     }
 
     #[test]
@@ -537,5 +583,51 @@ mod tests {
             .expect("Failed to query sync config ids");
         assert!(!device_id.is_empty());
         assert!(!dataset_id.is_empty());
+    }
+
+    #[test]
+    fn test_migration_v10_creates_default_pomodoro_profiles() {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .expect("Failed to enable foreign keys");
+
+        run_migrations(&conn).expect("Migrations failed");
+
+        let profiles: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM pomodoro_profiles WHERE is_builtin = 1 ORDER BY name")
+                .expect("prepare profiles query");
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .expect("query profiles")
+                .collect::<Result<Vec<_>>>()
+                .expect("collect profiles")
+        };
+
+        assert_eq!(profiles, vec!["default", "intense", "relaxed"]);
+    }
+
+    #[test]
+    fn test_migration_v10_term_phase_constraints() {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .expect("Failed to enable foreign keys");
+
+        run_migrations(&conn).expect("Migrations failed");
+
+        let invalid_type = conn.execute(
+            "INSERT INTO term_phases
+                (sync_id, term_label, phase_type, start_week, end_week, created_at, updated_at)
+             VALUES ('phase-1', '2026S1', 'holiday', 1, 2, '2026-01-01', '2026-01-01')",
+            [],
+        );
+        assert!(invalid_type.is_err());
+
+        let invalid_range = conn.execute(
+            "INSERT INTO term_phases
+                (sync_id, term_label, phase_type, start_week, end_week, created_at, updated_at)
+             VALUES ('phase-2', '2026S1', 'break', 5, 4, '2026-01-01', '2026-01-01')",
+            [],
+        );
+        assert!(invalid_range.is_err());
     }
 }

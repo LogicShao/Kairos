@@ -88,6 +88,7 @@ fn persist_lzu_semester_context(
     conn: &Connection,
     xlxx: &XlxxData,
     semester_hint: Option<&str>,
+    default_total_weeks: i64,
 ) -> Result<(), String> {
     let req = match crate::lzu::mapper::map_semester_context(xlxx, semester_hint) {
         Ok(req) => req,
@@ -98,6 +99,11 @@ fn persist_lzu_semester_context(
     };
 
     crate::db::semester::upsert_semester_context(conn, &req)
+        .map(|_| ())
+        .map_err(|e| e.to_string())?;
+
+    let total_weeks = req.total_weeks.unwrap_or(default_total_weeks);
+    crate::db::term_phases::ensure_default_phases(conn, &req.term_label, total_weeks)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
@@ -425,12 +431,10 @@ pub async fn lzu_open_service(
         return Err(api_error(response.code, response.message));
     }
 
-    let st = response
-        .data
-        .ok_or_else(|| {
-            clear_session(&lzu_auth, &db);
-            api_error(response.code, "getSt 响应缺少 data 字段".to_string())
-        })?;
+    let st = response.data.ok_or_else(|| {
+        clear_session(&lzu_auth, &db);
+        api_error(response.code, "getSt 响应缺少 data 字段".to_string())
+    })?;
 
     let person_id = &session.username;
     let url = format!("{h5_url}?PersonID={person_id}&st={st}&ticket={st}");
@@ -506,7 +510,7 @@ pub async fn import_lzu_courses(
 
     if courses.is_empty() {
         let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
-        persist_lzu_semester_context(&conn, &xlxx, None)?;
+        persist_lzu_semester_context(&conn, &xlxx, None, total_weeks)?;
 
         return Ok(LzuCourseImportResult {
             parsed,
@@ -520,7 +524,7 @@ pub async fn import_lzu_courses(
     let semester = courses[0].semester.clone();
     let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
     let result = crate::commands::courses::import_new_courses(&conn, &courses, &semester)?;
-    persist_lzu_semester_context(&conn, &xlxx, Some(&semester))?;
+    persist_lzu_semester_context(&conn, &xlxx, Some(&semester), total_weeks)?;
 
     Ok(LzuCourseImportResult {
         parsed,

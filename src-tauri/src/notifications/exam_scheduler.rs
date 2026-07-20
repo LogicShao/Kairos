@@ -58,6 +58,15 @@ pub fn schedule_exam_notifications(
     // Cancel all existing timers
     cancel_all_exam_notifications()?;
 
+    let phase = crate::term_phase::latest_lzu_phase_status(conn)?;
+    if !exam_notifications_allowed(&phase) {
+        log::info!(
+            "exam notifications suppressed in phase: {}",
+            phase.phase_type
+        );
+        return Ok(());
+    }
+
     // Read config
     let config =
         crate::db::notifications::get_notification_config(conn).map_err(|e| e.to_string())?;
@@ -111,6 +120,11 @@ pub fn schedule_exam_for_one(
         crate::db::notifications::get_notification_config(conn).map_err(|e| e.to_string())?;
 
     if !config.enabled {
+        return Ok(());
+    }
+
+    let phase = crate::term_phase::latest_lzu_phase_status(conn)?;
+    if !exam_notifications_allowed(&phase) {
         return Ok(());
     }
 
@@ -183,6 +197,10 @@ fn parse_exam_datetime(s: &str) -> Result<DateTime<Utc>, String> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .map_err(|e| format!("invalid exam_datetime '{s}': {e}"))
+}
+
+fn exam_notifications_allowed(phase: &crate::term_phase::CurrentPhaseStatus) -> bool {
+    phase.exam_notifications_enabled
 }
 
 fn schedule_one_exam_inner(
@@ -268,6 +286,28 @@ mod tests {
         assert_eq!(offset_description(120), "2小时");
         assert_eq!(offset_description(30), "30分钟");
         assert_eq!(offset_description(5), "5分钟");
+    }
+
+    #[test]
+    fn test_exam_notifications_allowed_uses_phase_flag() {
+        let allowed = crate::term_phase::CurrentPhaseStatus {
+            source: "lzu".to_string(),
+            term_label: Some("2026S1".to_string()),
+            phase_type: "teaching".to_string(),
+            current_week: Some(1),
+            start_week: Some(1),
+            end_week: Some(16),
+            courses_visible: true,
+            exam_notifications_enabled: true,
+            pomodoro_profile: "default".to_string(),
+            inferred: false,
+        };
+        let mut suppressed = allowed.clone();
+        suppressed.phase_type = "break".to_string();
+        suppressed.exam_notifications_enabled = false;
+
+        assert!(exam_notifications_allowed(&allowed));
+        assert!(!exam_notifications_allowed(&suppressed));
     }
 
     #[test]

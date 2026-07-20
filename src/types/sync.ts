@@ -41,6 +41,8 @@ export interface SyncStats {
   exams_merged: number
   /** 成功写入本地数据库的番茄钟 session 数。 */
   sessions_merged: number
+  /** 成功写入本地数据库的学期阶段数。 */
+  term_phases_merged: number
   /** 被拒绝的远端实体数：本地版本较新或相等时保留本地，不是传统编辑冲突。 */
   conflicts: number
 }

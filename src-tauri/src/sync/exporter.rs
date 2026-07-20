@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use rusqlite::{params, OptionalExtension, Result, Row, Transaction};
 use serde::{Deserialize, Serialize};
 
-use crate::db::models::{Course, Exam, PomodoroSession, Task};
+use crate::db::models::{Course, Exam, PomodoroSession, Task, TermPhase};
 
 /// v2 快照 JSON 的顶层结构。
 /// schema_version = 2 表示新格式（含 sync_id + 墓碑），v1 旧格式兼容导入。
@@ -32,6 +32,8 @@ pub struct SyncData {
     pub courses: Vec<Course>,
     pub exams: Vec<Exam>,
     pub pomodoro_sessions: Vec<PomodoroSession>,
+    #[serde(default)]
+    pub term_phases: Vec<TermPhase>,
     /// 快照导出时间（ISO 8601），同时作为 last_sync_at 写入本地。
     pub exported_at: String,
 }
@@ -55,6 +57,8 @@ pub struct SyncStats {
     pub exams_merged: usize,
     /// 本次同步成功写入本地数据库的番茄钟 session 数。
     pub sessions_merged: usize,
+    /// 本次同步成功写入本地数据库的学期阶段数。
+    pub term_phases_merged: usize,
     /// 被拒绝的远端实体数（本地版本更新或相等时保留本地）。
     pub conflicts: usize,
 }
@@ -76,6 +80,7 @@ pub fn export_all(conn: &rusqlite::Connection) -> Result<SyncData> {
     let courses = export_courses(conn)?;
     let exams = export_exams(conn)?;
     let pomodoro_sessions = export_pomodoro_sessions(conn)?;
+    let term_phases = export_term_phases(conn)?;
     let exported_at = crate::db::chrono_now();
 
     Ok(SyncData {
@@ -86,6 +91,7 @@ pub fn export_all(conn: &rusqlite::Connection) -> Result<SyncData> {
         courses,
         exams,
         pomodoro_sessions,
+        term_phases,
         exported_at,
     })
 }
@@ -113,18 +119,21 @@ pub fn import_all(conn: &mut rusqlite::Connection, data: &SyncData) -> Result<Sy
     )?;
     let exams_merged = merge_exams(&tx, &data.exams, &course_id_map)?;
     let sessions_merged = merge_pomodoro_sessions(&tx, &data.pomodoro_sessions, &task_id_map)?;
+    let term_phases_merged = merge_term_phases(&tx, &data.term_phases)?;
     tx.commit()?;
 
     let conflicts = (data.tasks.len().saturating_sub(tasks_merged))
         + (data.courses.len().saturating_sub(courses_merged))
         + (data.exams.len().saturating_sub(exams_merged))
-        + (data.pomodoro_sessions.len().saturating_sub(sessions_merged));
+        + (data.pomodoro_sessions.len().saturating_sub(sessions_merged))
+        + (data.term_phases.len().saturating_sub(term_phases_merged));
 
     Ok(SyncStats {
         tasks_merged,
         courses_merged,
         exams_merged,
         sessions_merged,
+        term_phases_merged,
         conflicts,
     })
 }
@@ -172,6 +181,14 @@ export_entity!(export_pomodoro_sessions, PomodoroSession,
     "SELECT id, sync_id, started_at, ended_at, session_type, task_id, deleted_at FROM pomodoro_sessions ORDER BY id",
     id: 0, sync_id: 1, started_at: 2, ended_at: 3, session_type: 4, task_id: 5,
     deleted_at: 6,
+);
+
+export_entity!(export_term_phases, TermPhase,
+    "SELECT id, sync_id, term_label, phase_type, start_week, end_week, affects_courses, affects_exam_notifications, pomodoro_profile, notification_rules_json, sort_order, deleted_at, created_at, updated_at FROM term_phases ORDER BY id",
+    id: 0, sync_id: 1, term_label: 2, phase_type: 3, start_week: 4, end_week: 5,
+    affects_courses: 6, affects_exam_notifications: 7, pomodoro_profile: 8,
+    notification_rules_json: 9, sort_order: 10, deleted_at: 11, created_at: 12,
+    updated_at: 13,
 );
 
 fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
@@ -455,6 +472,16 @@ fn merge_pomodoro_sessions(
     Ok(merged)
 }
 
+fn merge_term_phases(tx: &Transaction<'_>, remote: &[TermPhase]) -> Result<usize> {
+    let mut merged = 0usize;
+    for phase in remote {
+        if crate::db::term_phases::upsert_term_phase_from_sync(tx, phase)? {
+            merged += 1;
+        }
+    }
+    Ok(merged)
+}
+
 /// 统一的元数据行接口，消除 find_local_meta / find_local_session_meta 重复
 trait MetaRow: Sized {
     fn columns() -> &'static str;
@@ -682,6 +709,7 @@ mod tests {
             courses: vec![],
             exams: vec![],
             pomodoro_sessions: vec![],
+            term_phases: vec![],
             exported_at: "2024-06-01T10:00:00Z".to_string(),
         }
     }
@@ -750,6 +778,7 @@ mod tests {
         assert!(data.courses.is_empty());
         assert!(data.exams.is_empty());
         assert!(data.pomodoro_sessions.is_empty());
+        assert!(data.term_phases.is_empty());
     }
 
     #[test]

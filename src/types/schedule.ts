@@ -32,6 +32,10 @@ export interface WeekScheduleResponse {
   week_start_date: string
   /** 当前周周日日期，格式 YYYY-MM-DD。 */
   week_end_date: string
+  /** "teaching"、"exam"、"break" 或 "unknown"。 */
+  phase_type: PhaseType
+  /** false 时前端显示阶段空状态，不展示课程。 */
+  courses_visible: boolean
   items: WeekScheduleItem[]
 }
 
@@ -67,6 +71,10 @@ export interface CalendarWeekResponse {
   week_start_date: string
   /** 当前周周日日期，格式 YYYY-MM-DD。 */
   week_end_date: string
+  /** "teaching"、"exam"、"break" 或 "unknown"。 */
+  phase_type: PhaseType
+  /** false 时课程事件已由后端隐藏。 */
+  courses_visible: boolean
   events: CalendarEvent[]
 }
 
@@ -79,3 +87,5 @@ export interface CalendarWeekCmd {
   /** YYYY-MM-DD；存在时后端会归一化到该日期所在周的周一。 */
   week_start_date?: string
 }
+
+export type PhaseType = "unknown" | "teaching" | "exam" | "break"

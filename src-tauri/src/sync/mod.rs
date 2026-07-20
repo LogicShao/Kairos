@@ -295,6 +295,7 @@ fn empty_sync_stats() -> SyncStats {
         courses_merged: 0,
         exams_merged: 0,
         sessions_merged: 0,
+        term_phases_merged: 0,
         conflicts: 0,
     }
 }
@@ -304,6 +305,7 @@ fn add_sync_stats(target: &mut SyncStats, incoming: SyncStats) {
     target.courses_merged += incoming.courses_merged;
     target.exams_merged += incoming.exams_merged;
     target.sessions_merged += incoming.sessions_merged;
+    target.term_phases_merged += incoming.term_phases_merged;
     target.conflicts += incoming.conflicts;
 }
 

@@ -5,6 +5,7 @@ import {
   Check,
   Cloud,
   CreditCard,
+  Flag,
   MonitorCog,
   Moon,
   Palette,
@@ -53,6 +54,12 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "通知设置",
     description: "管理番茄钟提醒与考试考前通知",
     icon: Bell,
+  },
+  {
+    key: "semester-phases",
+    label: "学期阶段",
+    description: "管理教学周、考试周与假期行为",
+    icon: Flag,
   },
   {
     key: "widget",

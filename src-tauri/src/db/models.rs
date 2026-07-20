@@ -136,6 +136,40 @@ pub struct UpdatePomodoroConfigRequest {
     pub sessions_before_long_break: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PomodoroProfile {
+    pub id: i64,
+    pub name: String,
+    pub work_seconds: i64,
+    pub short_break_seconds: i64,
+    pub long_break_seconds: i64,
+    pub sessions_before_long_break: i64,
+    /// 1 = built-in profile, cannot be deleted.
+    pub is_builtin: bool,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间。
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePomodoroProfileRequest {
+    pub name: String,
+    pub work_seconds: i64,
+    pub short_break_seconds: i64,
+    pub long_break_seconds: i64,
+    pub sessions_before_long_break: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePomodoroProfileRequest {
+    pub name: String,
+    pub work_seconds: i64,
+    pub short_break_seconds: i64,
+    pub long_break_seconds: i64,
+    pub sessions_before_long_break: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: i64,
@@ -273,6 +307,65 @@ pub struct UpsertSemesterContextRequest {
     pub start_date: String,
     pub current_week: Option<i64>,
     pub total_weeks: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TermPhase {
+    pub id: i64,
+    /// 跨设备稳定标识（UUID）。合并键，不等于 SQLite id。
+    #[serde(default)]
+    pub sync_id: String,
+    /// 学期标识，例如 2026S1，与 semester_context.term_label 对齐。
+    pub term_label: String,
+    /// "teaching"、"exam"、"break"。
+    pub phase_type: String,
+    /// 起始教学周，最小为 1。
+    pub start_week: i64,
+    /// 结束教学周，必须大于等于 start_week。
+    pub end_week: i64,
+    /// 1 = 课程在该阶段可见。
+    pub affects_courses: bool,
+    /// 1 = 考试通知在该阶段可用。
+    pub affects_exam_notifications: bool,
+    /// 关联 pomodoro profile 名称。
+    pub pomodoro_profile: String,
+    /// 预留通知规则 JSON，默认 {}。
+    pub notification_rules_json: String,
+    /// 同一学期内展示/匹配排序。
+    pub sort_order: i64,
+    /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
+    #[serde(default)]
+    pub deleted_at: Option<String>,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间，LWW 同步会使用该字段。
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTermPhaseRequest {
+    pub term_label: String,
+    pub phase_type: String,
+    pub start_week: i64,
+    pub end_week: i64,
+    pub affects_courses: bool,
+    pub affects_exam_notifications: bool,
+    pub pomodoro_profile: String,
+    pub notification_rules_json: String,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateTermPhaseRequest {
+    pub term_label: String,
+    pub phase_type: String,
+    pub start_week: i64,
+    pub end_week: i64,
+    pub affects_courses: bool,
+    pub affects_exam_notifications: bool,
+    pub pomodoro_profile: String,
+    pub notification_rules_json: String,
+    pub sort_order: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
