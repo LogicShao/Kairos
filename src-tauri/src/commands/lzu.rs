@@ -295,18 +295,28 @@ pub fn lzu_get_auth_status(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthSta
 }
 
 /// 刷新当前 LZU 登录账号的低敏身份摘要。
+/// 会话失效时清除登录态，前端触发重新登录。
 #[tauri::command]
-pub async fn lzu_refresh_profile(lzu_auth: State<'_, SharedLzuAuth>) -> Result<AuthStatus, String> {
+pub async fn lzu_refresh_profile(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    lzu_auth: State<'_, SharedLzuAuth>,
+) -> Result<AuthStatus, String> {
     let (client, _, session) = require_lzu_clients(&lzu_auth)?;
 
-    let profile = fetch_profile_summary(
+    let profile = match fetch_profile_summary(
         &client,
         &session.login_token,
         &session.gateway_token,
         &session.username,
     )
     .await
-    .map_err(|_| "刷新 LZU 身份信息失败".to_string())?;
+    {
+        Ok(profile) => profile,
+        Err(_) => {
+            clear_session(&lzu_auth, &db);
+            return Err("LZU 会话已过期，请重新登录".to_string());
+        }
+    };
 
     let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
     auth.set_profile(profile).map_err(|e| e.to_string())?;
@@ -316,8 +326,10 @@ pub async fn lzu_refresh_profile(lzu_auth: State<'_, SharedLzuAuth>) -> Result<A
 /// 刷新 LZU Service Ticket。
 ///
 /// 只更新后端内存会话，不向前端返回 ST 原文。
+/// 会话失效时清除登录态，前端触发重新登录。
 #[tauri::command]
 pub async fn lzu_refresh_st(
+    db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
     service_id: Option<String>,
 ) -> Result<AuthStatus, String> {
@@ -326,9 +338,13 @@ pub async fn lzu_refresh_st(
     let response = client
         .get_st(&session.login_token, service_id.as_deref().unwrap_or(""))
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            clear_session(&lzu_auth, &db);
+            format!("LZU 会话已过期，请重新登录: {e}")
+        })?;
 
     if response.code != 1 {
+        clear_session(&lzu_auth, &db);
         return Err(api_error(response.code, response.message));
     }
 

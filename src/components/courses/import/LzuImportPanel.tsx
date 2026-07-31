@@ -80,6 +80,17 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
       setAuthStatus(status)
     } catch (e) {
       setImportError(typeof e === "string" ? e : "刷新身份信息失败。")
+      // 会话失效时后端会清除登录态，重查认证并预填用户名。
+      try {
+        const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
+        if (!status.is_logged_in && authStatus?.username) {
+          setAuthStatus(status)
+          setUsername(authStatus.username)
+          setLoginError("登录已过期，请重新输入密码登录。")
+        }
+      } catch {
+        // 静默降级
+      }
     } finally {
       setStatusLoading(false)
     }

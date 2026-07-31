@@ -87,6 +87,27 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
     }
   }
 
+  /// 会话失效后的快速恢复：重查认证状态，若已登出则预填用户名提示重登。
+  async function recoverSession(prevUsername: string | null) {
+    try {
+      const status = await invoke<LzuAuthStatus>("lzu_get_auth_status")
+      if (!status.is_logged_in) {
+        setAuthStatus(status)
+        setCard(null)
+        setDirectory(null)
+        setCardError(null)
+        setDirectoryError(null)
+        const name = prevUsername ?? status.username
+        if (name) {
+          setUsername(name)
+        }
+        setLoginError("登录已过期，请重新输入密码登录。")
+      }
+    } catch {
+      // 静默降级
+    }
+  }
+
   // ── card / directory helpers ──
   async function loadCard() {
     setCardLoading(true)
@@ -95,7 +116,9 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
       const result = await invoke<LzuCampusCardOverview>("lzu_get_campus_card_overview")
       setCard(result)
     } catch (error) {
-      setCardError(typeof error === "string" ? error : "校园卡余额读取失败。")
+      const msg = typeof error === "string" ? error : "校园卡余额读取失败。"
+      setCardError(msg)
+      void recoverSession(authStatus?.username ?? null)
     } finally {
       setCardLoading(false)
     }
@@ -108,7 +131,9 @@ export function LzuServicesPage({ onNavigate }: LzuServicesPageProps) {
       const result = await invoke<LzuServiceDirectory>("lzu_get_service_directory")
       setDirectory(result)
     } catch (error) {
-      setDirectoryError(typeof error === "string" ? error : "服务目录读取失败。")
+      const msg = typeof error === "string" ? error : "服务目录读取失败。"
+      setDirectoryError(msg)
+      void recoverSession(authStatus?.username ?? null)
     } finally {
       setDirectoryLoading(false)
     }
