@@ -10,6 +10,7 @@ import {
   Moon,
   Palette,
   Settings,
+  Sparkles,
   Sun,
 } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -60,6 +61,12 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "学期阶段",
     description: "管理教学周、考试周与假期行为",
     icon: Flag,
+  },
+  {
+    key: "ai-settings",
+    label: "AI 设置",
+    description: "配置每日摘要与 API Key",
+    icon: Sparkles,
   },
   {
     key: "widget",

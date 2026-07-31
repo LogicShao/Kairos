@@ -3,6 +3,7 @@ import { BookOpen, CalendarClock, ListTodo, Timer } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
+import { AiBriefCard } from "@/pages/today/AiBriefCard"
 import type { TodayBriefingResponse } from "@/types/briefing"
 
 const PHASE_LABELS: Record<TodayBriefingResponse["phase"]["phase_type"], string> = {
@@ -224,6 +225,9 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
           </BriefingBlock>
         </div>
       </AcrylicPanel>
+
+      {/* AI 每日摘要（未启用时组件内部返回 null） */}
+      <AiBriefCard onNavigate={onNavigate} />
     </div>
   )
 }

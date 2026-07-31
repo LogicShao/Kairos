@@ -10,6 +10,7 @@ import { ExamList } from "@/components/exams/ExamList"
 import { KairosHub } from "@/components/kairos/KairosHub"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { SemesterPhaseSettings } from "@/components/settings/SemesterPhaseSettings"
+import { AiSettings } from "@/components/settings/AiSettings"
 import { WidgetSettings } from "@/components/settings/WidgetSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
 import { WidgetApp } from "@/components/widget/WidgetApp"
@@ -51,6 +52,7 @@ function MainApp() {
         {active === "lzu-services" && <LzuServicesPage onNavigate={setActive} />}
         {active === "notifications" && <NotificationSettings onNavigate={setActive} />}
         {active === "semester-phases" && <SemesterPhaseSettings onNavigate={setActive} />}
+        {active === "ai-settings" && <AiSettings onNavigate={setActive} />}
         {active === "widget" && <WidgetSettings onNavigate={setActive} />}
         {active === "sync" && <SyncSettings onNavigate={setActive} />}
       </AppShell>
