@@ -193,7 +193,10 @@ fn build_today_courses(
     now_time: &NaiveTime,
     phase_status: &CurrentPhaseStatus,
 ) -> TodayCourses {
-    if !phase_status.courses_visible {
+    // 无学期上下文（unknown）或非教学阶段时不把课程计入今日概览：
+    // 避免假期仍显示旧学期遗留课程（见 07-31 假期误报排查）。
+    if !phase_status.courses_visible || phase_status.phase_type == crate::term_phase::PHASE_UNKNOWN
+    {
         return TodayCourses {
             today_count: 0,
             current_course: None,
@@ -725,6 +728,30 @@ mod tests {
         let result = build_today_courses(&courses, &[], today, &now_time, &phase);
 
         assert_eq!(result.today_count, 0);
+        assert!(result.next_course.is_none());
+    }
+
+    #[test]
+    fn test_build_today_courses_hides_courses_when_phase_unknown() {
+        // 无学期上下文（unknown）时不应把课程计入今日概览，即使 courses_visible=true。
+        let today = NaiveDate::from_ymd_opt(2026, 7, 31).unwrap();
+        let now_time = NaiveTime::from_hms_opt(7, 0, 0).unwrap();
+        let mut phase = teaching_phase();
+        phase.phase_type = crate::term_phase::PHASE_UNKNOWN.to_string();
+        phase.courses_visible = true;
+        let courses = vec![sample_course(
+            1,
+            "无上下文课程",
+            5,
+            "08:00",
+            "09:40",
+            "2026-03-09",
+        )];
+
+        let result = build_today_courses(&courses, &[], today, &now_time, &phase);
+
+        assert_eq!(result.today_count, 0);
+        assert!(result.current_course.is_none());
         assert!(result.next_course.is_none());
     }
 
