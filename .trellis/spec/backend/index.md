@@ -22,6 +22,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Comment Guidelines](./comment-guidelines.md) | Minimal comment rules for cross-session AI consistency | Active |
 | [Schedule Import and Week View Contracts](./schedule-import-guidelines.md) | Course/exam clipboard import and weekly schedule response contracts | Active |
 | [LZU EasyTong Read-Only Contract](./lzu-easytong-guidelines.md) | Campus card balance and service-directory security boundary | Active |
+| [AI Morning Brief Contract](./ai-morning-brief.md) | base_url/crypto/lock-discipline/cost-guardrails for AI daily brief | Active |
 
 ---
 
