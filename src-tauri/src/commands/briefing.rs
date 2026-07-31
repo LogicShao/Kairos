@@ -107,21 +107,30 @@ pub fn get_today_briefing(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
 ) -> Result<TodayBriefingResponse, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
+    let engine = engine.lock().map_err(|e| e.to_string())?;
+    collect_today_briefing(&conn, &engine)
+}
 
+/// 聚合今日概览数据快照，供 `get_today_briefing` 命令与 AI Morning Brief 复用。
+///
+/// 调用方负责持有 DB 与 PomodoroEngine 锁；本函数不做网络等长阻塞操作。
+pub(crate) fn collect_today_briefing(
+    conn: &Connection,
+    engine: &PomodoroEngine,
+) -> Result<TodayBriefingResponse, String> {
     let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
     let now = chrono::Utc::now().with_timezone(&china_offset);
     let today = now.date_naive();
 
     let date = today.format("%Y-%m-%d").to_string();
     let weekday_label = weekday_label(today.weekday());
-    let phase_status = crate::term_phase::latest_lzu_phase_status(&conn)?;
+    let phase_status = crate::term_phase::latest_lzu_phase_status(conn)?;
     let phase = phase_briefing(&phase_status);
 
     // 1. Courses
-    let all_courses =
-        crate::db::courses::get_all_courses(&conn, None).map_err(|e| e.to_string())?;
+    let all_courses = crate::db::courses::get_all_courses(conn, None).map_err(|e| e.to_string())?;
     let semester_contexts =
-        crate::db::semester::get_all_semester_contexts(&conn).map_err(|e| e.to_string())?;
+        crate::db::semester::get_all_semester_contexts(conn).map_err(|e| e.to_string())?;
     let courses = build_today_courses(
         &all_courses,
         &semester_contexts,
@@ -131,19 +140,18 @@ pub fn get_today_briefing(
     );
 
     // 2. Tasks
-    let all_tasks = crate::db::tasks::get_all_tasks(&conn, None, None, "created_at", "DESC")
+    let all_tasks = crate::db::tasks::get_all_tasks(conn, None, None, "created_at", "DESC")
         .map_err(|e| e.to_string())?;
     let tasks = build_today_tasks(&all_tasks, today);
 
     // 3. Exam
-    let all_exams = crate::db::exams::get_all_exams(&conn).map_err(|e| e.to_string())?;
+    let all_exams = crate::db::exams::get_all_exams(conn).map_err(|e| e.to_string())?;
     let exam = build_upcoming_exam(&all_exams, &now);
 
     // 4. Pomodoro — 使用 DB 今日完成数以保证与番茄钟页一致
-    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(&conn)
+    let completed_sessions = crate::db::pomodoro::count_completed_work_sessions_for_date(conn)
         .map_err(|e| e.to_string())?;
-    let eng = engine.lock().map_err(|e| e.to_string())?;
-    let state = eng.get_state();
+    let state = engine.get_state();
     let pomodoro = PomodoroBriefing {
         is_running: state.is_running,
         phase: state.phase,

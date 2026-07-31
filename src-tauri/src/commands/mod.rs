@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod briefing;
 pub mod courses;
 pub mod exams;

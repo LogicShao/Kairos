@@ -974,4 +974,33 @@ mod tests {
         assert_eq!(exported.courses[0].sync_id, "legacy-course-7");
         assert_eq!(exported.courses[0].name, "Legacy Remote Update");
     }
+
+    #[test]
+    fn test_export_excludes_ai_tables() {
+        // 回归断言：API key 配置与 AI 摘要属设备本地数据，永不进入 WebDAV 同步快照。
+        let conn = setup_db();
+
+        conn.execute(
+            "INSERT OR REPLACE INTO ai_config
+                (id, enabled, base_url, model, api_key_encrypted, created_at, updated_at)
+             VALUES (1, 1, 'https://api.deepseek.com', 'deepseek-chat', 'cipher', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
+            [],
+        )
+        .expect("seed ai_config");
+        conn.execute(
+            "INSERT INTO ai_morning_brief
+                (date, markdown, source, model, generated_at, created_at, updated_at)
+             VALUES ('2026-07-31', 'md', 'ai', 'deepseek-chat', '2026-07-31T07:00:00Z', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
+            [],
+        )
+        .expect("seed ai_morning_brief");
+
+        let exported = export_all(&conn).expect("export");
+        let json = serde_json::to_string(&exported).expect("serialize SyncData");
+        assert!(!json.contains("ai_config"), "导出 JSON 不应包含 ai_config");
+        assert!(
+            !json.contains("ai_morning_brief"),
+            "导出 JSON 不应包含 ai_morning_brief"
+        );
+    }
 }

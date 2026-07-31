@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod courses;
 pub mod exams;
 pub mod lzu_session;

@@ -435,3 +435,63 @@ pub struct SyncConfig {
     #[serde(default)]
     pub dataset_id: Option<String>,
 }
+
+/// AI 摘要配置（单例，id=1）。api_key 仅存密文，明文与 key 文件永不过桥。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    pub id: i64,
+    /// 1 = 启用 AI 摘要，0 = 禁用（降级本地规则引擎）。
+    pub enabled: bool,
+    /// OpenAI 兼容 API base URL，**不含** /v1（代码统一追加 /v1/chat/completions）。
+    pub base_url: String,
+    /// 模型名，默认 deepseek-chat。
+    pub model: String,
+    /// API key 密文（AES-CBC + 本地随机 key 文件）。空字符串 = 未配置。
+    pub api_key_encrypted: String,
+    /// UTC ISO 8601 创建时间。
+    pub created_at: String,
+    /// UTC ISO 8601 更新时间。
+    pub updated_at: String,
+}
+
+/// 前端可见 AI 配置视图。key 明文/密文均不回传，仅布尔标记是否已配置。
+#[derive(Debug, Clone, Serialize)]
+pub struct AiConfigView {
+    pub id: i64,
+    pub enabled: bool,
+    /// 不含 /v1 的 base URL。
+    pub base_url: String,
+    pub model: String,
+    /// 是否已配置 API key（不回传明文或掩码）。
+    pub api_key_configured: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// AI 配置合并更新请求。api_key: Some(非空)=加密写入新 key；Some("")=清空；None=保留原密文。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct UpdateAiConfigRequest {
+    pub enabled: Option<bool>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+}
+
+/// 今日 AI 摘要（date 唯一，+08:00 中国日期）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiMorningBrief {
+    pub id: i64,
+    /// YYYY-MM-DD（+08:00 中国日期）。
+    pub date: String,
+    /// 5 分节 markdown 子集文本。
+    pub markdown: String,
+    /// "ai" 或 "rule"（与 CHECK 约束、BriefSource serde、前端字面量三处同值）。
+    pub source: String,
+    /// 仅 source="ai" 时有值，如 "deepseek-chat"。
+    pub model: String,
+    /// 生成时间，RFC3339。
+    pub generated_at: String,
+    pub created_at: String,
+    pub updated_at: String,
+}

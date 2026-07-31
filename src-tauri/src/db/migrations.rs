@@ -244,6 +244,38 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 ('relaxed', 1500, 600, 1200, 4, 1, datetime('now'), datetime('now'));
             ",
         ),
+        (
+            11,
+            "ai_config_and_morning_brief",
+            "
+            CREATE TABLE IF NOT EXISTS ai_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                base_url TEXT NOT NULL DEFAULT 'https://api.deepseek.com',
+                model TEXT NOT NULL DEFAULT 'deepseek-chat',
+                api_key_encrypted TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO ai_config
+                (id, enabled, base_url, model, api_key_encrypted, created_at, updated_at)
+            VALUES
+                (1, 0, 'https://api.deepseek.com', 'deepseek-chat', '', datetime('now'), datetime('now'));
+
+            CREATE TABLE IF NOT EXISTS ai_morning_brief (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL UNIQUE,
+                markdown TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'ai' CHECK(source IN ('ai', 'rule')),
+                model TEXT NOT NULL DEFAULT '',
+                generated_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_morning_brief_date
+                ON ai_morning_brief(date);
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -405,7 +437,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 13);
+        assert_eq!(table_count, 15);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -446,7 +478,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 10);
+        assert_eq!(count, 11);
     }
 
     #[test]
@@ -533,7 +565,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 10);
+        assert_eq!(count, 11);
     }
 
     #[test]

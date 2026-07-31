@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod commands;
 pub mod db;
 pub mod importers;
@@ -229,6 +230,19 @@ pub fn run() {
                 }
             }
 
+            // ─── AI Morning Brief 初始化 ───
+            if let Err(e) = ai::crypto::ensure_key_file(&app_data_dir) {
+                log::warn!("AI key 初始化失败: {e}");
+            }
+            if notifications_available {
+                let engine_state = app.state::<Arc<Mutex<PomodoroEngine>>>();
+                ai::scheduler::ensure_scheduled(
+                    db_conn.clone(),
+                    engine_state.inner().clone(),
+                    app.handle().clone(),
+                );
+            }
+
             // ─── 自动同步状态初始化 ───
             let auto_sync_state = AutoSyncState::new();
             {
@@ -329,6 +343,10 @@ pub fn run() {
             commands::lzu::lzu_open_service,
             commands::lzu::import_lzu_courses,
             commands::briefing::get_today_briefing,
+            commands::ai::get_ai_config,
+            commands::ai::update_ai_config,
+            commands::ai::get_ai_morning_brief,
+            commands::ai::generate_ai_morning_brief,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
