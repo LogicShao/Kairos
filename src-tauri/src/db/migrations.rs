@@ -276,6 +276,31 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 ON ai_morning_brief(date);
             ",
         ),
+        (
+            12,
+            "normalize_compact_dates",
+            "
+            -- 归一化 LZU 导入遗留的 YYYYMMDD 格式学期开始日期为 YYYY-MM-DD。
+            -- 幂等：已标准化的日期 length=10 不满足 WHERE，二次执行无副作用。
+            UPDATE courses
+            SET semester_start_date =
+                substr(semester_start_date, 1, 4) || '-' ||
+                substr(semester_start_date, 5, 2) || '-' ||
+                substr(semester_start_date, 7, 2)
+            WHERE length(semester_start_date) = 8
+              AND semester_start_date NOT LIKE '%-%'
+              AND semester_start_date GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]';
+
+            UPDATE semester_context
+            SET start_date =
+                substr(start_date, 1, 4) || '-' ||
+                substr(start_date, 5, 2) || '-' ||
+                substr(start_date, 7, 2)
+            WHERE length(start_date) = 8
+              AND start_date NOT LIKE '%-%'
+              AND start_date GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]';
+            ",
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -478,7 +503,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 11);
+        assert_eq!(count, 12);
     }
 
     #[test]
@@ -565,7 +590,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 11);
+        assert_eq!(count, 12);
     }
 
     #[test]
@@ -661,5 +686,88 @@ mod tests {
             [],
         );
         assert!(invalid_range.is_err());
+    }
+
+    #[test]
+    fn test_migration_v12_normalizes_compact_dates() {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .expect("Failed to enable foreign keys");
+
+        // 先建旧表 + 写入 YYYYMMDD 数据，再跑迁移验证归一化。
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS courses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sync_id TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL,
+                day_of_week INTEGER NOT NULL,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                week_pattern TEXT NOT NULL DEFAULT '',
+                semester_start_date TEXT NOT NULL DEFAULT '',
+                location TEXT NOT NULL DEFAULT '',
+                teacher TEXT NOT NULL DEFAULT '',
+                color TEXT NOT NULL DEFAULT '',
+                semester TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT
+            )",
+            [],
+        )
+        .expect("seed preexisting courses table");
+
+        conn.execute(
+            "INSERT INTO courses (name, day_of_week, start_time, end_time, week_pattern, semester_start_date, semester, created_at, updated_at)
+             VALUES ('测试课', 1, '08:00', '09:00', '', '20260309', '2026S2', '2026-01-01', '2026-01-01')",
+            [],
+        )
+        .expect("seed compact date course");
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS semester_context (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT NOT NULL,
+                academic_year TEXT,
+                term TEXT,
+                term_label TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                current_week INTEGER,
+                total_weeks INTEGER,
+                refreshed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(source, term_label)
+            )",
+            [],
+        )
+        .expect("seed preexisting semester_context table");
+
+        conn.execute(
+            "INSERT INTO semester_context (source, term_label, start_date, refreshed_at, created_at, updated_at)
+             VALUES ('lzu', '2026S2', '20260309', '2026-01-01', '2026-01-01', '2026-01-01')",
+            [],
+        )
+        .expect("seed compact date context");
+
+        run_migrations(&conn).expect("Migrations should normalize compact dates");
+
+        let course_date: String = conn
+            .query_row(
+                "SELECT semester_start_date FROM courses WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read course date");
+        assert_eq!(course_date, "2026-03-09");
+
+        let context_date: String = conn
+            .query_row(
+                "SELECT start_date FROM semester_context WHERE term_label = '2026S2'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read context date");
+        assert_eq!(context_date, "2026-03-09");
     }
 }

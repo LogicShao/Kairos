@@ -39,8 +39,10 @@ pub fn map_course(info: &CourseInfo, xlxx: &XlxxData) -> Result<CreateCourseRequ
     let weeks = effective_weeks(info.week.as_deref(), info.week_fb.as_deref())?;
     let week_pattern = format_week_pattern(&weeks)?;
     let semester = infer_semester(info, xlxx)?;
-    let semester_start_date = required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?;
-    validate_date(semester_start_date, "学期开始日期 ksrq")?;
+    let semester_start_date = normalize_date(
+        required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?,
+        "学期开始日期 ksrq",
+    )?;
 
     Ok(CreateCourseRequest {
         name: name.to_string(),
@@ -63,8 +65,10 @@ pub fn map_semester_context(
     xlxx: &XlxxData,
     semester_hint: Option<&str>,
 ) -> Result<UpsertSemesterContextRequest, String> {
-    let start_date = required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?;
-    validate_date(start_date, "学期开始日期 ksrq")?;
+    let start_date = normalize_date(
+        required_text(xlxx.ksrq.as_deref(), "学期开始日期 ksrq")?,
+        "学期开始日期 ksrq",
+    )?;
 
     let academic_year = normalized_optional(&xlxx.xn);
     let term = normalized_optional(&xlxx.xqm).or_else(|| normalized_optional(&xlxx.xq));
@@ -108,10 +112,22 @@ fn required_text<'a>(value: Option<&'a str>, field: &str) -> Result<&'a str, Str
         .ok_or_else(|| format!("缺少{field}"))
 }
 
-fn validate_date(value: &str, field: &str) -> Result<(), String> {
-    NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map(|_| ())
-        .map_err(|_| format!("无法解析{field}: {value}"))
+/// 归一化日期到 `YYYY-MM-DD`。兼容 LZU API 的 `YYYYMMDD` 与标准 `YYYY-MM-DD` 两种格式，
+/// 避免无效日期导致学期上下文持久化被静默跳过。
+fn normalize_date(value: &str, field: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if NaiveDate::parse_from_str(trimmed, "%Y-%m-%d").is_ok() {
+        return Ok(trimmed.to_string());
+    }
+    if NaiveDate::parse_from_str(trimmed, "%Y%m%d").is_ok() {
+        return Ok(format!(
+            "{}-{}-{}",
+            &trimmed[0..4],
+            &trimmed[4..6],
+            &trimmed[6..8]
+        ));
+    }
+    Err(format!("无法解析{field}: {value}"))
 }
 
 fn normalized_optional(value: &Option<String>) -> Option<String> {
@@ -308,6 +324,38 @@ mod tests {
         xlxx.ksrq = Some("2026/02/24".to_string());
 
         assert!(map_semester_context(&xlxx, Some("2026S1")).is_err());
+    }
+
+    #[test]
+    fn test_normalize_date_accepts_compact_format() {
+        assert_eq!(
+            normalize_date("20260309", "test").expect("normalize"),
+            "2026-03-09"
+        );
+        assert_eq!(
+            normalize_date("2026-03-09", "test").expect("normalize"),
+            "2026-03-09"
+        );
+        assert!(normalize_date("not-a-date", "test").is_err());
+    }
+
+    #[test]
+    fn test_map_course_normalizes_compact_ksrq() {
+        let mut xlxx = sample_xlxx();
+        xlxx.ksrq = Some("20260309".to_string());
+
+        let mapped = map_course(&sample_course(), &xlxx).expect("map course");
+        assert_eq!(mapped.semester_start_date, "2026-03-09");
+    }
+
+    #[test]
+    fn test_map_semester_context_normalizes_compact_ksrq() {
+        let mut xlxx = sample_xlxx();
+        xlxx.ksrq = Some("20260309".to_string());
+
+        let context = map_semester_context(&xlxx, Some("2026S1")).expect("map context");
+        assert_eq!(context.start_date, "2026-03-09");
+        assert_eq!(context.total_weeks, Some(16));
     }
 
     #[test]
