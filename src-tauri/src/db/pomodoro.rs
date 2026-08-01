@@ -414,6 +414,8 @@ mod tests {
             priority: String::from("medium"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
         let task_id =
             crate::db::tasks::create_task(&conn, &task_req).expect("Failed to create task");

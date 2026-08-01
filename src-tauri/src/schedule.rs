@@ -293,6 +293,7 @@ pub fn build_calendar_week(
     };
 
     let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
+    let today = chrono::Utc::now().with_timezone(&china_offset).date_naive();
     for exam in exams {
         let start = DateTime::parse_from_rfc3339(&exam.exam_datetime)
             .map_err(|_| format!("无法解析考试开始时间: {}", exam.exam_datetime))?
@@ -336,6 +337,64 @@ pub fn build_calendar_week(
     }
 
     for task in tasks {
+        // 每日任务：本周每天重复出现，完成态由 last_completed_date（坚持链推断）决定。
+        if task.is_daily {
+            let created_date = DateTime::parse_from_rfc3339(&task.created_at)
+                .ok()
+                .map(|dt| dt.with_timezone(&china_offset).date_naive());
+            for offset in 0..7 {
+                let day = week_start + Duration::days(offset);
+                // 仅显示创建日及之后的日子，避免新任务回溯展示为历史未完成。
+                if let Some(created) = created_date {
+                    if day < created {
+                        continue;
+                    }
+                }
+
+                let is_done = task
+                    .last_completed_date
+                    .as_deref()
+                    .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+                    .is_some_and(|completed| day <= completed);
+                let color = if is_done {
+                    TASK_COMPLETED_COLOR.to_string()
+                } else {
+                    TASK_COLOR.to_string()
+                };
+
+                let mut tags: Vec<String> = vec!["每日".to_string()];
+                if is_done {
+                    tags.push("完成".to_string());
+                }
+                if day == today {
+                    tags.push("截止".to_string());
+                }
+                if !task.tags.is_empty() && task.tags != "[]" {
+                    if let Ok(parsed) = serde_json::from_str::<Vec<String>>(&task.tags) {
+                        for t in parsed {
+                            if !t.is_empty() {
+                                tags.push(t);
+                            }
+                        }
+                    }
+                }
+
+                events.push(CalendarEvent {
+                    kind: "task".to_string(),
+                    id: task.id,
+                    title: task.title.clone(),
+                    day_of_week: day.weekday().number_from_monday() as i64,
+                    start_time: "00:00".to_string(),
+                    end_time: "00:00".to_string(),
+                    location: String::new(),
+                    color,
+                    tags,
+                    source_link: "todo".to_string(),
+                });
+            }
+            continue;
+        }
+
         let due_date_str = match &task.due_date {
             Some(d) if !d.trim().is_empty() => d.trim(),
             _ => continue,
@@ -362,7 +421,6 @@ pub fn build_calendar_week(
             tags.push("完成".to_string());
         }
 
-        let today = chrono::Utc::now().with_timezone(&china_offset).date_naive();
         if !is_done && due_date == today {
             tags.push("截止".to_string());
         }
@@ -583,6 +641,28 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
+            deleted_at: None,
+        }
+    }
+
+    fn sample_daily_task(id: i64, title: &str, last_completed: Option<&str>) -> Task {
+        Task {
+            id,
+            sync_id: format!("task-sync-{id}"),
+            title: title.to_string(),
+            description: String::new(),
+            status: if last_completed.is_some() { "done" } else { "todo" }.to_string(),
+            priority: "medium".to_string(),
+            due_date: None,
+            tags: "[]".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+            is_daily: true,
+            last_completed_date: last_completed.map(|s| s.to_string()),
+            reminder_time: None,
             deleted_at: None,
         }
     }
@@ -743,6 +823,9 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
             deleted_at: None,
         };
 
@@ -833,5 +916,109 @@ mod tests {
 
         let later = NaiveDate::from_ymd_opt(2026, 3, 5).unwrap();
         assert_eq!(current_week_index_from_start("2026-02-24", later), Ok(2));
+    }
+
+    #[test]
+    fn test_build_calendar_week_daily_task_repeats_7_days() {
+        // 2026-02-24 is Tuesday, Monday of week 1 is 2026-02-23
+        let response = build_calendar_week(
+            &[],
+            &[],
+            &[sample_daily_task(100, "背单词", None)],
+            "2026S1",
+            1,
+            Some("2026-02-24"),
+            None,
+            None,
+        )
+        .expect("build calendar week");
+
+        let daily_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
+        assert_eq!(daily_events.len(), 7, "每日任务应在本周 7 天各出现一次");
+        for dow in 1..=7 {
+            assert_eq!(
+                daily_events.iter().filter(|e| e.day_of_week == dow).count(),
+                1,
+                "day_of_week {dow} 应恰好出现一次"
+            );
+        }
+        for event in &daily_events {
+            assert!(
+                event.tags.contains(&"每日".to_string()),
+                "每日任务事件应带「每日」标签"
+            );
+            assert_eq!(event.source_link, "todo");
+        }
+    }
+
+    #[test]
+    fn test_build_calendar_week_daily_task_completion() {
+        // 2026-02-26 是周四；last_completed_date=周四 → 周一~周四完成，周五~周日未完成
+        let response = build_calendar_week(
+            &[],
+            &[],
+            &[sample_daily_task(200, "背单词", Some("2026-02-26"))],
+            "2026S1",
+            1,
+            Some("2026-02-24"),
+            None,
+            None,
+        )
+        .expect("build calendar week");
+
+        let daily_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
+        assert_eq!(daily_events.len(), 7);
+
+        for event in &daily_events {
+            let is_done = event.tags.contains(&"完成".to_string());
+            let expect_done = event.day_of_week <= 4; // 周一(1)~周四(4)
+            assert_eq!(
+                is_done, expect_done,
+                "day_of_week={} 完成状态错误",
+                event.day_of_week
+            );
+            let expect_color = if expect_done {
+                TASK_COMPLETED_COLOR
+            } else {
+                TASK_COLOR
+            };
+            assert_eq!(event.color, expect_color, "day_of_week={} 颜色错误", event.day_of_week);
+        }
+    }
+
+    #[test]
+    fn test_build_calendar_week_daily_task_created_mid_week() {
+        // created_at 为周四(2026-02-26 08:00 +08:00)；周一~周三不回溯生成事件
+        let mut task = sample_daily_task(300, "背单词", None);
+        task.created_at = "2026-02-26T00:00:00Z".to_string();
+
+        let response = build_calendar_week(
+            &[],
+            &[],
+            &[task],
+            "2026S1",
+            1,
+            Some("2026-02-24"),
+            None,
+            None,
+        )
+        .expect("build calendar week");
+
+        let daily_events: Vec<_> = response
+            .events
+            .iter()
+            .filter(|e| e.kind == "task")
+            .collect();
+        // 周四(4) ~ 周日(7) 共 4 天
+        assert_eq!(daily_events.len(), 4);
+        assert!(daily_events.iter().all(|e| e.day_of_week >= 4));
     }
 }

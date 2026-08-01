@@ -1,3 +1,4 @@
+pub mod daily_reminder;
 pub mod exam_scheduler;
 pub mod ids;
 pub mod pomodoro_scheduler;

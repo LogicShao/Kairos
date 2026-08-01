@@ -18,6 +18,12 @@ export interface Task {
   created_at: string
   /** UTC ISO 8601 更新时间。LWW 同步以此字段比较胜负（墓碑优先取 deleted_at）。 */
   updated_at: string
+  /** 是否为每日任务（每天重复出现、需完成；习惯类任务）。 */
+  is_daily: boolean
+  /** 每日任务最近一次完成日期（YYYY-MM-DD）；null 表示今日尚未完成。 */
+  last_completed_date: string | null
+  /** 每日任务提醒时间（HH:MM）；null 表示不提醒。 */
+  reminder_time: string | null
   /** 墓碑时间戳。正常列表查询只返回 null；非 null 表示已软删除并参与同步传播。 */
   deleted_at: string | null
 }
@@ -32,6 +38,10 @@ export interface CreateTaskRequest {
   due_date?: string | null
   /** JSON 字符串形式的标签数组。 */
   tags?: string
+  /** 是否为每日任务；默认 false。 */
+  is_daily?: boolean
+  /** 每日任务提醒时间（HH:MM）；null/省略 = 不提醒。 */
+  reminder_time?: string | null
 }
 
 /** update_task 命令入参；省略字段表示沿用当前任务值。 */
@@ -44,6 +54,10 @@ export interface UpdateTaskRequest {
   due_date?: string | null
   /** JSON 字符串形式的标签数组。 */
   tags?: string
+  /** 是否为每日任务。 */
+  is_daily?: boolean
+  /** 每日任务提醒时间（HH:MM）。 */
+  reminder_time?: string | null
 }
 
 /** get_all_tasks 过滤与排序参数，字段名与 commands::tasks::TaskFilterParams 对齐。 */

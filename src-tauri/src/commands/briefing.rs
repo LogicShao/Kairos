@@ -48,6 +48,10 @@ pub struct TodayTasks {
     pub overdue_count: i64,
     pub due_today_count: i64,
     pub spotlight: Vec<TaskSpotlight>,
+    /// 今日未完成的每日任务数（习惯类任务，每天需完成）。
+    pub daily_unfinished_count: i64,
+    /// 今日未完成的每日任务（按优先级/标题排序，最多 3 条用于展示）。
+    pub daily_spotlight: Vec<TaskSpotlight>,
 }
 
 /// 最近一场考试。
@@ -382,10 +386,39 @@ fn build_today_tasks(tasks: &[Task], today: NaiveDate) -> TodayTasks {
         })
         .collect();
 
+    // 每日任务：今日未完成（last_completed_date != today）的项，按优先级/标题排序。
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let mut daily: Vec<&Task> = tasks
+        .iter()
+        .filter(|t| {
+            t.is_daily
+                && t.deleted_at.is_none()
+                && t.last_completed_date.as_deref() != Some(today_str.as_str())
+        })
+        .collect();
+    daily.sort_by(|a, b| {
+        let a_score = priority_score(&a.priority);
+        let b_score = priority_score(&b.priority);
+        b_score.cmp(&a_score).then_with(|| a.title.cmp(&b.title))
+    });
+    let daily_spotlight: Vec<TaskSpotlight> = daily
+        .iter()
+        .take(3)
+        .map(|t| TaskSpotlight {
+            id: t.id,
+            title: t.title.clone(),
+            priority: t.priority.clone(),
+            due_date: None,
+        })
+        .collect();
+    let daily_unfinished_count = daily.len() as i64;
+
     TodayTasks {
         overdue_count,
         due_today_count,
         spotlight,
+        daily_unfinished_count,
+        daily_spotlight,
     }
 }
 
@@ -440,6 +473,9 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
             deleted_at: None,
         }
     }
@@ -456,6 +492,9 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
             deleted_at: None,
         }
     }
@@ -753,6 +792,43 @@ mod tests {
         assert_eq!(result.today_count, 0);
         assert!(result.current_course.is_none());
         assert!(result.next_course.is_none());
+    }
+
+    #[test]
+    fn test_build_today_tasks_daily_unfinished() {
+        let today = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+        // 今日已完成（last_completed_date == today）的每日任务不计入未完成。
+        let mut daily_done = sample_task(1, "已完成的每日", "2026-08-01", "done", "medium");
+        daily_done.is_daily = true;
+        daily_done.last_completed_date = Some("2026-08-01".to_string());
+        // 昨日完成（跨天自然重置）应计入今日未完成。
+        let mut daily_yesterday = sample_task(2, "昨日完成的每日", "2026-08-01", "done", "medium");
+        daily_yesterday.is_daily = true;
+        daily_yesterday.last_completed_date = Some("2026-07-31".to_string());
+        // 普通任务不计入每日。
+        let normal = sample_task(3, "普通任务", "2026-08-01", "todo", "medium");
+
+        let tasks = vec![daily_done, daily_yesterday, normal];
+        let result = build_today_tasks(&tasks, today);
+
+        assert_eq!(result.daily_unfinished_count, 1);
+        assert_eq!(result.daily_spotlight.len(), 1);
+        assert_eq!(result.daily_spotlight[0].title, "昨日完成的每日");
+    }
+
+    #[test]
+    fn test_build_today_tasks_daily_spotlight_ordering() {
+        let today = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+        let mut low = sample_task(1, "低优先级", "2026-08-01", "todo", "low");
+        low.is_daily = true;
+        let mut high = sample_task(2, "高优先级", "2026-08-01", "todo", "high");
+        high.is_daily = true;
+
+        let result = build_today_tasks(&[low, high], today);
+
+        assert_eq!(result.daily_unfinished_count, 2);
+        // 高优先级排在前。
+        assert_eq!(result.daily_spotlight[0].title, "高优先级");
     }
 
     #[test]

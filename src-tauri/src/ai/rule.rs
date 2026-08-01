@@ -147,6 +147,8 @@ mod tests {
                     priority: "high".to_string(),
                     due_date: Some("2026-07-31".to_string()),
                 }],
+                daily_unfinished_count: 0,
+                daily_spotlight: vec![],
             },
             exam: Some(crate::commands::briefing::UpcomingExam {
                 id: 1,

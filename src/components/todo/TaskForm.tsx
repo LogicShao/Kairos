@@ -37,6 +37,8 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
       return task.tags
     }
   })
+  const [isDaily, setIsDaily] = useState(task?.is_daily ?? false)
+  const [reminderTime, setReminderTime] = useState(task?.reminder_time ?? "")
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -50,26 +52,21 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
       .filter(Boolean)
 
     try {
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        status,
+        priority,
+        // 每日任务没有一次性截止日期（每天重复出现）。
+        due_date: isDaily ? null : (dueDate || null),
+        tags: JSON.stringify(tagList),
+        is_daily: isDaily,
+        reminder_time: isDaily && reminderTime ? reminderTime : null,
+      }
       if (task) {
-        const payload: UpdateTaskRequest = {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          status,
-          priority,
-          due_date: dueDate || null,
-          tags: JSON.stringify(tagList),
-        }
-        await onUpdate(payload)
+        await onUpdate(payload as UpdateTaskRequest)
       } else {
-        const payload: CreateTaskRequest = {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          status,
-          priority,
-          due_date: dueDate || null,
-          tags: JSON.stringify(tagList),
-        }
-        await onCreate(payload)
+        await onCreate(payload as CreateTaskRequest)
       }
     } finally {
       setSaving(false)
@@ -138,17 +135,53 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
           </div>
         </div>
 
+        {!isDaily && (
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
+              截止日期
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            />
+          </div>
+        )}
+
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">
-            截止日期
+          <label className="flex cursor-pointer items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              checked={isDaily}
+              onChange={(e) => setIsDaily(e.target.checked)}
+              className="h-4 w-4 shrink-0 accent-primary"
+            />
+            <span className="text-sm font-medium text-muted-foreground">
+              每日任务
+            </span>
           </label>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-          />
+          <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground/70">
+            习惯类任务：每天在待办中重复出现，完成一次今日清零，次日自动回到待完成。
+          </p>
         </div>
+
+        {isDaily && (
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
+              每日提醒时间
+            </label>
+            <input
+              type="time"
+              value={reminderTime}
+              onChange={(e) => setReminderTime(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground/70">
+              到点会系统通知提醒你完成（可选，留空则不提醒）
+            </p>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -158,7 +191,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             type="text"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="e.g. 学习, 工作, 个人"
+            placeholder="如：学习, 工作, 个人"
             className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           />
         </div>

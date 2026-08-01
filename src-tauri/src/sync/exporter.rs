@@ -158,9 +158,10 @@ macro_rules! export_entity {
 }
 
 export_entity!(export_tasks, Task,
-    "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at FROM tasks ORDER BY id",
+    "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at FROM tasks ORDER BY id",
     id: 0, sync_id: 1, title: 2, description: 3, status: 4, priority: 5,
-    due_date: 6, tags: 7, created_at: 8, updated_at: 9, deleted_at: 10,
+    due_date: 6, tags: 7, created_at: 8, updated_at: 9, is_daily: 10,
+    last_completed_date: 11, reminder_time: 12, deleted_at: 13,
 );
 
 export_entity!(export_courses, Course,
@@ -203,8 +204,8 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
         match local {
             None => {
                 tx.execute(
-                    "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     params![
                         remote.sync_id,
                         remote.title,
@@ -215,6 +216,9 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                         remote.tags,
                         remote.created_at,
                         remote.updated_at,
+                        remote.is_daily as i64,
+                        remote.last_completed_date,
+                        remote.reminder_time,
                         remote.deleted_at,
                     ],
                 )?;
@@ -229,8 +233,9 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                         "UPDATE tasks
                          SET title = ?1, description = ?2, status = ?3, priority = ?4,
                              due_date = ?5, tags = ?6, created_at = ?7, updated_at = ?8,
-                             deleted_at = ?9, sync_id = ?10
-                         WHERE id = ?11",
+                             is_daily = ?9, last_completed_date = ?10, reminder_time = ?11,
+                             deleted_at = ?12, sync_id = ?13
+                         WHERE id = ?14",
                         params![
                             remote.title,
                             remote.description,
@@ -240,6 +245,9 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                             remote.tags,
                             remote.created_at,
                             remote.updated_at,
+                            remote.is_daily as i64,
+                            remote.last_completed_date,
+                            remote.reminder_time,
                             remote.deleted_at,
                             remote.sync_id,
                             local.id,
@@ -726,6 +734,9 @@ mod tests {
             tags: "[]".to_string(),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: updated_at.to_string(),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
             deleted_at: None,
         }
     }
@@ -983,14 +994,14 @@ mod tests {
         conn.execute(
             "INSERT OR REPLACE INTO ai_config
                 (id, enabled, base_url, model, api_key_encrypted, created_at, updated_at)
-             VALUES (1, 1, 'https://api.deepseek.com', 'deepseek-chat', 'cipher', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
+             VALUES (1, 1, 'https://api.deepseek.com', 'deepseek-v4-flash', 'cipher', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
             [],
         )
         .expect("seed ai_config");
         conn.execute(
             "INSERT INTO ai_morning_brief
                 (date, markdown, source, model, generated_at, created_at, updated_at)
-             VALUES ('2026-07-31', 'md', 'ai', 'deepseek-chat', '2026-07-31T07:00:00Z', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
+             VALUES ('2026-07-31', 'md', 'ai', 'deepseek-v4-flash', '2026-07-31T07:00:00Z', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z')",
             [],
         )
         .expect("seed ai_morning_brief");

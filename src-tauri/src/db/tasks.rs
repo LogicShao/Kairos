@@ -5,8 +5,8 @@ use super::models::{CreateTaskRequest, Task, UpdateTaskRequest};
 pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
     let now = super::chrono_now();
     conn.execute(
-        "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+        "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, is_daily, last_completed_date, reminder_time, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
         params![
             crate::sync::ids::new_sync_id(),
             req.title,
@@ -15,6 +15,9 @@ pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
             req.priority,
             req.due_date,
             req.tags,
+            req.is_daily as i64,
+            Option::<String>::None, // 创建时从未完成，last_completed_date 恒 null
+            req.reminder_time,
             now,
         ],
     )?;
@@ -23,7 +26,7 @@ pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
 
 pub fn get_task(conn: &Connection, id: i64) -> Result<Task> {
     conn.query_row(
-        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at
+        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at
          FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
         |row| {
@@ -38,7 +41,10 @@ pub fn get_task(conn: &Connection, id: i64) -> Result<Task> {
                 tags: row.get(7)?,
                 created_at: row.get(8)?,
                 updated_at: row.get(9)?,
-                deleted_at: row.get(10)?,
+                is_daily: row.get::<_, i64>(10)? != 0,
+                last_completed_date: row.get(11)?,
+                reminder_time: row.get(12)?,
+                deleted_at: row.get(13)?,
             })
         },
     )
@@ -73,7 +79,7 @@ pub fn get_all_tasks(
     };
 
     let mut sql = String::from(
-        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, deleted_at FROM tasks WHERE deleted_at IS NULL",
+        "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at FROM tasks WHERE deleted_at IS NULL",
     );
     let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -103,7 +109,10 @@ pub fn get_all_tasks(
             tags: row.get(7)?,
             created_at: row.get(8)?,
             updated_at: row.get(9)?,
-            deleted_at: row.get(10)?,
+            is_daily: row.get::<_, i64>(10)? != 0,
+            last_completed_date: row.get(11)?,
+            reminder_time: row.get(12)?,
+            deleted_at: row.get(13)?,
         })
     })?;
 
@@ -113,8 +122,9 @@ pub fn get_all_tasks(
 pub fn update_task(conn: &Connection, id: i64, req: &UpdateTaskRequest) -> Result<()> {
     conn.execute(
         "UPDATE tasks
-         SET title = ?1, description = ?2, status = ?3, priority = ?4, due_date = ?5, tags = ?6, updated_at = ?7
-         WHERE id = ?8",
+         SET title = ?1, description = ?2, status = ?3, priority = ?4, due_date = ?5, tags = ?6,
+             is_daily = ?7, last_completed_date = ?8, reminder_time = ?9, updated_at = ?10
+         WHERE id = ?11",
         params![
             req.title,
             req.description,
@@ -122,6 +132,9 @@ pub fn update_task(conn: &Connection, id: i64, req: &UpdateTaskRequest) -> Resul
             req.priority,
             req.due_date,
             req.tags,
+            req.is_daily as i64,
+            req.last_completed_date,
+            req.reminder_time,
             super::chrono_now(),
             id,
         ],
@@ -160,6 +173,8 @@ mod tests {
             priority: String::from("medium"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         }
     }
 
@@ -198,6 +213,9 @@ mod tests {
             priority: String::from("high"),
             due_date: Some(String::from("2024-12-31")),
             tags: String::from("[\"urgent\"]"),
+            is_daily: false,
+            last_completed_date: None,
+            reminder_time: None,
         };
         update_task(&conn, id, &update).expect("Failed to update task");
 
@@ -232,6 +250,8 @@ mod tests {
             priority: String::from("high"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
         let t2 = CreateTaskRequest {
             title: String::from("Low priority task"),
@@ -240,6 +260,8 @@ mod tests {
             priority: String::from("low"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
         let t3 = CreateTaskRequest {
             title: String::from("Done task"),
@@ -248,6 +270,8 @@ mod tests {
             priority: String::from("medium"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
 
         create_task(&conn, &t1).expect("Failed to create t1");
@@ -288,6 +312,8 @@ mod tests {
             priority: String::from("medium"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
         let t2 = CreateTaskRequest {
             title: String::from("Z"),
@@ -296,6 +322,8 @@ mod tests {
             priority: String::from("medium"),
             due_date: None,
             tags: String::from("[]"),
+            is_daily: false,
+            reminder_time: None,
         };
         create_task(&conn, &t1).expect("Failed to create t1");
         create_task(&conn, &t2).expect("Failed to create t2");

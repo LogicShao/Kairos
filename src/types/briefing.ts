@@ -26,6 +26,10 @@ export interface TodayTasks {
   overdue_count: number
   due_today_count: number
   spotlight: TaskSpotlight[]
+  /** 今日未完成的每日任务数（习惯类任务）。 */
+  daily_unfinished_count: number
+  /** 今日未完成的每日任务（按优先级/标题排序，最多 3 条）。 */
+  daily_spotlight: TaskSpotlight[]
 }
 
 export interface UpcomingExam {

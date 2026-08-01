@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 use serde::Deserialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::db::models::{CreateTaskRequest, Task, UpdateTaskRequest};
 
@@ -19,6 +19,10 @@ pub struct CreateTaskCmd {
     due_date: Option<String>,
     #[serde(default)]
     tags: Option<String>,
+    #[serde(default)]
+    is_daily: Option<bool>,
+    #[serde(default)]
+    reminder_time: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,6 +39,10 @@ pub struct UpdateTaskCmd {
     due_date: Option<String>,
     #[serde(default)]
     tags: Option<String>,
+    #[serde(default)]
+    is_daily: Option<bool>,
+    #[serde(default)]
+    reminder_time: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,43 +78,130 @@ pub fn get_all_tasks(
 #[tauri::command]
 pub fn create_task(
     db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
     cmd: CreateTaskCmd,
 ) -> Result<i64, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let req = CreateTaskRequest {
-        title: cmd.title,
-        description: cmd.description.unwrap_or_default(),
-        status: cmd.status.unwrap_or_else(|| String::from("todo")),
-        priority: cmd.priority.unwrap_or_else(|| String::from("medium")),
-        due_date: cmd.due_date,
-        tags: cmd.tags.unwrap_or_else(|| String::from("[]")),
+    let id = {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let req = CreateTaskRequest {
+            title: cmd.title,
+            description: cmd.description.unwrap_or_default(),
+            status: cmd.status.unwrap_or_else(|| String::from("todo")),
+            priority: cmd.priority.unwrap_or_else(|| String::from("medium")),
+            due_date: cmd.due_date,
+            tags: cmd.tags.unwrap_or_else(|| String::from("[]")),
+            is_daily: cmd.is_daily.unwrap_or(false),
+            reminder_time: cmd.reminder_time,
+        };
+        crate::db::tasks::create_task(&conn, &req).map_err(|e| e.to_string())?
     };
-    crate::db::tasks::create_task(&conn, &req).map_err(|e| e.to_string())
+    // 任务/提醒配置变化后重建提醒线程（先释放 db 锁，reschedule 会再次加锁）。
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    Ok(id)
 }
 
 #[tauri::command]
 pub fn update_task(
     db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
     id: i64,
     cmd: UpdateTaskCmd,
 ) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
+    {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
 
-    let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
-
-    let req = UpdateTaskRequest {
-        title: cmd.title.unwrap_or(existing.title),
-        description: cmd.description.unwrap_or(existing.description),
-        status: cmd.status.unwrap_or(existing.status),
-        priority: cmd.priority.unwrap_or(existing.priority),
-        due_date: cmd.due_date.or(existing.due_date),
-        tags: cmd.tags.unwrap_or(existing.tags),
-    };
-    crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())
+        let req = UpdateTaskRequest {
+            title: cmd.title.unwrap_or(existing.title),
+            description: cmd.description.unwrap_or(existing.description),
+            status: cmd.status.unwrap_or(existing.status),
+            priority: cmd.priority.unwrap_or(existing.priority),
+            due_date: cmd.due_date.or(existing.due_date),
+            tags: cmd.tags.unwrap_or(existing.tags),
+            is_daily: cmd.is_daily.unwrap_or(existing.is_daily),
+            // 完成日期由专用 complete/uncomplete 命令维护，编辑任务不直接改动。
+            last_completed_date: existing.last_completed_date,
+            reminder_time: cmd.reminder_time.or(existing.reminder_time),
+        };
+        crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
+    }
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn delete_task(db: State<'_, Arc<Mutex<Connection>>>, id: i64) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    crate::db::tasks::delete_task(&conn, id).map_err(|e| e.to_string())
+pub fn delete_task(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
+    id: i64,
+) -> Result<(), String> {
+    {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        crate::db::tasks::delete_task(&conn, id).map_err(|e| e.to_string())?;
+    }
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    Ok(())
+}
+
+/// 完成每日任务：标记今日已完成（status=done + last_completed_date=今日）。
+#[tauri::command]
+pub fn complete_daily_task(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
+    id: i64,
+) -> Result<(), String> {
+    {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
+        if !existing.is_daily {
+            return Err("该任务不是每日任务".to_string());
+        }
+        let req = UpdateTaskRequest {
+            status: String::from("done"),
+            last_completed_date: Some(crate::ai::morning_brief::today_china()),
+            ..task_to_update(&existing)
+        };
+        crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
+    }
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    Ok(())
+}
+
+/// 取消今日完成：status 回到 todo，last_completed_date 清空。
+#[tauri::command]
+pub fn uncomplete_daily_task(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
+    id: i64,
+) -> Result<(), String> {
+    {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
+        if !existing.is_daily {
+            return Err("该任务不是每日任务".to_string());
+        }
+        let req = UpdateTaskRequest {
+            status: String::from("todo"),
+            last_completed_date: None,
+            ..task_to_update(&existing)
+        };
+        crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
+    }
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    Ok(())
+}
+
+/// 把 Task 转成全字段 UpdateTaskRequest（保留其余字段，仅覆盖指定字段）。
+fn task_to_update(existing: &Task) -> UpdateTaskRequest {
+    UpdateTaskRequest {
+        title: existing.title.clone(),
+        description: existing.description.clone(),
+        status: existing.status.clone(),
+        priority: existing.priority.clone(),
+        due_date: existing.due_date.clone(),
+        tags: existing.tags.clone(),
+        is_daily: existing.is_daily,
+        last_completed_date: existing.last_completed_date.clone(),
+        reminder_time: existing.reminder_time.clone(),
+    }
 }

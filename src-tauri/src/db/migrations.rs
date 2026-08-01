@@ -252,7 +252,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 enabled INTEGER NOT NULL DEFAULT 0,
                 base_url TEXT NOT NULL DEFAULT 'https://api.deepseek.com',
-                model TEXT NOT NULL DEFAULT 'deepseek-chat',
+                model TEXT NOT NULL DEFAULT 'deepseek-v4-flash',
                 api_key_encrypted TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -260,7 +260,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             INSERT OR IGNORE INTO ai_config
                 (id, enabled, base_url, model, api_key_encrypted, created_at, updated_at)
             VALUES
-                (1, 0, 'https://api.deepseek.com', 'deepseek-chat', '', datetime('now'), datetime('now'));
+                (1, 0, 'https://api.deepseek.com', 'deepseek-v4-flash', '', datetime('now'), datetime('now'));
 
             CREATE TABLE IF NOT EXISTS ai_morning_brief (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -301,6 +301,22 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
               AND start_date GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]';
             ",
         ),
+        (
+            13,
+            "retire_deepseek_chat_model",
+            "
+            -- DeepSeek 官方已废弃 deepseek-chat，将遗留默认配置迁移到新默认模型 deepseek-v4-flash。
+            -- 幂等：migration 11 起默认即新模型，二次执行无匹配行。
+            UPDATE ai_config
+            SET model = 'deepseek-v4-flash', updated_at = datetime('now')
+            WHERE model = 'deepseek-chat';
+            ",
+        ),
+        (
+            14,
+            "daily_task_fields",
+            "", // SQL 由 apply_daily_task_fields_migration 处理（add_column_if_missing 幂等加列）
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -315,6 +331,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             match version {
                 3 => apply_course_week_and_exam_range_migration(&tx)?,
                 4 => apply_sync_identity_and_tombstones_migration(&tx)?,
+                14 => apply_daily_task_fields_migration(&tx)?,
                 _ => tx.execute_batch(sql)?,
             }
             tx.execute(
@@ -325,6 +342,19 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// 每日任务字段（幂等加列，避免旧库重跑 v4+ 迁移时 duplicate column）。
+fn apply_daily_task_fields_migration(conn: &Connection) -> Result<()> {
+    add_column_if_missing(conn, "tasks", "is_daily", "is_daily INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(
+        conn,
+        "tasks",
+        "last_completed_date",
+        "last_completed_date TEXT",
+    )?;
+    add_column_if_missing(conn, "tasks", "reminder_time", "reminder_time TEXT")?;
     Ok(())
 }
 
@@ -499,11 +529,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly eight migration records applied once each.
+        // Should have exactly fourteen migration records applied once each.
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 12);
+        assert_eq!(count, 14);
     }
 
     #[test]
@@ -590,7 +620,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 12);
+        assert_eq!(count, 14);
     }
 
     #[test]

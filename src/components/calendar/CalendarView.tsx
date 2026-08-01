@@ -12,6 +12,7 @@ import {
   GraduationCap,
   ListTodo,
   MapPin,
+  Repeat,
 } from "lucide-react"
 
 const DAY_SHORT = ["一", "二", "三", "四", "五", "六", "日"]
@@ -206,18 +207,19 @@ function addMonthsToKey(monthKey: string, delta: number): string {
   return toDateKey(d.getFullYear(), d.getMonth() + 1, 1)
 }
 
-function eventTypeLabel(kind: CalendarEvent["kind"]): string {
-  switch (kind) {
+function eventTypeLabel(event: CalendarEvent): string {
+  switch (event.kind) {
     case "course":
       return "课程"
     case "exam":
       return "考试"
     case "task":
-      return "待办"
+      return event.tags.includes("每日") ? "每日" : "待办"
   }
 }
 
 function eventTimeLabel(event: CalendarEvent): string {
+  if (event.kind === "task" && event.tags.includes("每日")) return "每日"
   if (event.kind === "task") return "全天截止"
   return `${event.start_time}-${event.end_time}`
 }
@@ -293,7 +295,7 @@ function EventCard({ event, compact = false, onClick, className }: EventCardProp
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span className={cn("font-medium", eventToneClass(event.kind))}>
-            {eventTypeLabel(event.kind)}
+            {eventTypeLabel(event)}
           </span>
           <span className="tabular-nums">{eventTimeLabel(event)}</span>
         </span>
@@ -407,12 +409,82 @@ function CalendarWeekTimetable({
             "border-y border-border/35 bg-card text-[10px] font-medium text-muted-foreground",
             compact ? "px-1 py-2 text-center" : "px-1.5 py-2",
           )}>
+            {compact ? "每" : "每日"}
+          </div>
+          {DAY_SHORT.map((day, dayIndex) => {
+            const dateKey = dayCellKey(weekData.week_start_date, dayIndex)
+            const dailyEvents = allEvents.filter(
+              (event) => event.kind === "task" && event.tags.includes("每日") && event.day_of_week === dayIndex + 1,
+            )
+            const doneToday = dailyEvents.filter((e) => e.tags.includes("完成")).length
+            const totalToday = dailyEvents.length
+            const isToday = dateKey === today
+
+            return (
+              <div
+                key={`daily-${day}`}
+                className={cn(
+                  "min-h-12 border-y border-l border-border/35 px-1 py-1.5",
+                  isToday && "bg-primary/[0.04]",
+                )}
+              >
+                {totalToday === 0 ? (
+                  <span className="block px-1 py-1 text-[10px] text-muted-foreground/30">
+                    —
+                  </span>
+                ) : (
+                  <>
+                    {isToday && totalToday > 0 && (
+                      <span className="mb-1 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-500 tabular-nums">
+                        {doneToday}/{totalToday}
+                      </span>
+                    )}
+                    <div className="space-y-1">
+                      {dailyEvents.map((event) => {
+                        const isDone = event.tags.includes("完成")
+                        const dailyStyle: CSSProperties = {
+                          borderColor: event.color,
+                          backgroundColor: hexToRgba(event.color, 0.10),
+                        }
+
+                        return (
+                          <button
+                            key={`daily-${event.id}-${event.day_of_week}`}
+                            type="button"
+                            onClick={() => onEventClick(event)}
+                            title={`${event.title} · 每日${isDone ? " · 已完成" : " · 待完成"}`}
+                            className={cn(
+                              "flex min-h-7 w-full items-center gap-1 rounded-md border px-1.5 py-1 text-left text-[10px] font-medium leading-tight transition-colors hover:bg-card",
+                              isDone && "text-muted-foreground line-through",
+                            )}
+                            style={dailyStyle}
+                          >
+                            {isDone ? (
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+                            ) : (
+                              <Repeat className="h-3 w-3 shrink-0 text-amber-400" />
+                            )}
+                            <span className="line-clamp-2">{event.title}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          <div className={cn(
+            "border-y border-border/35 bg-card text-[10px] font-medium text-muted-foreground",
+            compact ? "px-1 py-2 text-center" : "px-1.5 py-2",
+          )}>
             {compact ? "截" : "截止"}
           </div>
           {DAY_SHORT.map((day, dayIndex) => {
             const dateKey = dayCellKey(weekData.week_start_date, dayIndex)
             const taskEvents = allEvents.filter(
-              (event) => event.kind === "task" && event.day_of_week === dayIndex + 1,
+              (event) => event.kind === "task" && !event.tags.includes("每日") && event.day_of_week === dayIndex + 1,
             )
             const isToday = dateKey === today
 
@@ -615,11 +687,14 @@ function CalendarMonthGrid({
               const isToday = cell.dateKey === today
               const isSelected = cell.dateKey === selectedDateKey
 
-              // 按来源分组显示摘要
+              // 按来源分组显示摘要；每日任务独立为状态圆点
               const courseEvents = cellEvents.filter((e) => e.kind === "course")
               const examEvents = cellEvents.filter((e) => e.kind === "exam")
-              const taskEvents = cellEvents.filter((e) => e.kind === "task")
-              const hasEvents = cellEvents.length > 0
+              const dailyEvents = cellEvents.filter((e) => e.kind === "task" && e.tags.includes("每日"))
+              const taskEvents = cellEvents.filter((e) => e.kind === "task" && !e.tags.includes("每日"))
+              const summaryEvents = [...courseEvents, ...examEvents, ...taskEvents]
+              const hasSummary = summaryEvents.length > 0
+              const hasEvents = hasSummary || dailyEvents.length > 0
 
               return (
                 <button
@@ -633,7 +708,7 @@ function CalendarMonthGrid({
                     isToday && "bg-primary/[0.04]",
                     isSelected && "ring-2 ring-inset ring-primary",
                   )}
-                  aria-label={`${cell.dateKey}，${cellEvents.length} 个事件`}
+                  aria-label={`${cell.dateKey}，${summaryEvents.length} 个安排`}
                 >
                   {/* 日期数字 */}
                   <span
@@ -664,7 +739,7 @@ function CalendarMonthGrid({
                           : `${examEvents[0].title} +${examEvents.length - 1}`}
                       </span>
                     )}
-                    {/* 待办：最多显示 1 条 */}
+                    {/* 待办（非每日）：最多显示 1 条 */}
                     {taskEvents.length > 0 && (
                       <span className="line-clamp-1 rounded-sm bg-amber-500/10 px-1 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400 leading-tight">
                         {taskEvents.length === 1
@@ -672,10 +747,27 @@ function CalendarMonthGrid({
                           : `${taskEvents[0].title} +${taskEvents.length - 1}`}
                       </span>
                     )}
+                    {/* 每日任务状态圆点 */}
+                    {dailyEvents.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-px mt-0.5">
+                        {dailyEvents.slice(0, 5).map((e) => (
+                          <span
+                            key={`daily-dot-${e.id}`}
+                            className="inline-block h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: e.color }}
+                          />
+                        ))}
+                        {dailyEvents.length > 5 && (
+                          <span className="text-[9px] font-medium text-muted-foreground/50 ml-px">
+                            +{dailyEvents.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {/* 更多计数（移动端隐藏，桌面端显示剩余条数） */}
-                    {hasEvents && cellEvents.length > 3 && (
+                    {hasSummary && summaryEvents.length > 3 && (
                       <span className="hidden md:block mt-px text-[9px] font-medium text-muted-foreground/60">
-                        +{cellEvents.length - 3} 更多
+                        +{summaryEvents.length - 3} 更多
                       </span>
                     )}
                     {/* 无事件时显示占位 */}
@@ -877,9 +969,17 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
   const selectedDate = weekData ? dayCellKey(weekData.week_start_date, selectedDayIndex) : ""
   const selectedEvents = allEvents.filter((event) => event.day_of_week === selectedDayIndex + 1)
 
-  // 日视图分组：待办优先，按截止紧迫度排序；课程/考试按开始时间排序
-  const dayTaskEvents = selectedEvents
-    .filter((e) => e.kind === "task")
+  // 日视图分组：每日习惯 → 普通待办（未完成优先）→ 课程/考试（按开始时间）
+  const dayDailyEvents = selectedEvents
+    .filter((e) => e.kind === "task" && e.tags.includes("每日"))
+    .sort((a, b) => {
+      const aDone = a.tags.includes("完成")
+      const bDone = b.tags.includes("完成")
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return a.title.localeCompare(b.title)
+    })
+  const dayTodoEvents = selectedEvents
+    .filter((e) => e.kind === "task" && !e.tags.includes("每日"))
     .sort((a, b) => {
       const aDone = a.tags.includes("完成")
       const bDone = b.tags.includes("完成")
@@ -1155,15 +1255,34 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                   {selectedDate} 周{DAY_SHORT[selectedDayIndex]}
                 </div>
 
-                {dayTaskEvents.length > 0 && (
+                {dayDailyEvents.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                      <Repeat className="h-3.5 w-3.5" />
+                      每日习惯
+                      <span className="ml-0.5 text-[10px] text-muted-foreground">
+                        {dayDailyEvents.filter((e) => e.tags.includes("完成")).length}/{dayDailyEvents.length} 今日完成
+                      </span>
+                    </div>
+                    {dayDailyEvents.map((event) => (
+                      <EventCard
+                        key={`day-daily-${event.id}`}
+                        event={event}
+                        onClick={() => handleEventClick(event)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {dayTodoEvents.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
                       <ListTodo className="h-3.5 w-3.5" />
                       待办
                     </div>
-                    {dayTaskEvents.map((event) => (
+                    {dayTodoEvents.map((event) => (
                       <EventCard
-                        key={`day-task-${event.id}`}
+                        key={`day-todo-${event.id}`}
                         event={event}
                         onClick={() => handleEventClick(event)}
                       />
@@ -1173,7 +1292,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
 
                 {dayTimedEvents.length > 0 && (
                   <div className="space-y-2">
-                    {dayTaskEvents.length > 0 && (
+                    {(dayDailyEvents.length > 0 || dayTodoEvents.length > 0) && (
                       <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">
                         <CalendarDays className="h-3.5 w-3.5" />
                         日程

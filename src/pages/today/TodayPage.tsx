@@ -134,13 +134,13 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
                 {courses.current_course && (
                   <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
                     当前 {courses.current_course.title} · {courses.current_course.start_time}
-                    {courses.current_course.location && ` @ ${courses.current_course.location}`}
+                    {courses.current_course.location && ` 在 ${courses.current_course.location}`}
                   </span>
                 )}
                 {!courses.current_course && courses.next_course && (
                   <span className="mt-0.5 block text-[11px] leading-tight text-muted-foreground">
                     下一节 {courses.next_course.title} · {courses.next_course.start_time}
-                    {courses.next_course.location && ` @ ${courses.next_course.location}`}
+                    {courses.next_course.location && ` 在 ${courses.next_course.location}`}
                   </span>
                 )}
               </>
@@ -155,7 +155,7 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
             iconColor="text-amber-500"
             onClick={() => onNavigate("todo")}
           >
-            {tasks.overdue_count === 0 && tasks.due_today_count === 0 ? (
+            {tasks.overdue_count === 0 && tasks.due_today_count === 0 && tasks.daily_unfinished_count === 0 ? (
               <span className="text-xs text-muted-foreground">今天暂无到期待办</span>
             ) : (
               <>
@@ -171,11 +171,21 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
                     <span className="text-muted-foreground"> 个今天到期</span>
                   </span>
                 )}
-                {tasks.spotlight.length > 0 && (
+                {tasks.daily_unfinished_count > 0 && (
+                  <span className="block text-xs">
+                    <span className="font-semibold text-primary">{tasks.daily_unfinished_count}</span>
+                    <span className="text-muted-foreground"> 个每日任务待完成</span>
+                  </span>
+                )}
+                {tasks.spotlight.length > 0 ? (
                   <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                     {tasks.spotlight[0].title}
                   </span>
-                )}
+                ) : tasks.daily_spotlight.length > 0 ? (
+                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                    {tasks.daily_spotlight[0].title}
+                  </span>
+                ) : null}
               </>
             )}
           </BriefingBlock>

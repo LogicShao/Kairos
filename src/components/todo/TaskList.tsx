@@ -10,7 +10,7 @@ import { FilterChip } from "@/components/shared/filter-chip"
 import { PageShell } from "@/components/shared/page-shell"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
-import { Calendar, Circle, CheckCircle2, ListTodo, Plus, Trash2 } from "lucide-react"
+import { Bell, Calendar, CheckCircle2, Circle, ListTodo, Plus, Repeat, Trash2 } from "lucide-react"
 
 interface PriorityConfig {
   label: string
@@ -38,6 +38,19 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "低" },
 ]
 
+const PRIORITY_RANK: Record<TaskPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+}
+
+/** +08:00 今日日期 YYYY-MM-DD（与后端 complete_daily_task 的 today_china 一致）。 */
+function todayChina(): string {
+  const now = new Date()
+  const china = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 8 * 3600000)
+  return china.toISOString().slice(0, 10)
+}
+
 function formatDueDate(dateStr: string | null): { text: string; urgent: boolean } {
   if (!dateStr) return { text: "", urgent: false }
   const due = new Date(dateStr + "T00:00:00")
@@ -52,12 +65,6 @@ function formatDueDate(dateStr: string | null): { text: string; urgent: boolean 
   return { text: dateStr, urgent: false }
 }
 
-const PRIORITY_RANK: Record<TaskPriority, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-}
-
 export function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,41 +74,54 @@ export function TaskList() {
   const [statusFilter, setStatusFilter] = useState<string>("")
   const [priorityFilter, setPriorityFilter] = useState<string>("")
 
-  // 排序：优先级高 → 低，截止日期早 → 晚，无截止日期排最后
-  const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => {
+  const today = todayChina()
+
+  // 每日任务：不受状态筛选影响、始终全量显示（含今日已完成），按优先级/标题排序。
+  const dailyTasks = useMemo(() => {
+    return tasks
+      .filter((t) => t.is_daily)
+      .sort((a, b) => {
+        const pa = PRIORITY_RANK[a.priority] ?? PRIORITY_RANK.medium
+        const pb = PRIORITY_RANK[b.priority] ?? PRIORITY_RANK.medium
+        if (pa !== pb) return pa - pb
+        return a.title.localeCompare(b.title)
+      })
+  }, [tasks])
+  const dailyCompleted = dailyTasks.filter((t) => t.last_completed_date === today).length
+
+  // 普通任务：默认隐藏已完成；显式选状态时按状态过滤。排序优先级高 → 低、截止日期早 → 晚。
+  const normalTasks = useMemo(() => {
+    const base = tasks.filter((t) => !t.is_daily)
+    const visible = statusFilter ? base.filter((t) => t.status === statusFilter) : base.filter((t) => t.status !== "done")
+    return [...visible].sort((a, b) => {
       const pa = PRIORITY_RANK[a.priority] ?? PRIORITY_RANK.medium
       const pb = PRIORITY_RANK[b.priority] ?? PRIORITY_RANK.medium
       if (pa !== pb) return pa - pb
-
       if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
       return 0
     })
-  }, [tasks])
+  }, [tasks, statusFilter])
 
+  // 状态筛选在前端做（每日任务需要全量数据）；优先级筛选交给后端。
   const fetchTasks = useCallback(async () => {
     const filters: TaskFilterParams = {}
-    if (statusFilter) filters.status_filter = statusFilter
     if (priorityFilter) filters.priority_filter = priorityFilter
-
     const result = await invoke<Task[]>("get_all_tasks", { filters })
-    setTasks(!statusFilter ? result.filter(t => t.status !== "done") : result)
+    setTasks(result)
     setError(null)
-  }, [statusFilter, priorityFilter])
+  }, [priorityFilter])
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
         const filters: TaskFilterParams = {}
-        if (statusFilter) filters.status_filter = statusFilter
         if (priorityFilter) filters.priority_filter = priorityFilter
-
         const result = await invoke<Task[]>("get_all_tasks", { filters })
         if (!cancelled) {
-          setTasks(!statusFilter ? result.filter(t => t.status !== "done") : result)
+          setTasks(result)
           setError(null)
         }
       } catch {
@@ -116,7 +136,7 @@ export function TaskList() {
     }
     void load()
     return () => { cancelled = true }
-  }, [statusFilter, priorityFilter])
+  }, [priorityFilter])
 
   async function handleCreate(data: CreateTaskRequest) {
     try {
@@ -148,6 +168,22 @@ export function TaskList() {
     }
   }
 
+  // 每日任务完成/取消：按 today 判断今日状态，走专用命令。
+  async function handleToggleDaily(task: Task) {
+    const completedToday = task.last_completed_date === today
+    try {
+      if (completedToday) {
+        await invoke("uncomplete_daily_task", { id: task.id })
+      } else {
+        await invoke("complete_daily_task", { id: task.id })
+      }
+      await fetchTasks()
+    } catch (e) {
+      setError(userErrorMessage(e, "更新每日任务失败"))
+    }
+  }
+
+  // 普通任务一次性完成。
   async function handleComplete(task: Task) {
     try {
       await invoke("update_task", { id: task.id, cmd: { status: "done" } })
@@ -234,110 +270,236 @@ export function TaskList() {
       )}
 
       {!loading && tasks.length > 0 && (
-        <div className="space-y-2">
-          {sortedTasks.map((task) => {
-            const dueInfo = formatDueDate(task.due_date)
-            const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
-
-            return (
-              <AcrylicPanel
-                key={task.id}
-                className={cn(
-                  "p-3 cursor-pointer transition-all bg-card hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
-                  task.status === "done" && "opacity-60"
-                )}
-                onClick={() => { setEditingTask(task); setShowForm(false) }}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (task.status === "done") return
-                        void handleComplete(task)
-                      }}
-                      disabled={task.status === "done"}
-                      aria-label={task.status === "done" ? "已完成" : "完成任务"}
-                      className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default md:h-6 md:w-6"
+        <div className="space-y-5">
+          {/* 每日任务区块 */}
+          {dailyTasks.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-medium text-foreground">每日任务</h3>
+                <span className="text-xs text-muted-foreground">
+                  {dailyCompleted}/{dailyTasks.length} 今日已完成
+                </span>
+              </div>
+              <div className="space-y-2">
+                {dailyTasks.map((task) => {
+                  const completedToday = task.last_completed_date === today
+                  const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
+                  return (
+                    <AcrylicPanel
+                      key={task.id}
+                      className={cn(
+                        "border-primary/20 bg-card p-3 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md",
+                        completedToday && "opacity-70"
+                      )}
+                      onClick={() => { setEditingTask(task); setShowForm(false) }}
                     >
-                      {task.status === "done" ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "text-sm font-medium truncate",
-                          task.status === "done" && "line-through text-muted-foreground"
-                        )}
-                      >
-                        {task.title}
-                      </span>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
-                          priorityCfg.className
-                        )}
-                      >
-                        {/* 优先级颜色圆点 */}
-                        <span
-                          className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)}
-                        />
-                        {priorityCfg.label}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {task.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      {dueInfo.text && (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 text-[10px]",
-                            dueInfo.urgent ? "text-red-400" : "text-muted-foreground"
-                          )}
-                        >
-                          <Calendar className="h-3 w-3" />
-                          {dueInfo.text}
-                        </span>
-                      )}
-                      {task.tags && (() => {
-                        try {
-                          const tagArr = JSON.parse(task.tags) as string[]
-                          if (!Array.isArray(tagArr) || tagArr.length === 0) return null
-                          return (
-                            <span className="text-[10px] text-muted-foreground/60">
-                              {tagArr.join(" · ")}
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleToggleDaily(task)
+                            }}
+                            aria-label={completedToday ? "取消今日完成" : "完成今日任务"}
+                            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-6 md:w-6"
+                          >
+                            {completedToday ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                            ) : (
+                              <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "text-sm font-medium truncate",
+                                completedToday && "line-through text-muted-foreground"
+                              )}
+                            >
+                              {task.title}
                             </span>
-                          )
-                        } catch {
-                          return null
-                        }
-                      })()}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void handleDelete(task.id)
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                  </Button>
-                </div>
-              </AcrylicPanel>
-            )
-          })}
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
+                                completedToday
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                  : "bg-primary/10 text-primary border-primary/20"
+                              )}
+                            >
+                              {completedToday ? "今日已完成" : "今日待完成"}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
+                                priorityCfg.className
+                              )}
+                            >
+                              <span className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)} />
+                              {priorityCfg.label}
+                            </span>
+                          </div>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                              {task.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {task.reminder_time && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Bell className="h-3 w-3" />
+                                每天 {task.reminder_time} 提醒
+                              </span>
+                            )}
+                            {task.tags && (() => {
+                              try {
+                                const tagArr = JSON.parse(task.tags) as string[]
+                                if (!Array.isArray(tagArr) || tagArr.length === 0) return null
+                                return (
+                                  <span className="text-[10px] text-muted-foreground/60">
+                                    {tagArr.join(" · ")}
+                                  </span>
+                                )
+                              } catch {
+                                return null
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void handleDelete(task.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </Button>
+                      </div>
+                    </AcrylicPanel>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 普通任务区块 */}
+          {normalTasks.length > 0 && (
+            <div>
+              {dailyTasks.length > 0 && (
+                <h3 className="mb-2 text-sm font-medium text-foreground">普通任务</h3>
+              )}
+              <div className="space-y-2">
+                {normalTasks.map((task) => {
+                  const dueInfo = formatDueDate(task.due_date)
+                  const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
+
+                  return (
+                    <AcrylicPanel
+                      key={task.id}
+                      className={cn(
+                        "p-3 cursor-pointer transition-all bg-card hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
+                        task.status === "done" && "opacity-60"
+                      )}
+                      onClick={() => { setEditingTask(task); setShowForm(false) }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (task.status === "done") return
+                              void handleComplete(task)
+                            }}
+                            disabled={task.status === "done"}
+                            aria-label={task.status === "done" ? "已完成" : "完成任务"}
+                            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default md:h-6 md:w-6"
+                          >
+                            {task.status === "done" ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                            ) : (
+                              <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "text-sm font-medium truncate",
+                                task.status === "done" && "line-through text-muted-foreground"
+                              )}
+                            >
+                              {task.title}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
+                                priorityCfg.className
+                              )}
+                            >
+                              <span
+                                className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)}
+                              />
+                              {priorityCfg.label}
+                            </span>
+                          </div>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                              {task.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {dueInfo.text && (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 text-[10px]",
+                                  dueInfo.urgent ? "text-red-400" : "text-muted-foreground"
+                                )}
+                              >
+                                <Calendar className="h-3 w-3" />
+                                {dueInfo.text}
+                              </span>
+                            )}
+                            {task.tags && (() => {
+                              try {
+                                const tagArr = JSON.parse(task.tags) as string[]
+                                if (!Array.isArray(tagArr) || tagArr.length === 0) return null
+                                return (
+                                  <span className="text-[10px] text-muted-foreground/60">
+                                    {tagArr.join(" · ")}
+                                  </span>
+                                )
+                              } catch {
+                                return null
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void handleDelete(task.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </Button>
+                      </div>
+                    </AcrylicPanel>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </PageShell>

@@ -188,6 +188,16 @@ pub struct Task {
     pub created_at: String,
     /// UTC ISO 8601 更新时间，LWW 同步会使用该字段。
     pub updated_at: String,
+    /// 1 = 每日任务（每天重置为待办，供长期习惯跟踪）；0 = 普通一次性任务。
+    #[serde(default)]
+    pub is_daily: bool,
+    /// 每日任务最近一次完成日期（YYYY-MM-DD）；null = 今日尚未完成。普通任务恒为 null。
+    /// 前端据此判断"今日是否已完成"，跨天自然重置。
+    #[serde(default)]
+    pub last_completed_date: Option<String>,
+    /// 每日任务提醒时间（HH:MM）；null = 不提醒。普通任务恒为 null。
+    #[serde(default)]
+    pub reminder_time: Option<String>,
     /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
     #[serde(default)]
     pub deleted_at: Option<String>,
@@ -201,6 +211,10 @@ pub struct CreateTaskRequest {
     pub priority: String,
     pub due_date: Option<String>,
     pub tags: String,
+    #[serde(default)]
+    pub is_daily: bool,
+    #[serde(default)]
+    pub reminder_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +225,9 @@ pub struct UpdateTaskRequest {
     pub priority: String,
     pub due_date: Option<String>,
     pub tags: String,
+    pub is_daily: bool,
+    pub last_completed_date: Option<String>,
+    pub reminder_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -444,7 +461,7 @@ pub struct AiConfig {
     pub enabled: bool,
     /// OpenAI 兼容 API base URL，**不含** /v1（代码统一追加 /v1/chat/completions）。
     pub base_url: String,
-    /// 模型名，默认 deepseek-chat。
+    /// 模型名，默认 deepseek-v4-flash。
     pub model: String,
     /// API key 密文（AES-CBC + 本地随机 key 文件）。空字符串 = 未配置。
     pub api_key_encrypted: String,
@@ -488,7 +505,7 @@ pub struct AiMorningBrief {
     pub markdown: String,
     /// "ai" 或 "rule"（与 CHECK 约束、BriefSource serde、前端字面量三处同值）。
     pub source: String,
-    /// 仅 source="ai" 时有值，如 "deepseek-chat"。
+    /// 仅 source="ai" 时有值，如 "deepseek-v4-flash"。
     pub model: String,
     /// 生成时间，RFC3339。
     pub generated_at: String,

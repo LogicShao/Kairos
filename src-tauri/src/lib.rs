@@ -243,6 +243,11 @@ pub fn run() {
                 );
             }
 
+            // ─── 每日任务提醒调度 ───
+            if notifications_available {
+                notifications::daily_reminder::ensure_scheduled(db_conn.clone(), app.handle().clone());
+            }
+
             // ─── 自动同步状态初始化 ───
             let auto_sync_state = AutoSyncState::new();
             {
@@ -291,6 +296,8 @@ pub fn run() {
             commands::tasks::create_task,
             commands::tasks::update_task,
             commands::tasks::delete_task,
+            commands::tasks::complete_daily_task,
+            commands::tasks::uncomplete_daily_task,
             commands::courses::get_all_courses,
             commands::courses::create_course,
             commands::courses::update_course,
@@ -347,6 +354,7 @@ pub fn run() {
             commands::ai::update_ai_config,
             commands::ai::get_ai_morning_brief,
             commands::ai::generate_ai_morning_brief,
+            commands::ai::generate_ai_morning_brief_streaming,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
