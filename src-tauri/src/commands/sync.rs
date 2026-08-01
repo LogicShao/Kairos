@@ -55,7 +55,7 @@ fn app_db_path(app_handle: &tauri::AppHandle) -> Result<String, String> {
     db_path
         .to_str()
         .map(str::to_string)
-        .ok_or_else(|| "invalid db path".to_string())
+        .ok_or_else(|| "数据库路径无效".to_string())
 }
 
 fn open_app_connection(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
@@ -120,7 +120,7 @@ pub fn test_sync_connection(db: State<'_, Arc<Mutex<Connection>>>) -> Result<boo
     };
 
     if config.server_url.is_empty() {
-        return Err("Server URL not configured".to_string());
+        return Err("未配置服务器地址".to_string());
     }
 
     let client = crate::sync::webdav::WebDavClient::new(
@@ -151,7 +151,7 @@ pub fn sync_now(
 
     // RAII 护栏：guard drop 时自动释放 running
     let _guard =
-        SyncGuard::acquire(&running).ok_or_else(|| "Sync already in progress".to_string())?;
+        SyncGuard::acquire(&running).ok_or_else(|| "同步正在进行中".to_string())?;
 
     let result = {
         let mut conn = open_app_connection(&app_handle)?;

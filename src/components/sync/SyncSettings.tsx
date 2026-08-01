@@ -304,7 +304,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
               <input
                 type="text"
                 className={inputClass(false)}
-                placeholder="username"
+                placeholder="用户名"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -392,7 +392,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
 
         {lastSyncAt && (
           <p className="text-center text-xs text-muted-foreground">
-            上次同步: {new Date(lastSyncAt).toLocaleString()}
+            上次同步：{new Date(lastSyncAt).toLocaleString("zh-CN")}
           </p>
         )}
 

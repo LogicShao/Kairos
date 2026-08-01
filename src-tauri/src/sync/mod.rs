@@ -123,7 +123,7 @@ pub fn execute_sync(conn: &mut Connection) -> Result<SyncResult, String> {
     let config = db::sync::get_sync_config(conn).map_err(|e| e.to_string())?;
 
     if config.server_url.is_empty() {
-        return Err("Server URL not configured".to_string());
+        return Err("未配置服务器地址".to_string());
     }
 
     let client = WebDavClient::new(
@@ -149,7 +149,7 @@ pub fn execute_sync(conn: &mut Connection) -> Result<SyncResult, String> {
             .map(|(exported_at, etag)| (exported_at, etag, empty_sync_stats()))
             .or_else(|error| match error {
                 UploadError::Conflict => retry_after_remote_conflict(conn, &client),
-                UploadError::Other(message) => Err(format!("Upload failed: {}", message)),
+                UploadError::Other(message) => Err(format!("上传失败：{message}")),
             })?;
     add_sync_stats(&mut stats, retry_stats);
 
@@ -317,7 +317,7 @@ fn download_remote(client: &WebDavClient) -> Result<Option<webdav::DownloadedSyn
                 log::info!("No remote data found, will upload local only");
                 Ok(None)
             } else {
-                Err(format!("Download failed: {}", e))
+                Err(format!("下载失败：{e}"))
             }
         }
     }
@@ -351,12 +351,12 @@ fn retry_after_remote_conflict(
     log::warn!("Remote sync data changed during upload; retrying once");
     let remote = client
         .download()
-        .map_err(|e| format!("Download failed after upload conflict: {}", e))?;
+        .map_err(|e| format!("冲突后重新下载失败：{e}"))?;
     let retry_stats = merge_remote(conn, &remote)?;
     let (exported_at, etag) =
         upload_snapshot(conn, client, remote.etag.as_deref()).map_err(|error| match error {
-            UploadError::Conflict => "Upload failed: remote changed again during retry".to_string(),
-            UploadError::Other(message) => format!("Upload failed: {}", message),
+            UploadError::Conflict => "上传失败：重试期间远程数据再次变化".to_string(),
+            UploadError::Other(message) => format!("上传失败：{message}"),
         })?;
     Ok((exported_at, etag, retry_stats))
 }

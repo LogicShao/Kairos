@@ -104,30 +104,6 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
           </div>
         </AcrylicPanel>
 
-        <div className="grid gap-3">
-          {HUB_ENTRIES.map(({ key, label, description, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onNavigate(key)}
-              className={cn(
-                "flex min-h-16 w-full items-center gap-3 rounded-lg border border-border/60 bg-card/70 px-4 py-3 text-left",
-                "transition-colors hover:bg-card active:bg-muted/60",
-              )}
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-foreground">{label}</span>
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {description}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-
         <AcrylicPanel className="flex flex-col gap-4 bg-card p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -182,6 +158,30 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
             </div>
           </div>
         </AcrylicPanel>
+
+        <div className="grid gap-3">
+          {HUB_ENTRIES.map(({ key, label, description, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onNavigate(key)}
+              className={cn(
+                "flex min-h-16 w-full items-center gap-3 rounded-lg border border-border/60 bg-card/70 px-4 py-3 text-left",
+                "transition-colors hover:bg-card active:bg-muted/60",
+              )}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-foreground">{label}</span>
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                  {description}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
 
         <p className="text-center text-[11px] text-muted-foreground/50">
           v{__APP_VERSION__}

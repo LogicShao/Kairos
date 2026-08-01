@@ -33,7 +33,7 @@ export function formatExamTime(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return value
   }
-  return date.toLocaleString([], {
+  return date.toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

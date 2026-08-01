@@ -336,7 +336,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
               value={form.course_name}
               onChange={(e) => setForm({ ...form, course_name: e.target.value })}
               required
-              placeholder="e.g. 高数期末考试"
+              placeholder="如：高数期末考试"
               className={FIELD_CLASS}
             />
           </div>
@@ -380,7 +380,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
               type="text"
               value={form.semester}
               onChange={(e) => setForm({ ...form, semester: e.target.value })}
-              placeholder="e.g. 2026S1"
+              placeholder="如：2026S1"
               className={FIELD_CLASS}
             />
           </div>
@@ -454,7 +454,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
                 type="text"
                 value={importSemester}
                 onChange={(e) => setImportSemester(e.target.value)}
-                placeholder="e.g. 2026S1"
+                placeholder="如：2026S1"
                 className={FIELD_CLASS}
               />
             </div>

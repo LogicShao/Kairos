@@ -14,7 +14,7 @@ pub fn default_widget_size(mode: &str) -> Result<(i64, i64)> {
         "small" => Ok((260, 140)),
         "medium" => Ok((320, 220)),
         "large" => Ok((420, 320)),
-        _ => Err(invalid_widget_config("invalid widget mode")),
+        _ => Err(invalid_widget_config("无效的小组件模式")),
     }
 }
 
@@ -137,14 +137,14 @@ fn validate_widget_config(config: &WidgetConfig) -> Result<()> {
     default_widget_size(&config.mode)?;
     if !(WIDGET_MIN_OPACITY..=WIDGET_MAX_OPACITY).contains(&config.opacity) {
         return Err(invalid_widget_config(
-            "widget opacity must be between 0.6 and 1.0",
+            "小组件透明度必须在 0.6 到 1.0 之间",
         ));
     }
     if !(WIDGET_MIN_WIDTH..=WIDGET_MAX_WIDTH).contains(&config.width) {
-        return Err(invalid_widget_config("widget width is out of range"));
+        return Err(invalid_widget_config("小组件宽度超出范围"));
     }
     if !(WIDGET_MIN_HEIGHT..=WIDGET_MAX_HEIGHT).contains(&config.height) {
-        return Err(invalid_widget_config("widget height is out of range"));
+        return Err(invalid_widget_config("小组件高度超出范围"));
     }
     Ok(())
 }

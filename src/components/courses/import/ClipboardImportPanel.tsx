@@ -52,7 +52,7 @@ export function ClipboardImportPanel({
               type="text"
               value={importSemester}
               onChange={(e) => setImportSemester(e.target.value)}
-              placeholder="e.g. 2026S1"
+              placeholder="如：2026S1"
               className={FIELD_CLASS}
             />
           </div>

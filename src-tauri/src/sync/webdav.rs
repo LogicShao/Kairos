@@ -35,7 +35,7 @@ pub enum UploadError {
 impl std::fmt::Display for UploadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UploadError::Conflict => write!(f, "Remote sync data changed during upload"),
+            UploadError::Conflict => write!(f, "同步冲突：远端数据在上传期间已变更"),
             UploadError::Other(message) => write!(f, "{message}"),
         }
     }
@@ -77,7 +77,7 @@ impl WebDavClient {
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&auth_value)
-                .map_err(|e| format!("Invalid auth header: {}", e))?,
+                .map_err(|e| format!("认证信息无效：{e}"))?,
         );
 
         Ok(headers)
@@ -92,7 +92,7 @@ impl WebDavClient {
         remote_etag: Option<&str>,
     ) -> Result<Option<String>, UploadError> {
         let json = serde_json::to_string(data)
-            .map_err(|e| UploadError::Other(format!("Failed to serialize sync data: {}", e)))?;
+            .map_err(|e| UploadError::Other(format!("同步数据序列化失败：{e}")))?;
 
         let url = self.sync_file_url();
         let headers = self.auth_header().map_err(UploadError::Other)?;
@@ -118,7 +118,7 @@ impl WebDavClient {
             Err(UploadError::Conflict)
         } else {
             Err(UploadError::Other(format!(
-                "Upload failed: HTTP {} — {}",
+                "上传失败：HTTP {} — {}",
                 status.as_u16(),
                 response.text().unwrap_or_default()
             )))
@@ -143,16 +143,16 @@ impl WebDavClient {
             let etag = response_etag(response.headers());
             let body = response
                 .text()
-                .map_err(|e| format!("Failed to read response body: {}", e))?;
+                .map_err(|e| format!("读取响应内容失败：{e}"))?;
 
             let data = serde_json::from_str::<SyncData>(&body)
-                .map_err(|e| format!("Failed to parse sync data: {}", e))?;
+                .map_err(|e| format!("同步数据解析失败：{e}"))?;
             Ok(DownloadedSyncData { data, etag })
         } else if status.as_u16() == 404 {
             Err("No remote sync data found (404)".to_string())
         } else {
             Err(format!(
-                "Download failed: HTTP {} — {}",
+                "下载失败：HTTP {} — {}",
                 status.as_u16(),
                 response.text().unwrap_or_default()
             ))
@@ -191,13 +191,13 @@ fn is_precondition_failed(status: StatusCode) -> bool {
 
 fn map_reqwest_error(err: reqwest::Error, _url: &str) -> String {
     if err.is_timeout() {
-        "Connection timed out (10s)".to_string()
+        "连接超时（10 秒）".to_string()
     } else if err.is_connect() {
-        format!("Cannot connect to server: {}", err)
+        format!("无法连接服务器：{err}")
     } else if err.is_request() {
-        format!("Request failed: {}", err)
+        format!("请求失败：{err}")
     } else {
-        format!("Network error: {}", err)
+        format!("网络错误：{err}")
     }
 }
 

@@ -96,7 +96,7 @@ export function CourseFormModal({
             type="text"
             value={form.week_pattern}
             onChange={(e) => setForm({ ...form, week_pattern: e.target.value })}
-            placeholder="e.g. 1-17周全周"
+            placeholder="如：1-17周全周"
             className={FIELD_CLASS}
           />
         </div>
@@ -137,7 +137,7 @@ export function CourseFormModal({
             type="text"
             value={form.semester}
             onChange={(e) => setForm({ ...form, semester: e.target.value })}
-            placeholder="e.g. 2026S1"
+            placeholder="如：2026S1"
             className={FIELD_CLASS}
           />
         </div>

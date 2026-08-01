@@ -467,7 +467,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
 
             <AcrylicPanel className="bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">番茄钟 Profile</h2>
+                <h2 className="text-sm font-semibold text-foreground">番茄钟配置</h2>
                 <span className="text-xs text-muted-foreground">{profiles.length} 个配置</span>
               </div>
               <div className="grid gap-2">
@@ -495,7 +495,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
                           variant="ghost"
                           disabled={saving}
                           onClick={() => handleEditProfile(profile)}
-                          aria-label="编辑 profile"
+                          aria-label="编辑配置"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -505,7 +505,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
                           variant="ghost"
                           disabled={saving}
                           onClick={() => void handleDeleteProfile(profile.id)}
-                          aria-label="删除 profile"
+                          aria-label="删除配置"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -553,7 +553,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
                   onClick={() => void handleSaveProfile()}
                 >
                   <Save className="mr-1.5 h-4 w-4" />
-                  {editingProfileId === null ? "保存 Profile" : "更新 Profile"}
+                  {editingProfileId === null ? "保存配置" : "更新配置"}
                 </Button>
                 {editingProfileId !== null && (
                   <Button
