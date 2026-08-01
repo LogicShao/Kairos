@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
+use crate::ai::deepseek::StreamChunk;
 use crate::db::models::{AiConfigView, AiMorningBrief, UpdateAiConfigRequest};
 use crate::timer::PomodoroEngine;
 
@@ -76,4 +78,23 @@ pub fn generate_ai_morning_brief(
     force: bool,
 ) -> Result<AiMorningBrief, String> {
     crate::ai::morning_brief::generate_today_brief(db.inner(), engine.inner(), &app_handle, force)
+}
+
+/// 流式生成今日摘要（手动触发）。chunk 经 Channel 实时推送，完成后返回最终落库结果。
+#[tauri::command]
+pub async fn generate_ai_morning_brief_streaming(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
+    app_handle: AppHandle,
+    channel: Channel<StreamChunk>,
+    force: bool,
+) -> Result<AiMorningBrief, String> {
+    crate::ai::morning_brief::generate_today_brief_streaming(
+        db.inner(),
+        engine.inner(),
+        &app_handle,
+        force,
+        &channel,
+    )
+    .await
 }

@@ -8,8 +8,8 @@ use crate::commands::briefing::{
     PhaseBriefing, PomodoroBriefing, TodayBriefingResponse, TodayCourses,
 };
 
-/// 默认模型名（配置页可改）。成本预算按 deepseek-chat 官方价估算，见 design.md。
-pub const MODEL_DEFAULT: &str = "deepseek-chat";
+/// 默认模型名（配置页可改）。成本预算按 deepseek-v4-flash 官方价估算，见 design.md。
+pub const MODEL_DEFAULT: &str = "deepseek-v4-flash";
 /// 单次生成 token 上限（成本护栏，硬编码，不信任前端）。
 pub const MAX_TOKENS: u32 = 400;
 /// 生成温度。

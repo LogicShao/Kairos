@@ -36,17 +36,47 @@ export function MarkdownSubset({ text }: { text: string }) {
 
         const lines = trimmed.split("\n")
         if (trimmed.startsWith("## ")) {
+          // 标题与正文可能只隔单个 \n（AI 输出风格），需拆成标题 + 正文段落。
+          // 标题只取第一行，正文为其余行，避免整块 slice 导致正文重复渲染。
+          const title = lines[0].slice(3)
+          const rest = lines.slice(1).map((l) => l.trim()).filter(Boolean)
           return (
-            <h3 key={i} className="pt-2 text-sm font-semibold text-foreground first:pt-0">
-              {renderInline(trimmed.slice(3))}
-            </h3>
+            <Fragment key={i}>
+              <h3 className="pt-2 text-sm font-semibold text-foreground first:pt-0">
+                {renderInline(title)}
+              </h3>
+              {rest.length > 0 && (
+                <p className="text-muted-foreground">
+                  {rest.map((line, j) => (
+                    <Fragment key={j}>
+                      {j > 0 && <br />}
+                      {renderInline(line)}
+                    </Fragment>
+                  ))}
+                </p>
+              )}
+            </Fragment>
           )
         }
         if (trimmed.startsWith("# ")) {
+          const title = lines[0].slice(2)
+          const rest = lines.slice(1).map((l) => l.trim()).filter(Boolean)
           return (
-            <h2 key={i} className="text-base font-semibold text-foreground">
-              {renderInline(trimmed.slice(2))}
-            </h2>
+            <Fragment key={i}>
+              <h2 className="text-base font-semibold text-foreground">
+                {renderInline(title)}
+              </h2>
+              {rest.length > 0 && (
+                <p className="text-muted-foreground">
+                  {rest.map((line, j) => (
+                    <Fragment key={j}>
+                      {j > 0 && <br />}
+                      {renderInline(line)}
+                    </Fragment>
+                  ))}
+                </p>
+              )}
+            </Fragment>
           )
         }
 

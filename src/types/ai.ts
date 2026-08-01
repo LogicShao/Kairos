@@ -33,7 +33,7 @@ export interface AiMorningBrief {
   /** 固定 5 分节 markdown 子集文本（含来源 footer）。 */
   markdown: string
   source: BriefSource
-  /** 仅 source === "ai" 时有值，如 "deepseek-chat"。 */
+  /** 仅 source === "ai" 时有值，如 "deepseek-v4-flash"。 */
   model: string
   /** 生成时间，RFC3339。 */
   generated_at: string

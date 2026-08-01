@@ -204,7 +204,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
 
           <div className="flex flex-col gap-4 border-t border-border/50 pt-4">
             <div>
-              <label className="mb-0.5 block text-sm text-muted-foreground">API Base URL</label>
+              <label className="mb-0.5 block text-sm text-muted-foreground">API 接口地址</label>
               <input
                 type="text"
                 className={inputClass()}
@@ -222,14 +222,14 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
               <input
                 type="text"
                 className={inputClass()}
-                placeholder="deepseek-chat"
+                placeholder="deepseek-v4-flash"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="mb-0.5 block text-sm text-muted-foreground">API Key</label>
+              <label className="mb-0.5 block text-sm text-muted-foreground">API 密钥</label>
               <input
                 type="password"
                 className={inputClass()}
@@ -259,8 +259,8 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
             <p>
               启用后，今日的课表、待办、考试与番茄钟数据会发送给所配置的第三方 AI 服务用于生成摘要。
             </p>
-            <p>单次生成约 &lt;1000 token，每日最多一次，成本极低。</p>
-            <p>可在本页随时关闭；关闭后 Today 页不再显示 AI 摘要。</p>
+            <p>单次生成约 1000 token（词元）以内，每日最多一次，成本极低。</p>
+            <p>可在本页随时关闭；关闭后今日页不再显示 AI 摘要。</p>
           </div>
         </AcrylicPanel>
 

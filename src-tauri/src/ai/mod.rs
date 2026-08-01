@@ -39,7 +39,7 @@ pub struct AiBriefResult {
     pub source: BriefSource,
     /// 生成时间，RFC3339。
     pub generated_at: String,
-    /// 仅 source=Ai 时有模型名，如 "deepseek-chat"。
+    /// 仅 source=Ai 时有模型名，如 "deepseek-v4-flash"。
     pub model: Option<String>,
 }
 
@@ -87,6 +87,21 @@ pub fn resolve_service(config: &AiConfig, key: &[u8; 16]) -> Option<Box<dyn AISe
         deepseek::DeepseekProvider::new(config, key)
             .ok()
             .map(|p| Box::new(p) as Box<dyn AIService>)
+    } else {
+        None
+    }
+}
+
+/// 流式分发器：未启用或无 key → `None`。返回 `AsyncDeepseekProvider`（不含 blocking client）。
+///
+/// 与 `resolve_service` 判定条件一致；手动触发命令用它拿到流式能力。
+/// 只在 async 上下文中调用，绝不构造 blocking client。
+pub fn resolve_streaming_provider(
+    config: &AiConfig,
+    key: &[u8; 16],
+) -> Option<deepseek::AsyncDeepseekProvider> {
+    if config.enabled && !config.api_key_encrypted.is_empty() {
+        deepseek::AsyncDeepseekProvider::new(config, key).ok()
     } else {
         None
     }

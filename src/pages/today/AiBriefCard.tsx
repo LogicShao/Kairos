@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { Channel, invoke } from "@tauri-apps/api/core"
 import { RefreshCw, Sparkles, Wand2 } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
@@ -9,12 +9,23 @@ import { listenWithCleanup } from "@/lib/tauri-events"
 import { MarkdownSubset } from "@/lib/markdown-subset"
 import type { AiConfig, AiMorningBrief } from "@/types/ai"
 
+/** 后端流式推送的增量片段（与 commands/ai.rs 的 StreamChunk 对齐）。 */
+interface StreamChunk {
+  delta: string
+}
+
+/** 剥离 markdown 末尾的 --- 分隔线与来源 footer（存储仍保留以通过后端结构校验）。 */
+function stripBriefFooter(md: string): string {
+  const footerRe = /(?:\n?---\s*\n?)?(?:\*?(?:本地生成|AI生成，请核实)\*?)\s*$/
+  return md.replace(footerRe, "").trim()
+}
+
 interface AiBriefCardProps {
   onNavigate: (key: string) => void
 }
 
 /**
- * Today 页的 AI 每日摘要卡片。
+ * 今日页的 AI 每日摘要卡片。
  * 未启用或未配置 key 时整卡隐藏（AI 可选，不打扰默认用户）。
  */
 export function AiBriefCard({ onNavigate }: AiBriefCardProps) {
@@ -22,6 +33,7 @@ export function AiBriefCard({ onNavigate }: AiBriefCardProps) {
   const [brief, setBrief] = useState<AiMorningBrief | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [streamingText, setStreamingText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // ── 初始加载：config + 今日缓存 ──
@@ -66,13 +78,22 @@ export function AiBriefCard({ onNavigate }: AiBriefCardProps) {
     )
   }, [])
 
-  // ── 手动生成 / 重新生成 ──
+  // ── 手动生成 / 重新生成（流式）──
   const handleGenerate = useCallback(async (force: boolean) => {
     setGenerating(true)
     setError(null)
+    setStreamingText("")
+    const channel = new Channel<StreamChunk>()
+    channel.onmessage = (chunk) => {
+      setStreamingText((prev) => prev + chunk.delta)
+    }
     try {
-      const result = await invoke<AiMorningBrief>("generate_ai_morning_brief", { force })
+      const result = await invoke<AiMorningBrief>("generate_ai_morning_brief_streaming", {
+        force,
+        channel,
+      })
       setBrief(result)
+      setStreamingText(null)
     } catch (err) {
       setError(userErrorMessage(err, "生成摘要失败"))
     } finally {
@@ -130,8 +151,8 @@ export function AiBriefCard({ onNavigate }: AiBriefCardProps) {
         )}
       </div>
 
-      {brief ? (
-        <MarkdownSubset text={brief.markdown} />
+      {brief || (generating && streamingText) ? (
+        <MarkdownSubset text={stripBriefFooter(brief ? brief.markdown : (streamingText ?? ""))} />
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">

@@ -30,7 +30,7 @@ pub fn get_ai_config(conn: &Connection) -> Result<AiConfig> {
                 id: 1,
                 enabled: false,
                 base_url: String::from("https://api.deepseek.com"),
-                model: String::from("deepseek-chat"),
+                model: String::from("deepseek-v4-flash"),
                 api_key_encrypted: String::new(),
                 created_at: now.clone(),
                 updated_at: now,
@@ -163,7 +163,7 @@ mod tests {
         assert_eq!(config.id, 1);
         assert!(!config.enabled);
         assert_eq!(config.base_url, "https://api.deepseek.com");
-        assert_eq!(config.model, "deepseek-chat");
+        assert_eq!(config.model, "deepseek-v4-flash");
         assert!(config.api_key_encrypted.is_empty());
     }
 
@@ -227,7 +227,7 @@ mod tests {
             date: "2026-07-31".to_string(),
             markdown: "# 2026-07-31 晨间摘要\n## 今日重点\n...".to_string(),
             source: "ai".to_string(),
-            model: "deepseek-chat".to_string(),
+            model: "deepseek-v4-flash".to_string(),
             generated_at: "2026-07-31T07:00:00Z".to_string(),
             created_at: String::new(),
             updated_at: String::new(),
@@ -262,7 +262,7 @@ mod tests {
             date: "2026-07-31".to_string(),
             markdown: "m".to_string(),
             source: "ai".to_string(),
-            model: "deepseek-chat".to_string(),
+            model: "deepseek-v4-flash".to_string(),
             generated_at: "2026-07-31T07:00:00Z".to_string(),
             created_at: String::new(),
             updated_at: String::new(),
