@@ -37,7 +37,7 @@ pub fn get_widget_config(db: State<'_, Arc<Mutex<Connection>>>) -> Result<Widget
 }
 
 #[tauri::command]
-pub async fn update_widget_config(
+pub fn update_widget_config(
     db: State<'_, Arc<Mutex<Connection>>>,
     app_handle: AppHandle,
     req: UpdateWidgetConfigRequest,
@@ -62,12 +62,12 @@ pub async fn update_widget_config(
 }
 
 #[tauri::command]
-pub async fn show_widget(
+pub fn show_widget(
     db: State<'_, Arc<Mutex<Connection>>>,
     app_handle: AppHandle,
 ) -> Result<WidgetConfig, String> {
     let req = widget_enabled_update(true);
-    update_widget_config(db, app_handle, req).await
+    update_widget_config(db, app_handle, req)
 }
 
 #[tauri::command]
@@ -93,13 +93,13 @@ pub fn save_widget_position(
 pub fn open_main_window(app_handle: AppHandle, target: Option<String>) -> Result<(), String> {
     let main = app_handle
         .get_webview_window(MAIN_LABEL)
-        .ok_or_else(|| "main window not found".to_string())?;
+        .ok_or_else(|| "主窗口不存在".to_string())?;
     main.show().map_err(|e| e.to_string())?;
     main.set_focus().map_err(|e| e.to_string())?;
 
     if let Some(target) = target {
         if !NAV_TARGETS.contains(&target.as_str()) {
-            return Err(format!("invalid navigation target: {target}"));
+            return Err(format!("无效的导航目标：{target}"));
         }
         app_handle
             .emit_to(
@@ -141,7 +141,7 @@ fn ensure_widget_window(app_handle: &AppHandle, config: &WidgetConfig) -> Result
         WIDGET_LABEL,
         tauri::WebviewUrl::App(PathBuf::from(WIDGET_URL)),
     )
-    .title("Kairos Widget")
+    .title("Kairos 小组件")
     .decorations(false)
     .transparent(true)
     .resizable(false)

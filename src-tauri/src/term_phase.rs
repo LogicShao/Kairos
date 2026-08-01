@@ -1,5 +1,5 @@
 use chrono::{Datelike, Duration, FixedOffset, NaiveDate};
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::db::models::{SemesterContext, TermPhase};
@@ -51,10 +51,19 @@ pub fn get_phase_status_for_date(
         crate::db::term_phases::get_term_phase_by_week(conn, &context.term_label, current_week)
             .map_err(|e| e.to_string())?
     {
-        return Ok(status_from_phase(source, current_week, phase));
+        return Ok(downgrade_teaching_if_no_courses(
+            conn,
+            source,
+            current_week,
+            phase,
+        ));
     }
 
-    Ok(inferred_status(source, &context, current_week))
+    Ok(downgrade_inferred_teaching_if_no_courses(
+        conn,
+        inferred_status(source, &context, current_week),
+        &context.term_label,
+    ))
 }
 
 pub fn get_phase_status_for_term_week(
@@ -71,7 +80,12 @@ pub fn get_phase_status_for_term_week(
         crate::db::term_phases::get_term_phase_by_week(conn, term_label, week_index)
             .map_err(|e| e.to_string())?
     {
-        return Ok(status_from_phase(source, week_index, phase));
+        return Ok(downgrade_teaching_if_no_courses(
+            conn,
+            source,
+            week_index,
+            phase,
+        ));
     }
 
     let context = crate::db::semester::find_semester_context(conn, source, term_label)
@@ -81,11 +95,15 @@ pub fn get_phase_status_for_term_week(
         .and_then(|value| value.total_weeks)
         .unwrap_or(FALLBACK_TOTAL_WEEKS);
 
-    Ok(inferred_status_from_parts(
-        source,
-        Some(term_label.to_string()),
-        week_index,
-        total_weeks,
+    Ok(downgrade_inferred_teaching_if_no_courses(
+        conn,
+        inferred_status_from_parts(
+            source,
+            Some(term_label.to_string()),
+            week_index,
+            total_weeks,
+        ),
+        term_label,
     ))
 }
 
@@ -134,6 +152,84 @@ fn status_from_phase(source: &str, current_week: i64, phase: TermPhase) -> Curre
         exam_notifications_enabled: phase.affects_exam_notifications,
         pomodoro_profile: phase.pomodoro_profile,
         inferred: false,
+    }
+}
+
+/// 教学周但该学期无任何活跃课程 → 降级为假期。
+///
+/// 覆盖 LZU 返回暑期小学期等无课学期上下文的场景：学期锚点日期落在暑假，
+/// 但用户没有该学期课程时不应显示"教学周"（见 08-01 暑假误报排查）。
+fn downgrade_teaching_if_no_courses(
+    conn: &Connection,
+    source: &str,
+    current_week: i64,
+    phase: TermPhase,
+) -> CurrentPhaseStatus {
+    if phase.phase_type != PHASE_TEACHING {
+        return status_from_phase(source, current_week, phase);
+    }
+
+    // 查询失败时保守视为有课（不降级），避免 DB 异常导致真实教学周被误判假期。
+    let has_courses = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM courses WHERE semester = ?1 AND deleted_at IS NULL
+             )",
+            params![phase.term_label],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(1);
+
+    if has_courses > 0 {
+        return status_from_phase(source, current_week, phase);
+    }
+
+    let mut status = status_from_phase(source, current_week, phase);
+    status.phase_type = PHASE_BREAK.to_string();
+    status.current_week = None;
+    status.start_week = None;
+    status.end_week = None;
+    status.courses_visible = false;
+    status.exam_notifications_enabled = false;
+    status.pomodoro_profile = "relaxed".to_string();
+    status.inferred = true;
+    status
+}
+
+fn downgrade_inferred_teaching_if_no_courses(
+    conn: &Connection,
+    status: CurrentPhaseStatus,
+    term_label: &str,
+) -> CurrentPhaseStatus {
+    if status.phase_type != PHASE_TEACHING || term_label.is_empty() {
+        return status;
+    }
+
+    let has_courses = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM courses WHERE semester = ?1 AND deleted_at IS NULL
+             )",
+            params![term_label],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(1);
+
+    if has_courses > 0 {
+        return status;
+    }
+
+    CurrentPhaseStatus {
+        source: status.source,
+        term_label: status.term_label,
+        phase_type: PHASE_BREAK.to_string(),
+        current_week: None,
+        start_week: None,
+        end_week: None,
+        courses_visible: false,
+        exam_notifications_enabled: false,
+        pomodoro_profile: "relaxed".to_string(),
+        inferred: true,
     }
 }
 
@@ -190,6 +286,16 @@ mod tests {
         conn
     }
 
+    fn insert_course(conn: &Connection, semester: &str) {
+        conn.execute(
+            "INSERT INTO courses
+                (name, day_of_week, start_time, end_time, week_pattern, semester_start_date, semester, created_at, updated_at)
+             VALUES ('测试课程', 1, '08:00', '09:40', '1-17周全周', '2026-02-24', ?1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            params![semester],
+        )
+        .expect("insert course");
+    }
+
     fn sample_context(total_weeks: Option<i64>) -> UpsertSemesterContextRequest {
         UpsertSemesterContextRequest {
             source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
@@ -240,6 +346,7 @@ mod tests {
         let conn = setup_db();
         crate::db::semester::upsert_semester_context(&conn, &sample_context(Some(16)))
             .expect("upsert context");
+        insert_course(&conn, "2026S1");
 
         let teaching = get_phase_status_for_date(
             &conn,
@@ -267,6 +374,7 @@ mod tests {
             .expect("upsert context");
         crate::db::term_phases::create_term_phase(&conn, &sample_phase(PHASE_EXAM, 1, 1))
             .expect("create phase");
+        insert_course(&conn, "2026S1");
 
         let status = get_phase_status_for_date(
             &conn,
@@ -278,5 +386,68 @@ mod tests {
         assert_eq!(status.phase_type, PHASE_EXAM);
         assert_eq!(status.pomodoro_profile, "intense");
         assert!(!status.inferred);
+    }
+
+    #[test]
+    fn test_explicit_teaching_without_courses_downgrades_to_break() {
+        // 回归：LZU 暑期小学期上下文（teaching 阶段）但无任何课程时，应显示假期而非教学周。
+        let conn = setup_db();
+        crate::db::semester::upsert_semester_context(&conn, &sample_context(Some(16)))
+            .expect("upsert context");
+        crate::db::term_phases::create_term_phase(&conn, &sample_phase(PHASE_TEACHING, 1, 16))
+            .expect("create phase");
+        // 不插入任何课程。
+
+        let status = get_phase_status_for_date(
+            &conn,
+            LZU_SEMESTER_CONTEXT_SOURCE,
+            NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
+        )
+        .expect("phase status");
+
+        assert_eq!(status.phase_type, PHASE_BREAK);
+        assert!(!status.courses_visible);
+        assert!(!status.exam_notifications_enabled);
+        assert_eq!(status.pomodoro_profile, "relaxed");
+        assert!(status.inferred);
+    }
+
+    #[test]
+    fn test_inferred_teaching_without_courses_downgrades_to_break() {
+        // 回归：无显式 term_phase、由周数推断 teaching 但该学期无课，同样降级为假期。
+        let conn = setup_db();
+        crate::db::semester::upsert_semester_context(&conn, &sample_context(Some(16)))
+            .expect("upsert context");
+
+        let status = get_phase_status_for_date(
+            &conn,
+            LZU_SEMESTER_CONTEXT_SOURCE,
+            NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
+        )
+        .expect("phase status");
+
+        assert_eq!(status.phase_type, PHASE_BREAK);
+        assert!(!status.courses_visible);
+    }
+
+    #[test]
+    fn test_term_week_teaching_without_courses_downgrades_to_break() {
+        // 课表页入口同样降级：查看无课学期某教学周时应为假期。
+        let conn = setup_db();
+        crate::db::semester::upsert_semester_context(&conn, &sample_context(Some(16)))
+            .expect("upsert context");
+        crate::db::term_phases::create_term_phase(&conn, &sample_phase(PHASE_TEACHING, 1, 16))
+            .expect("create phase");
+
+        let status = get_phase_status_for_term_week(
+            &conn,
+            LZU_SEMESTER_CONTEXT_SOURCE,
+            "2026S1",
+            2,
+        )
+        .expect("phase status");
+
+        assert_eq!(status.phase_type, PHASE_BREAK);
+        assert!(!status.courses_visible);
     }
 }

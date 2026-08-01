@@ -524,33 +524,51 @@ pub async fn import_lzu_courses(
         }
     }
 
+    // 落库段（批量导入 + 学期上下文持久化）移入 spawn_blocking，避免阻塞 async worker。
+    let db_for_blocking = db.inner().clone();
+
+    let imported: usize;
+    let skipped: usize;
+    let message: String;
+
     if courses.is_empty() {
-        let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
-        persist_lzu_semester_context(&conn, &xlxx, None, total_weeks)?;
+        let xlxx = xlxx.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let conn = db_for_blocking.lock().map_err(|e| format!("内部错误: {e}"))?;
+            persist_lzu_semester_context(&conn, &xlxx, None, total_weeks)?;
+            Ok::<_, String>(())
+        })
+        .await
+        .map_err(|e| format!("spawn_blocking 连接池已关闭: {e}"))??;
 
-        return Ok(LzuCourseImportResult {
-            parsed,
-            imported: 0,
-            skipped: 0,
-            failed,
-            message: format!("已拉取 {parsed} 条 LZU 课程，但没有可导入课程，失败 {failed} 条。"),
-        });
+        imported = 0;
+        skipped = 0;
+        message = format!("已拉取 {parsed} 条 LZU 课程，但没有可导入课程，失败 {failed} 条。");
+    } else {
+        let semester = courses[0].semester.clone();
+        let xlxx = xlxx.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let conn = db_for_blocking.lock().map_err(|e| format!("内部错误: {e}"))?;
+            let result = crate::commands::courses::import_new_courses(&conn, &courses, &semester)?;
+            persist_lzu_semester_context(&conn, &xlxx, Some(&semester), total_weeks)?;
+            Ok::<_, String>(result)
+        })
+        .await
+        .map_err(|e| format!("spawn_blocking 连接池已关闭: {e}"))??;
+
+        imported = result.imported;
+        skipped = result.skipped;
+        message = format!(
+            "已拉取 {parsed} 条 LZU 课程，导入 {imported} 条，跳过 {skipped} 条重复记录，失败 {failed} 条。",
+        );
     }
-
-    let semester = courses[0].semester.clone();
-    let conn = db.lock().map_err(|e| format!("内部错误: {e}"))?;
-    let result = crate::commands::courses::import_new_courses(&conn, &courses, &semester)?;
-    persist_lzu_semester_context(&conn, &xlxx, Some(&semester), total_weeks)?;
 
     Ok(LzuCourseImportResult {
         parsed,
-        imported: result.imported,
-        skipped: result.skipped,
+        imported,
+        skipped,
         failed,
-        message: format!(
-            "已拉取 {parsed} 条 LZU 课程，导入 {} 条，跳过 {} 条重复记录，失败 {failed} 条。",
-            result.imported, result.skipped
-        ),
+        message,
     })
 }
 
