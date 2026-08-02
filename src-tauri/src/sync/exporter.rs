@@ -225,9 +225,10 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                 merged += 1;
             }
             Some(local) => {
-                let newer =
-                    remote_effective_timestamp(&remote.updated_at, remote.deleted_at.as_deref())
-                        > local.effective_timestamp();
+                let remote_eff =
+                    remote_effective_timestamp(&remote.updated_at, remote.deleted_at.as_deref());
+                let local_eff = local.effective_timestamp();
+                let newer = remote_eff > local_eff;
                 if resolve_merge(tx, "tasks", &local, &remote.sync_id, newer, |tx| {
                     tx.execute(
                         "UPDATE tasks
@@ -256,12 +257,65 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                     .map(|_| ())
                 })? {
                     merged += 1;
+                } else if remote_eff == local_eff
+                    && local.deleted_at.is_none()
+                    && remote.deleted_at.is_none()
+                {
+                    // LWW 平局：两端 updated_at 相同（秒级精度）无法判定先后，
+                    // 若直接保留本地，每日任务字段的分歧永远无法跨设备收敛。
+                    // 对每日任务相关字段做"非默认值优先"合并：
+                    // is_daily 任一为 true 即取 true，last_completed_date / reminder_time 任一非空即取非空。
+                    merge_daily_fields(tx, local.id, &remote)?;
                 }
             }
         }
     }
 
     Ok(merged)
+}
+
+/// LWW 平局（两端 `updated_at` 相同）时合并每日任务字段。
+///
+/// 背景：`updated_at` 是秒级精度（`%Y-%m-%dT%H:%M:%SZ`），两台设备在
+/// 同一秒内各自更新同一任务时，LWW 无法判定先后，`resolve_merge` 会直接
+/// 保留本地。这导致"这台设备标记为每日任务"的变化永远无法传播到对端。
+///
+/// 合并语义（非默认值优先，任一为真即采纳）：
+/// - `is_daily`：任一设备标记为每日任务即取 true（false 通常是未设置而非主动取消）
+/// - `last_completed_date`：任一非空即取非空
+/// - `reminder_time`：任一非空即取非空
+///
+/// 不修改 `updated_at`：本次合并不是一次新的本地修改，保持幂等，避免误判 LWW。
+fn merge_daily_fields(tx: &Transaction<'_>, local_id: i64, remote: &Task) -> Result<()> {
+    let (local_is_daily, local_last_completed, local_reminder): (i64, Option<String>, Option<String>) =
+        tx.query_row(
+            "SELECT is_daily, last_completed_date, reminder_time FROM tasks WHERE id = ?1",
+            params![local_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+
+    let new_is_daily = local_is_daily != 0 || remote.is_daily;
+    let new_last_completed = local_last_completed
+        .clone()
+        .or_else(|| remote.last_completed_date.clone());
+    let new_reminder = local_reminder.clone().or_else(|| remote.reminder_time.clone());
+
+    if new_is_daily != (local_is_daily != 0)
+        || new_last_completed != local_last_completed
+        || new_reminder != local_reminder
+    {
+        tx.execute(
+            "UPDATE tasks SET is_daily = ?1, last_completed_date = ?2, reminder_time = ?3
+             WHERE id = ?4",
+            params![
+                new_is_daily as i64,
+                new_last_completed,
+                new_reminder,
+                local_id,
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 fn merge_courses(tx: &Transaction<'_>, remote: &[Course]) -> Result<usize> {
@@ -859,6 +913,80 @@ mod tests {
         assert_eq!(exported.tasks[0].title, "Local Title");
         assert_eq!(exported.tasks[0].status, "in_progress");
         assert_eq!(exported.tasks[0].priority, "high");
+    }
+
+    #[test]
+    fn test_lww_tie_merges_daily_fields_from_remote() {
+        // 回归：两端 updated_at 相同（LWW 平局）时，远端"已标记为每日任务"的状态
+        // 应合并进本地，而不是因 resolve_merge 直接保留本地而丢失。
+        let mut conn = setup_db();
+
+        // 本地已有同一任务，且 lost 了每日标记（is_daily=false）。
+        let mut local = sample_task(1, "task-sync-1", "2024-06-01T10:00:00Z");
+        local.is_daily = false;
+        local.reminder_time = None;
+        local.last_completed_date = None;
+        let mut data1 = sample_sync_data();
+        data1.tasks = vec![local];
+        import_all(&mut conn, &data1).expect("initial import");
+
+        // 远端同 updated_at（平局），但保留了每日标记 + 提醒时间。
+        let mut remote = sample_task(99, "task-sync-1", "2024-06-01T10:00:00Z");
+        remote.is_daily = true;
+        remote.reminder_time = Some("09:30".to_string());
+        remote.last_completed_date = Some("2026-08-01".to_string());
+        let mut data2 = sample_sync_data();
+        data2.tasks = vec![remote];
+        let stats = import_all(&mut conn, &data2).expect("merge import");
+
+        // 平局时不算 merged（未做常规覆盖），但每日字段应已合并进本地。
+        assert_eq!(stats.tasks_merged, 0);
+        let exported = export_all(&conn).expect("re-export");
+        assert_eq!(exported.tasks.len(), 1);
+        assert!(exported.tasks[0].is_daily, "平局时远端 is_daily=true 应合并进本地");
+        assert_eq!(
+            exported.tasks[0].reminder_time.as_deref(),
+            Some("09:30"),
+            "平局时远端 reminder_time 应合并进本地"
+        );
+        assert_eq!(
+            exported.tasks[0].last_completed_date.as_deref(),
+            Some("2026-08-01"),
+            "平局时远端 last_completed_date 应合并进本地"
+        );
+    }
+
+    #[test]
+    fn test_lww_tie_merges_daily_fields_from_local() {
+        // 反向回归：本地已标记为每日任务（is_daily=true），远端同 updated_at 平局但
+        // 未带每日标记（可能是旧版本导出、字段缺失等）。本地标记应被保留。
+        let mut conn = setup_db();
+
+        let mut local = sample_task(1, "task-sync-1", "2024-06-01T10:00:00Z");
+        local.is_daily = true;
+        local.reminder_time = Some("09:30".to_string());
+        local.last_completed_date = Some("2026-08-01".to_string());
+        let mut data1 = sample_sync_data();
+        data1.tasks = vec![local];
+        import_all(&mut conn, &data1).expect("initial import");
+
+        // 远端同 updated_at（平局），但 is_daily=false、字段为空。
+        let mut remote = sample_task(99, "task-sync-1", "2024-06-01T10:00:00Z");
+        remote.is_daily = false;
+        remote.reminder_time = None;
+        remote.last_completed_date = None;
+        let mut data2 = sample_sync_data();
+        data2.tasks = vec![remote];
+        import_all(&mut conn, &data2).expect("merge import");
+
+        let exported = export_all(&conn).expect("re-export");
+        assert_eq!(exported.tasks.len(), 1);
+        assert!(exported.tasks[0].is_daily, "本地每日标记不应被平局远端覆盖");
+        assert_eq!(exported.tasks[0].reminder_time.as_deref(), Some("09:30"));
+        assert_eq!(
+            exported.tasks[0].last_completed_date.as_deref(),
+            Some("2026-08-01")
+        );
     }
 
     #[test]
