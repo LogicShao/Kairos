@@ -1,6 +1,6 @@
 [package]
 name = "kairos"
-version = "0.4.2"
+version = "0.4.3"
 description = "Kairos — cross-platform time management desktop app"
 authors = ["mikoto"]
 license = "MIT"
