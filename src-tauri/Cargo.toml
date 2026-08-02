@@ -31,7 +31,6 @@ cbc = "0.1"
 hex = "0.4"
 md5 = "0.7"
 quick-xml = "0.37"
-dotenvy = "0.15"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-notification = "2.3.2"
 uuid = { version = "1", features = ["v4"] }

@@ -17,7 +17,10 @@ use hex;
 type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
 type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
-const AES_KEY_ENV: &str = "KAIROS_LZU_AES_KEY";
+/// LZU AppService AES 固定密钥（协议内置，16 字节 UTF-8）。
+/// 原为环境变量 KAIROS_LZU_AES_KEY（Android 无法注入环境变量导致运行时报错），
+/// 现内置为协议常量，所有平台开箱即用。
+const AES_KEY: &str = "QSfg26hg433BV42a";
 
 /// 使用 `\0` 将数据填充到 16 字节倍数。
 fn zero_pad(data: &[u8]) -> Vec<u8> {
@@ -29,15 +32,14 @@ fn zero_pad(data: &[u8]) -> Vec<u8> {
 }
 
 fn configured_key() -> Result<[u8; 16], crate::lzu::error::LzuError> {
-    let value = crate::lzu::config::read_secret(AES_KEY_ENV)?;
-    key_from_utf8(&value)
+    key_from_utf8(AES_KEY)
 }
 
 fn key_from_utf8(value: &str) -> Result<[u8; 16], crate::lzu::error::LzuError> {
     let bytes = value.as_bytes();
     if bytes.len() != 16 {
         return Err(crate::lzu::error::LzuError::Config(format!(
-            "{AES_KEY_ENV} 必须是 16 字节 UTF-8 字符串，当前为 {} 字节",
+            "LZU AES key 必须是 16 字节 UTF-8 字符串，当前为 {} 字节",
             bytes.len()
         )));
     }

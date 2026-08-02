@@ -1,6 +1,5 @@
 pub mod appservice;
 pub mod auth;
-pub mod config;
 pub mod crypto;
 pub mod easytong;
 pub mod error;

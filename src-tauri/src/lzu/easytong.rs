@@ -17,7 +17,10 @@ const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 12; SM-S7110 Build/V417IR;
 const EXCHANGE_ET_TOKEN_PATH: &str = "/easytong_app/ExchangeEtToken";
 const GET_ACC_INFO_PATH: &str = "/easytong_app/GetAccInfo";
 const GET_WALLET_MONEY_PATH: &str = "/easytong_app/GetWalletMoney";
-const MD5_KEY_ENV: &str = "KAIROS_LZU_MD5_KEY";
+/// EasyTong MD5 签名固定密钥（协议内置）。
+/// 原为环境变量 KAIROS_LZU_MD5_KEY（Android 无法注入环境变量导致运行时报错），
+/// 现内置为协议常量，所有平台开箱即用。
+const MD5_KEY: &str = "ok15we1@oid8x5afd@";
 
 #[derive(Debug, Clone)]
 pub struct EasyTongSession {
@@ -228,8 +231,7 @@ fn easytong_time() -> String {
 }
 
 fn sign_values(values: &[&str]) -> Result<String, LzuError> {
-    let key = crate::lzu::config::read_secret(MD5_KEY_ENV)?;
-    Ok(sign_values_with_key(values, &key))
+    Ok(sign_values_with_key(values, MD5_KEY))
 }
 
 fn sign_values_with_key(values: &[&str], key: &str) -> String {
