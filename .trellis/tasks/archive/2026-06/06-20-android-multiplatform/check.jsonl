@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端质量检查入口：Post-Development Checklist + Quality Check"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量检查：离线优先合规、行内样式禁令、loading/empty/error三态完整性"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "类型安全检查：零容忍any、字面量类型优于enum、as const"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件规范检查：函数组件、memo准则、文件行数限制"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用检查：搜索现有模式、新旧代码无重复、对称变更完整性"}

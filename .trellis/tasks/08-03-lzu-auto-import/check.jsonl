@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/lzu-easytong-guidelines.md", "reason": "检查登录后自动导入是否符合 LZU 认证流程约定"}
+{"file": ".trellis/spec/backend/schedule-import-guidelines.md", "reason": "检查课表导入重构是否保留原有功能、幂等与错误处理"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查后台异步任务的错误处理、无 unwrap/expect 于命令层"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查 LzuImportPanel 事件监听、结果展示是否遵循组件范式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查前端事件监听清理、三态覆盖"}

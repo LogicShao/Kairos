@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/lzu-easytong-guidelines.md", "reason": "LZU 统一认证登录流程、AppServiceClient 使用、会话令牌处理"}
+{"file": ".trellis/spec/backend/schedule-import-guidelines.md", "reason": "课表导入核心逻辑、学期上下文持久化、异步导入范式"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "后台自动导入错误处理：不阻塞登录返回、异步任务错误记录"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "新增异步导入函数注释、跨模块结构体字段说明"}

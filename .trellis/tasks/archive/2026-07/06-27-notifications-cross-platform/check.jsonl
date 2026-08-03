@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend code meets quality standards and avoids forbidden patterns"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "Verify Rust comments follow project conventions"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error handling follows project patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend quality: loading/error/empty states, responsive layout"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify component structure follows project conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify new types follow IPC contract mirror conventions"}

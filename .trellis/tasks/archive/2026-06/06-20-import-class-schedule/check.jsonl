@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"检查课程表导入交互、按钮和表单是否符合前端组件规范。"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"检查新增解析器和导入流程是否保持严格类型安全。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查异步状态、错误处理和离线约束是否符合质量要求。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查解析逻辑是否合理抽离，避免重复代码。"}

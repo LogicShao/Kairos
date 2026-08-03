@@ -1,0 +1,29 @@
+{
+  "id": "competitor-ai-research",
+  "name": "competitor-ai-research",
+  "title": "竞品AI架构调研 — Google One/钉钉/企业微信的Agent接入方式学习",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "mikoto",
+  "assignee": "mikoto",
+  "createdAt": "2026-06-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-28-today-briefing-card",
+    "07-31-ai-morning-brief"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

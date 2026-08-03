@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend entrypoint for DB, command, and quality conventions."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Widget config persistence requires a SQLite migration, model, and CRUD helpers."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Widget commands must follow Tauri Result<String> boundary conversion and runtime event contracts."}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "New cross-layer Rust structs and protocol constants need minimal semantic comments."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend entrypoint for React, IPC, and component conventions."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Widget UI and settings components must follow local component, event cleanup, and accessibility patterns."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Widget UI must remain offline-first, typed, responsive, and avoid forbidden UI patterns."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Widget IPC payloads and events need shared TypeScript mirrors."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans SQLite, Rust commands, Tauri windows, events, and React UI."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Implementation should reuse Today/Pomodoro contracts and avoid duplicate payload parsing."}
+{"file": ".trellis/tasks/07-05-desktop-widget-mvp/research/widget-platform-options.md", "reason": "Records Tauri floating window vs native OS widget decision and source links."}

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "移除功能后需同步删除「桌面小组件窗口」章节，避免过时规范误导"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本次更改涉及后端（Rust/DB）、前端（React/TypeScript）、配置文件多层的联动删除"}

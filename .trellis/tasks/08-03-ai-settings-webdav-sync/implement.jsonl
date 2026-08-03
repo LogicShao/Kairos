@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移约定（幂等加列）、单例配置表范式、加密 key 文件管理"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "命令层 Result<T, String> 约定、reqwest 错误映射、加密错误可理解提示"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "加密模块结构体字段注释、AAD/格式版本常量取值原因"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "AI 设置同步非致命降级的日志格式约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "数据库 CRUD 测试强制要求、加密正确性测试、内存库测试"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本次改动涉及 Rust/DB/前端多层的联动（加列 → 命令 → UI 同步开关）"}

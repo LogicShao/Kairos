@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "命令层错误转换约定：Result<T, String>、reqwest 错误映射、HTTP 状态码到用户友好消息"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "跨模块结构体每字段注释、协议常量取值原因、模块顶部 //! 概述"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "数据库 CRUD 测试强制要求、内存库测试、无 unwrap/expect 于命令层"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "rusqlite 使用模式、迁移约定、单例配置表范式"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TS 契约镜像规则：invoke<T> 返回类型、nullable 规则、日期字段注释"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "响应式组件模式、props 约定、save-on-leave 表单范式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端三态覆盖、离线优先、禁止模式"}

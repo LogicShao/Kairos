@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/08-03-ai-settings-webdav-sync/check.jsonl", "reason": "复用子任务 1 的 check 清单"}
+{"file": ".trellis/tasks/08-03-lzu-auto-import/check.jsonl", "reason": "复用子任务 2 的 check 清单"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨子任务最终一致性校验"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "全量 cargo test、npm run build 最终通过"}

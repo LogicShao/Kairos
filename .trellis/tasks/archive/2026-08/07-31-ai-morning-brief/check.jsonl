@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查 CRUD 测试覆盖、内存库测试、迁移幂等、命令层无 unwrap/expect"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查错误映射是否符合 Result<T, String> 与网络层自定义映射约定"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "检查跨模块结构体字段注释与协议常量取值说明"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "检查迁移与单例配置表实现是否符合既有范式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查前端三态覆盖、离线优先、禁止模式"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "检查 TS 契约是否与后端结构一一镜像、invoke<T> 是否传返回类型"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查组件结构与 save-on-leave 表单范式"}

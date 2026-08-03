@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Semester context touches backend persistence, commands, migrations, and tests"}
+{"file": ".trellis/spec/backend/schedule-import-guidelines.md", "reason": "LZU schedule import and semester mapping must remain consistent"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "If UI exposes semester context, it must follow frontend state and component guidelines"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-lzu-api-research/research/lzu-api-contract.md", "reason": "Contains getXlxx field contract and missing zzx notes"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-lzu-api-research/research/fasterlzu-lessons.md", "reason": "Records FasterLZU cache/current-week lessons and caveats"}

@@ -1,0 +1,29 @@
+{
+  "id": "ai-sync-enhancement",
+  "name": "ai-sync-enhancement",
+  "title": "AI 设置 WebDAV 加密同步 + LZU 登录自动导入课表",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "mikoto",
+  "assignee": "mikoto",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-03-ai-settings-webdav-sync",
+    "08-03-lzu-auto-import"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

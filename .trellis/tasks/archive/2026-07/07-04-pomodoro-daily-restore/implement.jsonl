@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Pomodoro runtime state spans timer, commands, db, migrations, and app setup"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend migration, DB functions, command error handling, and test expectations"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "New shared Rust structs and protocol fields need concise Chinese comments"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "PomodoroTimer interruption UI must follow existing component patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend loading/error/responsive quality requirements"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "PomodoroState IPC contract changes must be mirrored in TypeScript"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "State restoration touches DB, Rust state machine, Tauri commands, frontend types, and Today Briefing"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid duplicating today-date and session counting logic across startup and briefing"}
+{"file": "src-tauri/src/timer.rs", "reason": "PomodoroEngine and PomodoroState runtime model"}
+{"file": "src-tauri/src/commands/pomodoro.rs", "reason": "Start/pause/reset/get state commands and notification scheduling"}
+{"file": "src-tauri/src/db/pomodoro.rs", "reason": "Existing pomodoro config and session CRUD"}
+{"file": "src-tauri/src/db/models.rs", "reason": "Pomodoro session/config models and new runtime state model location"}
+{"file": "src-tauri/src/db/migrations.rs", "reason": "Add runtime state migration and migration tests"}
+{"file": "src-tauri/src/lib.rs", "reason": "App startup constructs PomodoroEngine and tick loop handles phase changes"}
+{"file": "src-tauri/src/commands/briefing.rs", "reason": "Today Briefing currently reads in-memory completed_sessions"}
+{"file": "src/types/pomodoro.ts", "reason": "Frontend PomodoroState type mirror"}
+{"file": "src/components/pomodoro/PomodoroTimer.tsx", "reason": "Render interruption recovery controls"}
+{"file": "src/types/briefing.ts", "reason": "Today Briefing type mirror if pomodoro response changes"}
+{"file": "src/pages/today/TodayPage.tsx", "reason": "Verify Today card still renders restored pomodoro state"}

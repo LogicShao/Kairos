@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "LZU profile summary requires backend command, DTO, error handling, and logging guidance"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "LZU import panel UI changes must follow frontend component and state guidelines"}
+{"file": ".trellis/spec/backend/schedule-import-guidelines.md", "reason": "LZU API security/logging constraints also apply to profile calls"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-lzu-api-research/research/lzu-api-contract.md", "reason": "Contains AppService userInfo/userImg endpoint contract and token flow"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-lzu-api-research/research/fasterlzu-lessons.md", "reason": "Records FasterLZU lessons and security practices to reuse/avoid"}

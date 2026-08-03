@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify migrations, DB tests, command errors, and no forbidden unwrap/expect"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "Verify comments on new shared structs/protocol fields"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify interruption UI has sane loading/error/responsive behavior"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify Rust/TypeScript IPC contracts match"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify date boundaries and state flow are consistent across DB, engine, commands, and UI"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify new today/session counting helpers are not duplicated"}

@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-development checklist and guide routing for migration, command, sync, and notification changes."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "The task adds schema, models, CRUD functions, sync fields, and migration tests."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "New Tauri commands and service boundaries must preserve Result/String conversion conventions."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Notification suppression should log only safe business events without sensitive data."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Database and service changes require focused Rust tests, clippy, and migration validation."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist for Tauri IPC, component placement, and validation."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Settings UI and schedule/Today consumers must follow existing responsive component conventions."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "New phase/profile IPC contracts must be mirrored in shared TypeScript types."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "UI work must preserve offline-first behavior, three-state coverage, and no unsafe frontend patterns."}
+{"file": ".trellis/spec/frontend/input-patterns.md", "reason": "Week and duration controls need bounded input patterns consistent with existing UI."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans database, Rust service, Tauri IPC, sync, and frontend rendering boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Current-week, phase resolution, and payload contracts must avoid duplicated logic."}

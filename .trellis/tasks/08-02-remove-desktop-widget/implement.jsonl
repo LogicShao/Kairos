@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移系统设计规范：已知版本号递增、事务包裹、DROP TABLE IF EXISTS 正确用法"}

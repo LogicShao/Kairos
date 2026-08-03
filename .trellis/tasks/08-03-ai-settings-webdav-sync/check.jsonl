@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查加密测试（加解密轮转、密文不泄露明文、密码不匹配降级、篡改校验失败）、数据库迁移测试"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查 AI 设置同步非致命降级是否符合错误映射约定"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "检查新增模块起止注释、结构体字段注释完整性"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端三态覆盖、开关禁用态、事件绑定清理"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "AiConfig.sync_enabled 前后端类型契约一致性"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查迁移 → 后端命令 → 前端 UI 的完整联动"}

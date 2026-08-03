@@ -1,7 +1,7 @@
 # Versioned Trellis assets live next to this file:
 # workflow.md, config.yaml, spec/, scripts/, agents/, .version, .template-hashes.json
 # Everything below is local/task/runtime state and must stay out of Git.
-tasks/
+# tasks/ is intentionally tracked so task lifecycles (archive → git add + commit) work.
 workspace/
 
 # Developer identity (local only)

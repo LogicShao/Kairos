@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB migration and model patterns for new notification_config table"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for new notification commands"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Module organization conventions for new notifications/ module"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend code quality standards and forbidden patterns"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "Comment conventions for Rust code"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns for notification settings UI"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality standards, loading/error/empty states"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type definition conventions for new notification config types"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Notifications span Rust backend through Tauri IPC to React frontend"}
+{"file": ".trellis/tasks/06-27-notifications-cross-platform/research/notification-capability.md", "reason": "External research on tauri-plugin-notification capabilities and platform limitations"}

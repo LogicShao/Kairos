@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/08-03-ai-settings-webdav-sync/prd.md", "reason": "子任务 1 需求与验收标准"}
+{"file": ".trellis/tasks/08-03-lzu-auto-import/prd.md", "reason": "子任务 2 需求与验收标准"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨子任务一致性检查（共享文件 coverage）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "全量验证：cargo test、迁移测试断言"}

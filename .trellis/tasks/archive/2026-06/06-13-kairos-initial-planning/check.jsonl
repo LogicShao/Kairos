@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend code follows project conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend code follows project conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify Rust quality: no bare unwrap, Result propagation, migration mechanism, unit tests"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify TypeScript quality: no any types, full type coverage, component tests"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify IPC boundary: Tauri command signatures match invoke calls, error types consistent"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify no duplicated patterns across pomodoro/todo/courses/exams modules"}

@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Review backend quality checklist and guide routing after implementation."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check migration, schema, CRUD, parameterized SQL, and database tests."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check command and service error propagation boundaries."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check notification suppression logging for level, context, and sensitive data safety."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check Rust tests, clippy, formatting, command registration, and forbidden patterns."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Review frontend quality checklist for Tauri IPC and responsive behavior."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Check settings, schedule, and Today UI component structure and responsive conventions."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check Rust-to-TypeScript IPC contract mirroring and nullable/optional semantics."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check offline-first behavior, no any, no console logs, three-state coverage, and mobile touch targets."}
+{"file": ".trellis/spec/frontend/input-patterns.md", "reason": "Check week/profile controls use bounded input patterns."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review database-to-frontend data flow for contract drift."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review for duplicated current-week, phase resolution, and IPC payload logic."}

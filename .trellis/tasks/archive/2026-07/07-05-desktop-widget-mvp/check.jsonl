@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check backend changes against package-level quality guidance."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify migration, singleton config, and CRUD tests follow DB conventions."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify command errors and window lifecycle errors are handled at the right boundary."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify Rust tests, clippy, and command registration expectations."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check frontend changes against package-level quality guidance."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify widget components, settings controls, event cleanup, and accessibility."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify offline-first UI, no any, no inline style except allowed dynamic cases, and state coverage."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify IPC/event payloads are mirrored in shared TypeScript types."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check DB-to-window-to-UI data flow and event refresh consistency."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check for duplicate Today/Pomodoro logic or repeated payload extraction."}
+{"file": ".trellis/tasks/07-05-desktop-widget-mvp/research/widget-platform-options.md", "reason": "Confirm implementation stays within MVP platform decision."}
