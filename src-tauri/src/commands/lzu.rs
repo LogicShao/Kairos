@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::lzu::appservice::AppServiceClient;
 use crate::lzu::auth::SharedLzuAuth;
@@ -177,6 +177,7 @@ async fn refresh_easytong_session(
 /// 返回登录状态摘要（不含 token 原文）。
 #[tauri::command]
 pub async fn lzu_login(
+    app_handle: tauri::AppHandle,
     db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
     username: String,
@@ -234,7 +235,23 @@ pub async fn lzu_login(
     }
 
     log::info!("LZU 登录成功");
-    Ok(AuthStatus::from(&auth.session))
+
+    // 登录成功后后台静默自动配置课表（无感导入）。
+    // auth 锁持有期间提取所需数据，随后释放锁。
+    let auth_status = AuthStatus::from(&auth.session);
+    let client_for_auto = auth.client.clone();
+    let session_for_auto = auth.session.clone();
+    let db_for_auto = db.inner().clone();
+    let app_for_auto = app_handle.clone();
+    drop(auth);
+
+    if let Some(session) = session_for_auto {
+        tauri::async_runtime::spawn(async move {
+            auto_import_lzu_after_login(db_for_auto, client_for_auto, session, app_for_auto).await;
+        });
+    }
+
+    Ok(auth_status)
 }
 
 /// 登出 LZU 统一认证。
@@ -469,13 +486,25 @@ pub async fn lzu_open_service(
 }
 
 /// 从 LZU API 拉取课表并导入本地课程表。
+///
+/// 前端手动触发（"导入课表"按钮），总是全量拉取。
 #[tauri::command]
 pub async fn import_lzu_courses(
     db: State<'_, Arc<Mutex<Connection>>>,
     lzu_auth: State<'_, SharedLzuAuth>,
 ) -> Result<LzuCourseImportResult, String> {
     let (client, _, session) = require_lzu_clients(&lzu_auth)?;
+    import_lzu_courses_inner(db.inner().clone(), client, session).await
+}
 
+/// LZU 课表导入核心逻辑（纯数据参数，不依赖 Tauri State）。
+///
+/// 同时服务于手动命令 `import_lzu_courses` 与登录后的后台自动导入。
+async fn import_lzu_courses_inner(
+    db: Arc<Mutex<Connection>>,
+    client: Arc<AppServiceClient>,
+    session: LzuSession,
+) -> Result<LzuCourseImportResult, String> {
     let xlxx_response = client
         .get_xlxx(&session.gateway_token)
         .await
@@ -525,7 +554,7 @@ pub async fn import_lzu_courses(
     }
 
     // 落库段（批量导入 + 学期上下文持久化）移入 spawn_blocking，避免阻塞 async worker。
-    let db_for_blocking = db.inner().clone();
+    let db_for_blocking = db.clone();
 
     let imported: usize;
     let skipped: usize;
@@ -570,6 +599,95 @@ pub async fn import_lzu_courses(
         failed,
         message,
     })
+}
+
+/// 登录成功后后台静默自动配置课表（无感导入）。
+///
+/// 幂等短路：先拉取远程学期信息，与本地 `semester_context(source='lzu')`
+/// 比较 `term_label` + `start_date`，若该学期已导入则跳过全量拉取。
+/// 导入完成后通过 Tauri 事件 `lzu-auto-import` 广播结果供前端刷新。
+async fn auto_import_lzu_after_login(
+    db: Arc<Mutex<Connection>>,
+    client: Arc<AppServiceClient>,
+    session: LzuSession,
+    app_handle: tauri::AppHandle,
+) {
+    let result = async {
+        let xlxx_response = client
+            .get_xlxx(&session.gateway_token)
+            .await
+            .map_err(|e| e.to_string())?;
+        if xlxx_response.code != 1 {
+            return Err(api_error(xlxx_response.code, xlxx_response.message));
+        }
+        let xlxx = xlxx_response
+            .data
+            .ok_or_else(|| "LZU 学期信息响应缺少 data 字段".to_string())?;
+
+        // 幂等判断：远程学期与已导入学期一致则跳过全量拉取。
+        // 学期上下文映射失败时降级为全量导入（与手动路径行为一致），
+        // 而非抛出错误终止自动导入。
+        let already_imported;
+        let idempotent_term_label: Option<String>;
+        match crate::lzu::mapper::map_semester_context(&xlxx, None) {
+            Ok(semester_req) => {
+                idempotent_term_label = Some(semester_req.term_label.clone());
+                already_imported = match db.lock().map_err(|e| format!("内部错误: {e}")) {
+                    Ok(conn) => {
+                        match crate::db::semester::get_latest_semester_context_by_source(
+                            &conn,
+                            crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE,
+                        )
+                        .map_err(|e| e.to_string())
+                        {
+                            Ok(Some(context)) => {
+                                context.term_label == semester_req.term_label
+                                    && context.start_date == semester_req.start_date
+                            }
+                            _ => false,
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("LZU 自动导入幂等检查锁获取失败: {e}");
+                        false
+                    }
+                };
+            }
+            Err(err) => {
+                log::warn!("LZU 学期上下文映射失败（降级为全量导入）: {err}");
+                already_imported = false;
+                idempotent_term_label = None;
+            }
+        };
+
+        if already_imported {
+            let term_label = idempotent_term_label.unwrap_or_default();
+            log::info!(
+                "LZU 登录后自动导入跳过：学期 {} 已导入（idempotent）",
+                term_label
+            );
+            return Ok(LzuCourseImportResult {
+                parsed: 0,
+                imported: 0,
+                skipped: 0,
+                failed: 0,
+                message: format!("学期 {} 已导入，无需重复配置。", term_label),
+            });
+        }
+
+        import_lzu_courses_inner(db, client, session).await
+    }
+    .await;
+
+    match &result {
+        Ok(import_result) => {
+            log::info!("LZU 登录后自动配置课表完成: {}", import_result.message);
+            let _ = app_handle.emit("lzu-auto-import", import_result);
+        }
+        Err(err) => {
+            log::warn!("LZU 登录后自动配置课表失败: {err}");
+        }
+    }
 }
 
 #[cfg(test)]

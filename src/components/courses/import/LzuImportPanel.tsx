@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import type { LzuAuthStatus, LzuCourseImportResult } from "@/types/lzu"
+import { listenWithCleanup } from "@/lib/tauri-events"
 import { Button } from "@/components/ui/button"
 import {
   LogIn,
@@ -48,6 +49,25 @@ export function LzuImportPanel({ onImportSuccess }: LzuImportPanelProps) {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  /** 持有最新的 onImportSuccess，避免父组件重建函数导致监听器反复订阅/清理。 */
+  const onImportSuccessRef = useRef(onImportSuccess)
+  useEffect(() => {
+    onImportSuccessRef.current = onImportSuccess
+  }, [onImportSuccess])
+
+  /** 监听后端登录后自动导入的课表结果，无感展示并刷新课表页面。 */
+  useEffect(() => {
+    return listenWithCleanup<LzuCourseImportResult>(
+      "lzu-auto-import",
+      (event) => {
+        setImportResult(event.payload)
+        setImportError(null)
+        void onImportSuccessRef.current?.(event.payload)
+      },
+      () => console.warn("lzu-auto-import 事件监听失败"),
+    )
   }, [])
 
   async function handleLogin() {
