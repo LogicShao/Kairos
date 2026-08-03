@@ -6,7 +6,7 @@ use super::models::SyncConfig;
 /// device_id 和 dataset_id 初始化为新的 UUID，用于 trace 和数据集分组。
 pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
     let result = conn.query_row(
-        "SELECT id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id
+        "SELECT id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id, ai_settings_remote_etag
          FROM sync_config WHERE id = 1",
         [],
         |row| {
@@ -20,6 +20,7 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
                 remote_etag: row.get(6)?,
                 device_id: row.get(7)?,
                 dataset_id: row.get(8)?,
+                ai_settings_remote_etag: row.get(9)?,
             })
         },
     );
@@ -37,6 +38,7 @@ pub fn get_sync_config(conn: &Connection) -> Result<SyncConfig> {
                 remote_etag: None,
                 device_id: Some(crate::sync::ids::new_sync_id()),
                 dataset_id: Some(crate::sync::ids::new_sync_id()),
+                ai_settings_remote_etag: None,
             };
             conn.execute(
                 "INSERT INTO sync_config (id, server_url, username, password, auto_sync, last_sync_at, remote_etag, device_id, dataset_id)
@@ -91,6 +93,15 @@ pub fn update_remote_etag(conn: &Connection, etag: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+/// 记录 AI 设置加密包文件的上次上传 ETag（独立于主快照）。
+pub fn update_ai_settings_remote_etag(conn: &Connection, etag: Option<&str>) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_config SET ai_settings_remote_etag = ?1 WHERE id = 1",
+        params![etag],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,6 +150,7 @@ mod tests {
             remote_etag: Some("\"stale-etag\"".to_string()),
             device_id: Some("stale-device".to_string()),
             dataset_id: Some("stale-dataset".to_string()),
+            ai_settings_remote_etag: None,
         };
         update_sync_config(&conn, &updated).expect("Failed to update config");
 

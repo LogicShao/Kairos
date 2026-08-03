@@ -484,6 +484,7 @@ mod tests {
             base_url: "https://api.deepseek.com".to_string(),
             model: "deepseek-v4-flash".to_string(),
             api_key_encrypted: String::new(),
+            sync_enabled: false,
             created_at: String::new(),
             updated_at: String::new(),
         };

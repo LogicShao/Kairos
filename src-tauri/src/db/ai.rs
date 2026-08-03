@@ -6,7 +6,7 @@ use super::models::{AiConfig, AiMorningBrief, UpdateAiConfigRequest};
 /// 若表中尚无记录（首次迁移未执行），插入迁移默认值并返回。
 pub fn get_ai_config(conn: &Connection) -> Result<AiConfig> {
     let result = conn.query_row(
-        "SELECT id, enabled, base_url, model, api_key_encrypted, created_at, updated_at
+        "SELECT id, enabled, base_url, model, api_key_encrypted, sync_enabled, created_at, updated_at
          FROM ai_config WHERE id = 1",
         [],
         |row| {
@@ -16,8 +16,9 @@ pub fn get_ai_config(conn: &Connection) -> Result<AiConfig> {
                 base_url: row.get(2)?,
                 model: row.get(3)?,
                 api_key_encrypted: row.get(4)?,
-                created_at: row.get(5)?,
-                updated_at: row.get(6)?,
+                sync_enabled: row.get::<_, i64>(5)? != 0,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
             })
         },
     );
@@ -32,6 +33,7 @@ pub fn get_ai_config(conn: &Connection) -> Result<AiConfig> {
                 base_url: String::from("https://api.deepseek.com"),
                 model: String::from("deepseek-v4-flash"),
                 api_key_encrypted: String::new(),
+                sync_enabled: false,
                 created_at: now.clone(),
                 updated_at: now,
             };
@@ -73,13 +75,42 @@ pub fn update_ai_config(
         Some(cipher) => cipher,
         None => current.api_key_encrypted,
     };
+    let sync_enabled = req.sync_enabled.unwrap_or(current.sync_enabled) as i64;
     let updated_at = super::chrono_now();
 
     conn.execute(
         "UPDATE ai_config
+         SET enabled = ?1, base_url = ?2, model = ?3, api_key_encrypted = ?4, sync_enabled = ?5, updated_at = ?6
+         WHERE id = 1",
+        params![enabled, base_url, model, api_key_encrypted, sync_enabled, updated_at],
+    )?;
+    Ok(())
+}
+
+/// 同步路径专用：整体覆盖 AI 配置并**保留传入的 updated_at**。
+///
+/// 与 `update_ai_config` 的差异：后者总是打上 `chrono_now()`，而 LWW 同步必须保留
+/// 胜者一方的 updated_at（否则每次同步都会把时间戳拨到"现在"，破坏跨设备胜负判定）。
+/// 不修改 sync_enabled —— 该开关属于各设备本地偏好，不进同步包。
+pub fn apply_synced_config(
+    conn: &Connection,
+    enabled: bool,
+    base_url: &str,
+    model: &str,
+    api_key_encrypted: &str,
+    updated_at: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE ai_config
          SET enabled = ?1, base_url = ?2, model = ?3, api_key_encrypted = ?4, updated_at = ?5
          WHERE id = 1",
-        params![enabled, base_url, model, api_key_encrypted, updated_at],
+        params![
+            enabled as i64,
+            base_url,
+            model,
+            api_key_encrypted,
+            updated_at,
+        ],
     )?;
     Ok(())
 }

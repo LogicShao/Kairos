@@ -23,6 +23,15 @@ pub struct DownloadedSyncData {
     pub etag: Option<String>,
 }
 
+/// 下载远端 kairos-ai-settings.enc 的返回结构。
+#[derive(Debug, Clone)]
+pub struct DownloadedAiSettings {
+    /// 原始 JSON 文本（加密包）。
+    pub blob: String,
+    /// 远端响应的 HTTP ETag。
+    pub etag: Option<String>,
+}
+
 /// 上传失败类型。Conflict = 412 Precondition Failed（远端已变更），需重试。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UploadError {
@@ -64,8 +73,13 @@ impl WebDavClient {
     }
 
     fn sync_file_url(&self) -> String {
+        self.file_url("kairos-sync.json")
+    }
+
+    /// 拼接远端文件名 URL（统一去掉 server_url 尾部斜杠）。
+    fn file_url(&self, name: &str) -> String {
         let base = self.server_url.trim_end_matches('/');
-        format!("{}/kairos-sync.json", base)
+        format!("{base}/{name}")
     }
 
     fn auth_header(&self) -> Result<HeaderMap, String> {
@@ -93,36 +107,7 @@ impl WebDavClient {
     ) -> Result<Option<String>, UploadError> {
         let json = serde_json::to_string(data)
             .map_err(|e| UploadError::Other(format!("同步数据序列化失败：{e}")))?;
-
-        let url = self.sync_file_url();
-        let headers = self.auth_header().map_err(UploadError::Other)?;
-        let mut request = self
-            .client
-            .put(&url)
-            .headers(headers)
-            .header("Content-Type", "application/json")
-            .body(json);
-
-        if let Some(etag) = remote_etag.filter(|value| !value.trim().is_empty()) {
-            request = request.header(IF_MATCH, etag);
-        }
-
-        let response = request
-            .send()
-            .map_err(|e| UploadError::Other(map_reqwest_error(e, &url)))?;
-
-        let status = response.status();
-        if status.is_success() || status.as_u16() == 201 || status.as_u16() == 204 {
-            Ok(response_etag(response.headers()))
-        } else if is_precondition_failed(status) {
-            Err(UploadError::Conflict)
-        } else {
-            Err(UploadError::Other(format!(
-                "上传失败：HTTP {} — {}",
-                status.as_u16(),
-                response.text().unwrap_or_default()
-            )))
-        }
+        self.put_json("kairos-sync.json", json, remote_etag)
     }
 
     /// 下载远端 kairos-sync.json。返回解析后的数据 + ETag。
@@ -173,6 +158,84 @@ impl WebDavClient {
 
         let status = response.status();
         Ok(status.is_success() || status.as_u16() == 404)
+    }
+
+    /// 上传 AI 设置加密包。若 remote_etag 非空，追加 If-Match 条件上传。
+    /// 返回: 上传成功后服务端返回的新 ETag。Conflict = HTTP 412，调用方应触发重试。
+    pub fn upload_ai_settings(
+        &self,
+        blob: &str,
+        remote_etag: Option<&str>,
+    ) -> Result<Option<String>, UploadError> {
+        self.put_json("kairos-ai-settings.enc", blob.to_string(), remote_etag)
+    }
+
+    /// 下载远端 AI 设置加密包。404 = "No remote AI settings (404)"，调用方按无远端处理。
+    pub fn download_ai_settings(&self) -> Result<DownloadedAiSettings, String> {
+        let url = self.file_url("kairos-ai-settings.enc");
+        let headers = self.auth_header()?;
+
+        let response = self
+            .client
+            .get(&url)
+            .headers(headers)
+            .send()
+            .map_err(|e| map_reqwest_error(e, &url))?;
+
+        let status = response.status();
+        if status.is_success() {
+            let etag = response_etag(response.headers());
+            let blob = response
+                .text()
+                .map_err(|e| format!("读取响应内容失败：{e}"))?;
+            Ok(DownloadedAiSettings { blob, etag })
+        } else if status.as_u16() == 404 {
+            Err("No remote AI settings (404)".to_string())
+        } else {
+            Err(format!(
+                "下载失败：HTTP {} — {}",
+                status.as_u16(),
+                response.text().unwrap_or_default()
+            ))
+        }
+    }
+
+    /// 通用 JSON PUT（上传主快照 / AI 加密包共用）。409/201/204/412 语义与主快照一致。
+    fn put_json(
+        &self,
+        file_name: &str,
+        body: String,
+        remote_etag: Option<&str>,
+    ) -> Result<Option<String>, UploadError> {
+        let url = self.file_url(file_name);
+        let headers = self.auth_header().map_err(UploadError::Other)?;
+        let mut request = self
+            .client
+            .put(&url)
+            .headers(headers)
+            .header("Content-Type", "application/json")
+            .body(body);
+
+        if let Some(etag) = remote_etag.filter(|value| !value.trim().is_empty()) {
+            request = request.header(IF_MATCH, etag);
+        }
+
+        let response = request
+            .send()
+            .map_err(|e| UploadError::Other(map_reqwest_error(e, &url)))?;
+
+        let status = response.status();
+        if status.is_success() || status.as_u16() == 201 || status.as_u16() == 204 {
+            Ok(response_etag(response.headers()))
+        } else if is_precondition_failed(status) {
+            Err(UploadError::Conflict)
+        } else {
+            Err(UploadError::Other(format!(
+                "上传失败：HTTP {} — {}",
+                status.as_u16(),
+                response.text().unwrap_or_default()
+            )))
+        }
     }
 }
 

@@ -7,6 +7,8 @@ export interface AiConfig {
   model: string
   /** 后端是否已保存 API key；明文/掩码均不回传。 */
   api_key_configured: boolean
+  /** 是否开启 WebDAV 加密同步（AI 设置 + API 密钥随 WebDAV 同步）。 */
+  sync_enabled: boolean
   /** UTC ISO 8601 创建时间。 */
   created_at: string
   /** UTC ISO 8601 更新时间。 */
@@ -20,6 +22,8 @@ export interface UpdateAiConfigRequest {
   model?: string
   /** 有值=更新密钥；空字符串=清空；省略=保留原密钥。 */
   api_key?: string
+  /** 开启/关闭 AI 设置 WebDAV 加密同步；省略=保留当前值。 */
+  sync_enabled?: boolean
 }
 
 /** 摘要生成来源："ai" = deepseek 生成，"rule" = 本地规则降级。 */

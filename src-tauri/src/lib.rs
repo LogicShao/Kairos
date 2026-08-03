@@ -355,6 +355,8 @@ pub fn run() {
             commands::ai::get_ai_morning_brief,
             commands::ai::generate_ai_morning_brief,
             commands::ai::generate_ai_morning_brief_streaming,
+            commands::ai::get_ai_sync_recovery_key,
+            commands::ai::set_ai_sync_recovery_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

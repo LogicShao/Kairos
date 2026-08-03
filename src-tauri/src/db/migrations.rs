@@ -138,30 +138,6 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             ",
         ),
         (
-            7,
-            "widget_config",
-            "
-            CREATE TABLE IF NOT EXISTS widget_config (
-                id INTEGER PRIMARY KEY DEFAULT 1,
-                enabled INTEGER NOT NULL DEFAULT 0,
-                mode TEXT NOT NULL DEFAULT 'medium' CHECK(mode IN ('small', 'medium', 'large')),
-                opacity REAL NOT NULL DEFAULT 0.92 CHECK(opacity >= 0.6 AND opacity <= 1.0),
-                always_on_top INTEGER NOT NULL DEFAULT 1,
-                locked INTEGER NOT NULL DEFAULT 0,
-                x INTEGER,
-                y INTEGER,
-                width INTEGER NOT NULL DEFAULT 320 CHECK(width BETWEEN 220 AND 520),
-                height INTEGER NOT NULL DEFAULT 220 CHECK(height BETWEEN 140 AND 420),
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            INSERT OR IGNORE INTO widget_config
-                (id, enabled, mode, opacity, always_on_top, locked, width, height, created_at, updated_at)
-            VALUES
-                (1, 0, 'medium', 0.92, 1, 0, 320, 220, datetime('now'), datetime('now'));
-            ",
-        ),
-        (
             8,
             "semester_context",
             "
@@ -317,6 +293,21 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             "daily_task_fields",
             "", // SQL 由 apply_daily_task_fields_migration 处理（add_column_if_missing 幂等加列）
         ),
+        (
+            15,
+            "ai_settings_webdav_sync",
+            "", // SQL 由 apply_ai_sync_columns_migration 处理（add_column_if_missing 幂等加列）
+        ),
+        (
+            16,
+            "retire_widget_config",
+            "DROP TABLE IF EXISTS widget_config;",
+        ),
+        (
+            17,
+            "task_remind_at",
+            "", // SQL 由 apply_task_remind_at_migration 处理（add_column_if_missing 幂等加列）
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -332,6 +323,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 3 => apply_course_week_and_exam_range_migration(&tx)?,
                 4 => apply_sync_identity_and_tombstones_migration(&tx)?,
                 14 => apply_daily_task_fields_migration(&tx)?,
+                15 => apply_ai_sync_columns_migration(&tx)?,
+                17 => apply_task_remind_at_migration(&tx)?,
                 _ => tx.execute_batch(sql)?,
             }
             tx.execute(
@@ -355,6 +348,33 @@ fn apply_daily_task_fields_migration(conn: &Connection) -> Result<()> {
         "last_completed_date TEXT",
     )?;
     add_column_if_missing(conn, "tasks", "reminder_time", "reminder_time TEXT")?;
+    Ok(())
+}
+
+/// 普通任务一次性提醒时间列（幂等加列）。
+/// - tasks.remind_at：普通任务（is_daily=0）的一次性提醒时刻（YYYY-MM-DD HH:MM，+08:00）；
+///   到点发通知一次，发完/过期/完成后清空。每日任务恒为 null（仍用 reminder_time）。
+fn apply_task_remind_at_migration(conn: &Connection) -> Result<()> {
+    add_column_if_missing(conn, "tasks", "remind_at", "remind_at TEXT")?;
+    Ok(())
+}
+
+/// AI 设置 WebDAV 加密同步相关列（幂等加列）。
+/// - ai_config.sync_enabled：AI 设置页「同步到 WebDAV」开关。
+/// - sync_config.ai_settings_remote_etag：AI 加密包文件的条件上传 ETag（独立于主快照）。
+fn apply_ai_sync_columns_migration(conn: &Connection) -> Result<()> {
+    add_column_if_missing(
+        conn,
+        "ai_config",
+        "sync_enabled",
+        "sync_enabled INTEGER NOT NULL DEFAULT 0",
+    )?;
+    add_column_if_missing(
+        conn,
+        "sync_config",
+        "ai_settings_remote_etag",
+        "ai_settings_remote_etag TEXT",
+    )?;
     Ok(())
 }
 
@@ -492,7 +512,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("Failed to count tables");
-        assert_eq!(table_count, 15);
+        assert_eq!(table_count, 14);
 
         // Verify pomodoro_config has default row
         let has_default: bool = conn
@@ -529,11 +549,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly fourteen migration records applied once each.
+        // Should have exactly sixteen migration records applied once each.
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 14);
+        assert_eq!(count, 16);
     }
 
     #[test]
@@ -620,7 +640,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 14);
+        assert_eq!(count, 16);
     }
 
     #[test]

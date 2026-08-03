@@ -10,16 +10,20 @@
 //! - session-scoped: 自动同步仅在应用进程存活期间调度，关闭后不触发
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use rusqlite::Connection;
 use tauri::Emitter;
+use tauri::Manager;
 
 use crate::db;
+use crate::sync::ai_settings as ai_sync;
 use crate::sync::exporter::{SyncResult, SyncStats};
 use crate::sync::webdav::{UploadError, WebDavClient};
+use crate::timer::PomodoroEngine;
 
+pub mod ai_settings;
 pub mod exporter;
 pub mod ids;
 pub mod webdav;
@@ -119,7 +123,14 @@ impl Drop for SyncGuard {
 /// 手动 `sync_now` 和自动同步线程都调用此函数。
 /// 调用方负责: 打开数据库连接、管理 `running` 护栏（通过 `SyncGuard` 或手动）。
 /// 此函数本身不操作 AutoSyncState。
-pub fn execute_sync(conn: &mut Connection) -> Result<SyncResult, String> {
+///
+/// 主快照同步外，若 AI 设置开启 WebDAV 同步，会一并同步加密包
+/// （`kairos-ai-settings.enc`）。AI 设置同步失败**不会**阻塞主快照同步，
+/// 该降级策略保证加密问题不拖累核心数据。
+pub fn execute_sync(
+    conn: &mut Connection,
+    app_handle: &tauri::AppHandle,
+) -> Result<SyncResult, String> {
     let config = db::sync::get_sync_config(conn).map_err(|e| e.to_string())?;
 
     if config.server_url.is_empty() {
@@ -152,6 +163,11 @@ pub fn execute_sync(conn: &mut Connection) -> Result<SyncResult, String> {
                 UploadError::Other(message) => Err(format!("上传失败：{message}")),
             })?;
     add_sync_stats(&mut stats, retry_stats);
+
+    // ── AI 设置加密同步（非致命：失败仅记日志，绝不阻塞主快照）──
+    if let Err(e) = sync_ai_settings(conn, &client, &config.password, app_handle) {
+        log::warn!("AI 设置同步失败（已跳过，不影响数据同步）：{e}");
+    }
 
     db::sync::update_last_sync_at(conn, &uploaded_exported_at).map_err(|e| e.to_string())?;
     db::sync::update_remote_etag(conn, uploaded_etag.as_deref()).map_err(|e| e.to_string())?;
@@ -225,7 +241,7 @@ pub fn auto_sync_loop(
         if let Some(_guard) = SyncGuard::acquire(&running) {
             match db::get_connection(&db_path) {
                 Ok(mut conn) => {
-                    match execute_sync(&mut conn) {
+                    match execute_sync(&mut conn, &app_handle) {
                         Ok(_result) => {
                             // 读取持久化后的 last_sync_at 通知前端
                             if let Ok(cfg) = db::sync::get_sync_config(&conn) {
@@ -359,6 +375,163 @@ fn retry_after_remote_conflict(
             UploadError::Other(message) => format!("上传失败：{message}"),
         })?;
     Ok((exported_at, etag, retry_stats))
+}
+
+/// AI 设置加密同步：下载加密包 → 解密 → LWW 合并 → 写库 → 重加密 → 条件上传。
+///
+/// 调用时机：`execute_sync` 主快照成功之后、写 `last_sync_at` 之前。
+/// 前置条件（不满足直接跳过）：
+/// - `ai_config.sync_enabled == true`（用户显式开启了 AI 设置 WebDAV 同步）
+/// - WebDAV 密码非空（否则无法派生 KEK）
+///
+/// 语义：
+/// - 无远端数据（404）→ 只上传本地加密包。
+/// - 解密失败（密码不匹配且无恢复密钥）→ 返回错误，由调用方按非致命降级处理。
+/// - 合并后统一用胜者 payload 重加密上传：若远端 DEK 是旧密码包裹（needs_rewrap），
+///   本流程天然生成新 header，下次即用当前密码包裹。
+/// - 远端胜出时用本机 key 文件重加密 API 密钥写库（跨设备迁移密钥），并保留
+///   胜者的 updated_at（LWW 时间基准）。
+fn sync_ai_settings(
+    conn: &mut Connection,
+    client: &WebDavClient,
+    password: &str,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), String> {
+    if password.is_empty() {
+        return Ok(());
+    }
+    let ai_config = db::ai::get_ai_config(conn).map_err(|e| e.to_string())?;
+    if !ai_config.sync_enabled {
+        return Ok(());
+    }
+
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    // 本地 payload（api_key 明文由本机 key 文件解密，仅进入内存加密，不过桥）。
+    let local_key = crate::ai::crypto::load_key(&app_data_dir)?;
+    let local_api_key = if ai_config.api_key_encrypted.is_empty() {
+        String::new()
+    } else {
+        crate::ai::crypto::decrypt_api_key(&ai_config.api_key_encrypted, &local_key)
+            .map_err(|e| format!("解密本地 API 密钥失败：{e}"))?
+    };
+    let local_payload = ai_sync::payload_from_config(&ai_config, &local_api_key);
+
+    // 读本地 DEK 副本（不存在 = 首次同步，稍后用远端解出的 DEK 或新生成）。
+    let local_dek = ai_sync::load_dek(&app_data_dir)?;
+
+    // 下载远端加密包（404 = 尚无远端数据，仅上传本地）。
+    let remote = match client.download_ai_settings() {
+        Ok(remote) => Some(remote),
+        Err(e) if e.contains("404") => None,
+        Err(e) => return Err(e),
+    };
+    let had_remote = remote.is_some();
+    // 条件上传用本次下载拿到的新 ETag；远端不存在时用 None（无 If-Match），
+    // 避免用上次持久化的陈旧 ETag 对已删除/被替换的文件发起条件 PUT 触发 412。
+    let upload_etag = remote.as_ref().and_then(|r| r.etag.clone());
+
+    // 解密 + 合并。
+    let (merged_payload, merged_dek) = match remote {
+        Some(remote) => {
+            let decrypted = ai_sync::decrypt_blob(password, &remote.blob, local_dek)?;
+            match ai_sync::merge_payload(Some(&local_payload), &decrypted.payload) {
+                ai_sync::MergeOutcome::RemoteWins(payload) => {
+                    // 远端胜：写库（API 密钥用本机 key 文件重加密，保留胜者 updated_at）。
+                    let reencrypted = if payload.api_key.is_empty() {
+                        String::new()
+                    } else {
+                        crate::ai::crypto::encrypt_api_key(&payload.api_key, &local_key)
+                            .map_err(|e| format!("加密同步 API 密钥失败：{e}"))?
+                    };
+                    db::ai::apply_synced_config(
+                        conn,
+                        payload.enabled,
+                        &payload.base_url,
+                        &payload.model,
+                        &reencrypted,
+                        &payload.updated_at,
+                    )
+                    .map_err(|e| e.to_string())?;
+                    (payload, decrypted.dek)
+                }
+                // 本地胜（或平局）：保留本地 payload，但采用本次拿到的 DEK。
+                ai_sync::MergeOutcome::LocalWins => (local_payload.clone(), decrypted.dek),
+            }
+        }
+        None => (local_payload.clone(), local_dek.unwrap_or_default()),
+    };
+
+    // 首次同步且没有远端数据 → 生成全新 DEK。
+    let final_dek = if !had_remote && local_dek.is_none() {
+        ai_sync::load_or_create_dek(&app_data_dir)?
+    } else {
+        merged_dek
+    };
+
+    // 统一重新加密（若 needs_rewrap，这里用当前密码重裹 DEK，完成"改密码迁移"）。
+    let new_blob = ai_sync::encrypt_to_blob(password, &merged_payload, final_dek)?;
+
+    let new_etag = match client.upload_ai_settings(&new_blob, upload_etag.as_deref()) {
+        Ok(etag) => etag,
+        Err(UploadError::Conflict) => {
+            // 上传期间远端已变化：下载最新 → 重新合并 → 条件上传。
+            log::warn!("AI 设置上传冲突，重试一次");
+            let latest = client
+                .download_ai_settings()
+                .map_err(|e| format!("冲突后重新下载 AI 设置失败：{e}"))?;
+            let decrypted = ai_sync::decrypt_blob(password, &latest.blob, Some(final_dek))?;
+            let local_payload_now = {
+                let cfg = db::ai::get_ai_config(conn).map_err(|e| e.to_string())?;
+                let k = crate::ai::crypto::load_key(&app_data_dir)?;
+                let pk = if cfg.api_key_encrypted.is_empty() {
+                    String::new()
+                } else {
+                    crate::ai::crypto::decrypt_api_key(&cfg.api_key_encrypted, &k)
+                        .map_err(|e| format!("解密本地 API 密钥失败：{e}"))?
+                };
+                ai_sync::payload_from_config(&cfg, &pk)
+            };
+            let winner = match ai_sync::merge_payload(Some(&local_payload_now), &decrypted.payload) {
+                ai_sync::MergeOutcome::RemoteWins(payload) => payload,
+                ai_sync::MergeOutcome::LocalWins => local_payload_now,
+            };
+            let retry_blob = ai_sync::encrypt_to_blob(password, &winner, decrypted.dek)?;
+            client
+                .upload_ai_settings(&retry_blob, latest.etag.as_deref())
+                .map_err(|error| match error {
+                    UploadError::Conflict => "AI 设置上传失败：重试期间远端再次变化".to_string(),
+                    UploadError::Other(message) => format!("AI 设置上传失败：{message}"),
+                })?
+        }
+        Err(UploadError::Other(message)) => return Err(message),
+    };
+
+    // 持久化 DEK（首次同步生成 / 后续需要落盘）与远端 ETag。
+    if local_dek.is_none() {
+        ai_sync::save_dek(&app_data_dir, &final_dek)?;
+    }
+    db::sync::update_ai_settings_remote_etag(conn, new_etag.as_deref())
+        .map_err(|e| e.to_string())?;
+
+    // 远端配置变更后重建 7:00 调度。安全：execute_sync 用独立连接，共享 db Mutex 此刻空闲
+    // （调用方在进入 execute_sync 前已释放共享 db 锁），此处短暂加锁无死锁风险。
+    if let (Some(db_state), Some(engine_state)) = (
+        app_handle.try_state::<Arc<Mutex<Connection>>>(),
+        app_handle.try_state::<Arc<Mutex<PomodoroEngine>>>(),
+    ) {
+        crate::ai::scheduler::reschedule(
+            db_state.inner().clone(),
+            engine_state.inner().clone(),
+            app_handle.clone(),
+        )
+        .map_err(|e| format!("重建 AI 调度失败：{e}"))?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

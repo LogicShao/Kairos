@@ -155,7 +155,7 @@ pub fn sync_now(
 
     let result = {
         let mut conn = open_app_connection(&app_handle)?;
-        sync::execute_sync(&mut conn)
+        sync::execute_sync(&mut conn, &app_handle)
     };
     // _guard drop → running.store(false, Release)
 

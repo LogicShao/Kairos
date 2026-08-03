@@ -19,6 +19,7 @@ pub fn get_ai_config(db: State<'_, Arc<Mutex<Connection>>>) -> Result<AiConfigVi
         base_url: config.base_url,
         model: config.model,
         api_key_configured: !config.api_key_encrypted.is_empty(),
+        sync_enabled: config.sync_enabled,
         created_at: config.created_at,
         updated_at: config.updated_at,
     })
@@ -57,6 +58,35 @@ pub fn update_ai_config(
     crate::ai::scheduler::reschedule(db.inner().clone(), engine.inner().clone(), app_handle)?;
 
     get_ai_config(db)
+}
+
+/// 读取恢复密钥（DEK 的 hex）。未生成（从未同步过 AI 设置）时返回 `None`。
+#[tauri::command]
+pub fn get_ai_sync_recovery_key(
+    app_handle: AppHandle,
+) -> Result<Option<String>, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    match crate::sync::ai_settings::load_dek(&app_data_dir)? {
+        Some(dek) => Ok(Some(crate::sync::ai_settings::recovery_key_hex(&dek))),
+        None => Ok(None),
+    }
+}
+
+/// 写入恢复密钥（DEK hex 转回 32 字节落盘）。用于重装设备后恢复 AI 设置同步。
+#[tauri::command]
+pub fn set_ai_sync_recovery_key(
+    app_handle: AppHandle,
+    hex_key: String,
+) -> Result<(), String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let dek = crate::sync::ai_settings::recovery_key_from_hex(&hex_key)?;
+    crate::sync::ai_settings::save_dek(&app_data_dir, &dek)
 }
 
 /// 读取今日摘要缓存；未生成为 `None`（前端据此显示生成按钮）。

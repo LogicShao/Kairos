@@ -22,47 +22,6 @@ pub struct UpdateNotificationConfig {
     pub android_channel_created: Option<bool>,
 }
 
-/// 桌面小组件本地配置。id 固定为 1，enabled 表示应用启动时是否恢复窗口。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WidgetConfig {
-    pub id: i64,
-    /// 1 = 启动并显示 widget 窗口，0 = 不创建/隐藏 widget 窗口。
-    pub enabled: bool,
-    /// "small"、"medium" 或 "large"，同时决定默认窗口尺寸和渲染布局。
-    pub mode: String,
-    /// 前端视觉透明度，范围 0.6..=1.0；Tauri 窗口仅负责透明背景。
-    pub opacity: f64,
-    /// 1 = widget 窗口置顶。
-    pub always_on_top: bool,
-    /// 1 = 禁止前端拖动保存位置。
-    pub locked: bool,
-    /// 窗口左上角物理像素 x 坐标；None 表示首次创建使用系统默认位置。
-    pub x: Option<i64>,
-    /// 窗口左上角物理像素 y 坐标；None 表示首次创建使用系统默认位置。
-    pub y: Option<i64>,
-    /// 窗口宽度，逻辑像素。
-    pub width: i64,
-    /// 窗口高度，逻辑像素。
-    pub height: i64,
-    /// UTC ISO 8601 创建时间。
-    pub created_at: String,
-    /// UTC ISO 8601 更新时间。
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct UpdateWidgetConfigRequest {
-    pub enabled: Option<bool>,
-    pub mode: Option<String>,
-    pub opacity: Option<f64>,
-    pub always_on_top: Option<bool>,
-    pub locked: Option<bool>,
-    pub x: Option<i64>,
-    pub y: Option<i64>,
-    pub width: Option<i64>,
-    pub height: Option<i64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PomodoroConfig {
     pub id: i64,
@@ -198,6 +157,9 @@ pub struct Task {
     /// 每日任务提醒时间（HH:MM）；null = 不提醒。普通任务恒为 null。
     #[serde(default)]
     pub reminder_time: Option<String>,
+    /// 普通任务一次性提醒时间（YYYY-MM-DD HH:MM，+08:00）；null = 不提醒。每日任务恒为 null。
+    #[serde(default)]
+    pub remind_at: Option<String>,
     /// 墓碑时间戳。null = 活跃，非 null = 已软删除。
     #[serde(default)]
     pub deleted_at: Option<String>,
@@ -215,6 +177,9 @@ pub struct CreateTaskRequest {
     pub is_daily: bool,
     #[serde(default)]
     pub reminder_time: Option<String>,
+    /// 普通任务一次性提醒时间（YYYY-MM-DD HH:MM，+08:00）；null = 不提醒。每日任务恒为 null。
+    #[serde(default)]
+    pub remind_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +193,9 @@ pub struct UpdateTaskRequest {
     pub is_daily: bool,
     pub last_completed_date: Option<String>,
     pub reminder_time: Option<String>,
+    /// 普通任务一次性提醒时间（YYYY-MM-DD HH:MM，+08:00）；null = 不提醒。每日任务恒为 null。
+    #[serde(default)]
+    pub remind_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -451,6 +419,9 @@ pub struct SyncConfig {
     /// 数据集唯一标识（UUID）。同一同步文件的所有设备共享此值。
     #[serde(default)]
     pub dataset_id: Option<String>,
+    /// AI 设置加密包文件（kairos-ai-settings.enc）的上次上传 ETag，用于 If-Match 条件上传。
+    #[serde(default)]
+    pub ai_settings_remote_etag: Option<String>,
 }
 
 /// AI 摘要配置（单例，id=1）。api_key 仅存密文，明文与 key 文件永不过桥。
@@ -465,6 +436,9 @@ pub struct AiConfig {
     pub model: String,
     /// API key 密文（AES-CBC + 本地随机 key 文件）。空字符串 = 未配置。
     pub api_key_encrypted: String,
+    /// 1 = 将 AI 设置（含 API 密钥）随 WebDAV 同步，0 = 仅存本机。
+    #[serde(default)]
+    pub sync_enabled: bool,
     /// UTC ISO 8601 创建时间。
     pub created_at: String,
     /// UTC ISO 8601 更新时间。
@@ -481,6 +455,8 @@ pub struct AiConfigView {
     pub model: String,
     /// 是否已配置 API key（不回传明文或掩码）。
     pub api_key_configured: bool,
+    /// 是否开启 WebDAV 加密同步。
+    pub sync_enabled: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -493,6 +469,8 @@ pub struct UpdateAiConfigRequest {
     pub base_url: Option<String>,
     pub model: Option<String>,
     pub api_key: Option<String>,
+    /// 开启/关闭 AI 设置 WebDAV 加密同步；None = 保留当前值。
+    pub sync_enabled: Option<bool>,
 }
 
 /// 今日 AI 摘要（date 唯一，+08:00 中国日期）。
