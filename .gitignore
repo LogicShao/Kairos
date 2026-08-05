@@ -26,6 +26,13 @@ reasonix.toml
 .claude/
 .codex/
 
+# Agent tool state (local-only, not source)
+.omo/
+
+# Personal agent config (machine-local, not source)
+CLAUDE.md
+CLAUDE_PROMPT_TEMPLATES.md
+
 # Trellis local-state boundary is maintained in ".trellis/.gitignore"
 
 # Android signing keys
