@@ -39,6 +39,8 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
   })
   const [isDaily, setIsDaily] = useState(task?.is_daily ?? false)
   const [reminderTime, setReminderTime] = useState(task?.reminder_time ?? "")
+  // 后端存 "YYYY-MM-DD HH:MM"，datetime-local 需要 "YYYY-MM-DDTHH:MM"。
+  const [remindAt, setRemindAt] = useState(task?.remind_at ? task.remind_at.replace(" ", "T") : "")
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -62,6 +64,8 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
         tags: JSON.stringify(tagList),
         is_daily: isDaily,
         reminder_time: isDaily && reminderTime ? reminderTime : null,
+        // 普通任务一次性提醒：提交前把 datetime-local 的 T 转回空格。
+        remind_at: !isDaily && remindAt ? remindAt.replace("T", " ") : null,
       }
       if (task) {
         await onUpdate(payload as UpdateTaskRequest)
@@ -146,6 +150,23 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
               onChange={(e) => setDueDate(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
             />
+          </div>
+        )}
+
+        {!isDaily && (
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
+              提醒时间
+            </label>
+            <input
+              type="datetime-local"
+              value={remindAt}
+              onChange={(e) => setRemindAt(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground/70">
+              到点系统通知提醒你（可选，完成后自动清除）
+            </p>
           </div>
         )}
 

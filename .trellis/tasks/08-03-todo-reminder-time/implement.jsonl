@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移约定（幂等加列 add_column_if_missing）、单例表范式"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "命令层 Result<T, String>、通知失败降级"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "调度器模块注释、新字段注释"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "remind_at 前后端类型一致性"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "新增列 → 后端命令 → 调度器 → 前端的完整链路"}

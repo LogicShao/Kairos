@@ -476,6 +476,7 @@ mod tests {
             is_daily: false,
             last_completed_date: None,
             reminder_time: None,
+            remind_at: None,
             deleted_at: None,
         }
     }
@@ -495,6 +496,7 @@ mod tests {
             is_daily: false,
             last_completed_date: None,
             reminder_time: None,
+            remind_at: None,
             deleted_at: None,
         }
     }

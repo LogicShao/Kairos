@@ -158,10 +158,10 @@ macro_rules! export_entity {
 }
 
 export_entity!(export_tasks, Task,
-    "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at FROM tasks ORDER BY id",
+    "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, remind_at, deleted_at FROM tasks ORDER BY id",
     id: 0, sync_id: 1, title: 2, description: 3, status: 4, priority: 5,
     due_date: 6, tags: 7, created_at: 8, updated_at: 9, is_daily: 10,
-    last_completed_date: 11, reminder_time: 12, deleted_at: 13,
+    last_completed_date: 11, reminder_time: 12, remind_at: 13, deleted_at: 14,
 );
 
 export_entity!(export_courses, Course,
@@ -204,8 +204,8 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
         match local {
             None => {
                 tx.execute(
-                    "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, deleted_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    "INSERT INTO tasks (sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, remind_at, deleted_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                     params![
                         remote.sync_id,
                         remote.title,
@@ -219,6 +219,7 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                         remote.is_daily as i64,
                         remote.last_completed_date,
                         remote.reminder_time,
+                        remote.remind_at,
                         remote.deleted_at,
                     ],
                 )?;
@@ -235,8 +236,8 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                          SET title = ?1, description = ?2, status = ?3, priority = ?4,
                              due_date = ?5, tags = ?6, created_at = ?7, updated_at = ?8,
                              is_daily = ?9, last_completed_date = ?10, reminder_time = ?11,
-                             deleted_at = ?12, sync_id = ?13
-                         WHERE id = ?14",
+                             remind_at = ?12, deleted_at = ?13, sync_id = ?14
+                         WHERE id = ?15",
                         params![
                             remote.title,
                             remote.description,
@@ -249,6 +250,7 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
                             remote.is_daily as i64,
                             remote.last_completed_date,
                             remote.reminder_time,
+                            remote.remind_at,
                             remote.deleted_at,
                             remote.sync_id,
                             local.id,
@@ -791,6 +793,7 @@ mod tests {
             is_daily: false,
             last_completed_date: None,
             reminder_time: None,
+            remind_at: None,
             deleted_at: None,
         }
     }
@@ -1140,6 +1143,65 @@ mod tests {
         assert!(
             !json.contains("ai_morning_brief"),
             "导出 JSON 不应包含 ai_morning_brief"
+        );
+    }
+
+    #[test]
+    fn test_remind_at_sync_roundtrip_and_clear() {
+        let mut conn = setup_db();
+
+        // 创建带 remind_at 的普通任务。
+        let mut task = sample_task(1, "task-sync-1", "2024-01-01T00:00:00Z");
+        task.remind_at = Some("2026-08-05 14:00".to_string());
+        let mut data1 = sample_sync_data();
+        data1.tasks = vec![task];
+        import_all(&mut conn, &data1).expect("import with remind_at");
+
+        let exported = export_all(&conn).expect("re-export");
+        assert_eq!(
+            exported.tasks[0].remind_at.as_deref(),
+            Some("2026-08-05 14:00")
+        );
+
+        // 远端较新且 remind_at 已清空（提醒发出/任务完成）→ LWW 整体覆盖为 null。
+        let mut newer = sample_task(99, "task-sync-1", "2024-02-01T00:00:00Z");
+        newer.remind_at = None;
+        let mut data2 = sample_sync_data();
+        data2.tasks = vec![newer];
+        let stats = import_all(&mut conn, &data2).expect("merge clear");
+        assert_eq!(stats.tasks_merged, 1);
+        let exported = export_all(&conn).expect("re-export after clear");
+        assert!(
+            exported.tasks[0].remind_at.is_none(),
+            "远端清空 remind_at 应整体覆盖本地"
+        );
+    }
+
+    #[test]
+    fn test_lww_tie_does_not_revive_remind_at() {
+        // 平局时不做 remind_at 非空优先合并（不进 merge_daily_fields）：
+        // 本地已清空，远端（旧版本残留）带 remind_at 时，本地保持清空，不复活一次性提醒。
+        let mut conn = setup_db();
+
+        // 本地已清空 remind_at（提醒发出/完成）。
+        let mut local = sample_task(1, "task-sync-1", "2024-06-01T10:00:00Z");
+        local.remind_at = None;
+        let mut data1 = sample_sync_data();
+        data1.tasks = vec![local];
+        import_all(&mut conn, &data1).expect("initial import");
+
+        // 远端同 updated_at（LWW 平局），但残留 remind_at。
+        let mut remote = sample_task(99, "task-sync-1", "2024-06-01T10:00:00Z");
+        remote.remind_at = Some("2026-08-05 14:00".to_string());
+        let mut data2 = sample_sync_data();
+        data2.tasks = vec![remote];
+        let stats = import_all(&mut conn, &data2).expect("merge import");
+
+        assert_eq!(stats.tasks_merged, 0);
+        let exported = export_all(&conn).expect("re-export");
+        assert!(
+            exported.tasks[0].remind_at.is_none(),
+            "平局时不应复活已清空的 remind_at"
         );
     }
 }

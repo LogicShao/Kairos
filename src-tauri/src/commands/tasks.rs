@@ -23,6 +23,9 @@ pub struct CreateTaskCmd {
     is_daily: Option<bool>,
     #[serde(default)]
     reminder_time: Option<String>,
+    /// 普通任务一次性提醒时间（YYYY-MM-DD HH:MM）；null = 不提醒。
+    #[serde(default)]
+    remind_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +46,9 @@ pub struct UpdateTaskCmd {
     is_daily: Option<bool>,
     #[serde(default)]
     reminder_time: Option<String>,
+    /// 普通任务一次性提醒时间（YYYY-MM-DD HH:MM）；null = 不提醒。
+    #[serde(default)]
+    remind_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,6 +98,7 @@ pub fn create_task(
             tags: cmd.tags.unwrap_or_else(|| String::from("[]")),
             is_daily: cmd.is_daily.unwrap_or(false),
             reminder_time: cmd.reminder_time,
+            remind_at: cmd.remind_at,
         };
         crate::db::tasks::create_task(&conn, &req).map_err(|e| e.to_string())?
     };
@@ -111,10 +118,11 @@ pub fn update_task(
         let conn = db.lock().map_err(|e| e.to_string())?;
         let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
 
-        let req = UpdateTaskRequest {
+        let new_status = cmd.status.unwrap_or(existing.status.clone());
+        let mut req = UpdateTaskRequest {
             title: cmd.title.unwrap_or(existing.title),
             description: cmd.description.unwrap_or(existing.description),
-            status: cmd.status.unwrap_or(existing.status),
+            status: new_status,
             priority: cmd.priority.unwrap_or(existing.priority),
             due_date: cmd.due_date.or(existing.due_date),
             tags: cmd.tags.unwrap_or(existing.tags),
@@ -122,7 +130,12 @@ pub fn update_task(
             // 完成日期由专用 complete/uncomplete 命令维护，编辑任务不直接改动。
             last_completed_date: existing.last_completed_date,
             reminder_time: cmd.reminder_time.or(existing.reminder_time),
+            remind_at: cmd.remind_at.or(existing.remind_at),
         };
+        // 普通任务完成（status → done）：一次性提醒随完成自动消失，避免已完成的任务继续触发提醒。
+        if existing.status != "done" && req.status == "done" {
+            req.remind_at = None;
+        }
         crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
     }
     crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
@@ -203,5 +216,6 @@ fn task_to_update(existing: &Task) -> UpdateTaskRequest {
         is_daily: existing.is_daily,
         last_completed_date: existing.last_completed_date.clone(),
         reminder_time: existing.reminder_time.clone(),
+        remind_at: existing.remind_at.clone(),
     }
 }

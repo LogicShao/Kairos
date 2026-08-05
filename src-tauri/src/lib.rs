@@ -245,6 +245,10 @@ pub fn run() {
 
             // ─── 每日任务提醒调度 ───
             if notifications_available {
+                // 先清理已过期的一次性 remind_at（应用错过提醒不补发），再启动调度线程。
+                if let Ok(conn) = db_conn.lock() {
+                    notifications::daily_reminder::clear_expired_remind_at(&conn);
+                }
                 notifications::daily_reminder::ensure_scheduled(db_conn.clone(), app.handle().clone());
             }
 

@@ -24,6 +24,8 @@ export interface Task {
   last_completed_date: string | null
   /** 每日任务提醒时间（HH:MM）；null 表示不提醒。 */
   reminder_time: string | null
+  /** 普通任务一次性提醒时间（YYYY-MM-DD HH:MM，本地时间）；null 表示不提醒。每日任务恒为 null。 */
+  remind_at: string | null
   /** 墓碑时间戳。正常列表查询只返回 null；非 null 表示已软删除并参与同步传播。 */
   deleted_at: string | null
 }
@@ -42,6 +44,8 @@ export interface CreateTaskRequest {
   is_daily?: boolean
   /** 每日任务提醒时间（HH:MM）；null/省略 = 不提醒。 */
   reminder_time?: string | null
+  /** 普通任务一次性提醒时间（YYYY-MM-DD HH:MM）；null/省略 = 不提醒。每日任务应传 null。 */
+  remind_at?: string | null
 }
 
 /** update_task 命令入参；省略字段表示沿用当前任务值。 */
@@ -58,6 +62,8 @@ export interface UpdateTaskRequest {
   is_daily?: boolean
   /** 每日任务提醒时间（HH:MM）。 */
   reminder_time?: string | null
+  /** 普通任务一次性提醒时间（YYYY-MM-DD HH:MM）。 */
+  remind_at?: string | null
 }
 
 /** get_all_tasks 过滤与排序参数，字段名与 commands::tasks::TaskFilterParams 对齐。 */
