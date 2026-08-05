@@ -29,6 +29,8 @@ pub struct PomodoroConfig {
     pub short_break_seconds: i64,
     pub long_break_seconds: i64,
     pub sessions_before_long_break: i64,
+    /// 阶段结束后是否自动开始下一阶段计时；false = 暂停等待用户按开始（默认）。
+    pub auto_start_next_phase: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +95,8 @@ pub struct UpdatePomodoroConfigRequest {
     pub short_break_seconds: i64,
     pub long_break_seconds: i64,
     pub sessions_before_long_break: i64,
+    /// 阶段结束后是否自动开始下一阶段计时；false = 暂停等待用户按开始（默认）。
+    pub auto_start_next_phase: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

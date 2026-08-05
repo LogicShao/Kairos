@@ -308,6 +308,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             "task_remind_at",
             "", // SQL 由 apply_task_remind_at_migration 处理（add_column_if_missing 幂等加列）
         ),
+        (
+            18,
+            "pomodoro_auto_start_next_phase",
+            "", // SQL 由 apply_pomodoro_auto_start_migration 处理（add_column_if_missing 幂等加列）
+        ),
     ];
 
     let current_version: i32 = conn.query_row(
@@ -325,6 +330,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 14 => apply_daily_task_fields_migration(&tx)?,
                 15 => apply_ai_sync_columns_migration(&tx)?,
                 17 => apply_task_remind_at_migration(&tx)?,
+                18 => apply_pomodoro_auto_start_migration(&tx)?,
                 _ => tx.execute_batch(sql)?,
             }
             tx.execute(
@@ -356,6 +362,19 @@ fn apply_daily_task_fields_migration(conn: &Connection) -> Result<()> {
 ///   到点发通知一次，发完/过期/完成后清空。每日任务恒为 null（仍用 reminder_time）。
 fn apply_task_remind_at_migration(conn: &Connection) -> Result<()> {
     add_column_if_missing(conn, "tasks", "remind_at", "remind_at TEXT")?;
+    Ok(())
+}
+
+/// 番茄钟「自动开始下一阶段」开关列（幂等加列）。
+/// - pomodoro_config.auto_start_next_phase：0 = 阶段结束后暂停等待用户按开始（默认）；
+///   1 = 阶段结束后自动开始下一阶段计时。
+fn apply_pomodoro_auto_start_migration(conn: &Connection) -> Result<()> {
+    add_column_if_missing(
+        conn,
+        "pomodoro_config",
+        "auto_start_next_phase",
+        "auto_start_next_phase INTEGER NOT NULL DEFAULT 0",
+    )?;
     Ok(())
 }
 
@@ -549,11 +568,11 @@ mod tests {
         run_migrations(&conn).expect("First migration failed");
         run_migrations(&conn).expect("Second migration should be idempotent");
 
-        // Should have exactly sixteen migration records applied once each.
+        // Should have exactly seventeen migration records applied once each.
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 16);
+        assert_eq!(count, 17);
     }
 
     #[test]
@@ -579,6 +598,14 @@ mod tests {
                 session_type TEXT NOT NULL CHECK(session_type IN ('work', 'short_break', 'long_break')),
                 task_id INTEGER,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE pomodoro_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                work_seconds INTEGER NOT NULL DEFAULT 1500,
+                short_break_seconds INTEGER NOT NULL DEFAULT 300,
+                long_break_seconds INTEGER NOT NULL DEFAULT 900,
+                sessions_before_long_break INTEGER NOT NULL DEFAULT 4
             );
 
             CREATE TABLE tasks (
@@ -640,7 +667,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .expect("Failed to count migrations");
-        assert_eq!(count, 16);
+        assert_eq!(count, 17);
     }
 
     #[test]

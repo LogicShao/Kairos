@@ -160,7 +160,8 @@ impl PomodoroEngine {
         if self.remaining_seconds == 0 {
             let ended_phase = self.phase;
             let ended_session_id = self.active_session_id;
-            let next_phase = self.advance_phase(true);
+            // 按配置决定是否自动开始下一阶段：关闭时切换但暂停，等用户按开始。
+            let next_phase = self.advance_phase(self.config.auto_start_next_phase);
             Some(PomodoroPhaseTransition {
                 ended_phase,
                 next_phase,
@@ -268,6 +269,7 @@ mod tests {
             short_break_seconds: 1,
             long_break_seconds: 2,
             sessions_before_long_break: 2,
+            auto_start_next_phase: true,
         }
     }
 
@@ -406,6 +408,7 @@ mod tests {
             short_break_seconds: 2,
             long_break_seconds: 5,
             sessions_before_long_break: 3,
+            auto_start_next_phase: true,
         };
         engine.update_config(new_config);
 
@@ -424,6 +427,7 @@ mod tests {
             short_break_seconds: -1,
             long_break_seconds: -3,
             sessions_before_long_break: 2,
+            auto_start_next_phase: true,
         };
         let engine = PomodoroEngine::new(config);
         assert_eq!(engine.remaining_seconds, 0);
@@ -437,6 +441,7 @@ mod tests {
             short_break_seconds: 1,
             long_break_seconds: 3,
             sessions_before_long_break: 1,
+            auto_start_next_phase: true,
         };
         let mut engine = PomodoroEngine::new(config);
         engine.start();
@@ -617,5 +622,57 @@ mod tests {
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert!(!engine.is_running);
         assert!(engine.active_session_id.is_none());
+    }
+
+    fn config_with_auto_start(auto: bool) -> PomodoroConfig {
+        PomodoroConfig {
+            id: 1,
+            work_seconds: 3,
+            short_break_seconds: 1,
+            long_break_seconds: 2,
+            sessions_before_long_break: 2,
+            auto_start_next_phase: auto,
+        }
+    }
+
+    #[test]
+    fn auto_start_disabled_pauses_after_work_ends() {
+        let mut engine = PomodoroEngine::new(config_with_auto_start(false));
+        engine.start();
+
+        let result = tick_times(&mut engine, 3);
+
+        assert_work_to_short_break(result, None);
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert!(!engine.is_running, "开关关闭：切换后应暂停，等用户按开始");
+        assert_eq!(engine.remaining_seconds, 1);
+    }
+
+    #[test]
+    fn auto_start_disabled_pauses_break_to_work() {
+        let mut engine = PomodoroEngine::new(config_with_auto_start(false));
+        engine.start();
+
+        // work → short_break（暂停）
+        tick_times(&mut engine, 3);
+        assert!(!engine.is_running);
+
+        // 用户按开始 → 短休计时 → 归零回 work（仍暂停）
+        engine.start();
+        tick_times(&mut engine, 1);
+        assert_eq!(engine.phase, TimerPhase::Work);
+        assert!(!engine.is_running, "break→work 同样遵循开关");
+        assert_eq!(engine.remaining_seconds, 3);
+    }
+
+    #[test]
+    fn auto_start_enabled_runs_after_phase_ends() {
+        let mut engine = PomodoroEngine::new(config_with_auto_start(true));
+        engine.start();
+
+        tick_times(&mut engine, 3);
+
+        assert_eq!(engine.phase, TimerPhase::ShortBreak);
+        assert!(engine.is_running, "开关开启：切换后自动开始计时");
     }
 }

@@ -28,6 +28,8 @@ export interface PomodoroConfig {
   long_break_seconds: number
   /** 每完成多少个 work 阶段触发一次 long_break。 */
   sessions_before_long_break: number
+  /** 阶段结束后是否自动开始下一阶段计时；false = 暂停等待用户按开始（默认）。 */
+  auto_start_next_phase: boolean
 }
 
 /** resolve_pomodoro_interruption 的入参。 */

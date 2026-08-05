@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移约定（幂等加列 add_column_if_missing）、单例表范式"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "引擎/命令注释规范"}
+{"file": ".trellis/spec/frontend/input-patterns.md", "reason": "开关控件模式（role=switch）"}

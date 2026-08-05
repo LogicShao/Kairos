@@ -8,10 +8,11 @@ use super::models::{
 };
 
 /// 获取番茄钟配置。若 config 表尚无记录（首次启动），插入默认值并返回。
-/// 默认: 25 分钟工作 / 5 分钟短休息 / 15 分钟长休息 / 每 4 次 work 触发一次 long_break。
+/// 默认: 25 分钟工作 / 5 分钟短休息 / 15 分钟长休息 / 每 4 次 work 触发一次 long_break /
+/// 不自动开始下一阶段（需用户按开始）。
 pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
     let result = conn.query_row(
-        "SELECT id, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break
+        "SELECT id, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break, auto_start_next_phase
          FROM pomodoro_config WHERE id = 1",
         [],
         |row| {
@@ -21,6 +22,7 @@ pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
                 short_break_seconds: row.get(2)?,
                 long_break_seconds: row.get(3)?,
                 sessions_before_long_break: row.get(4)?,
+                auto_start_next_phase: row.get::<_, i64>(5)? != 0,
             })
         },
     );
@@ -34,16 +36,18 @@ pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
                 short_break_seconds: 300,
                 long_break_seconds: 900,
                 sessions_before_long_break: 4,
+                auto_start_next_phase: false,
             };
             conn.execute(
-                "INSERT INTO pomodoro_config (id, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO pomodoro_config (id, work_seconds, short_break_seconds, long_break_seconds, sessions_before_long_break, auto_start_next_phase)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     default.id,
                     default.work_seconds,
                     default.short_break_seconds,
                     default.long_break_seconds,
                     default.sessions_before_long_break,
+                    default.auto_start_next_phase as i64,
                 ],
             )?;
             Ok(default)
@@ -55,9 +59,15 @@ pub fn get_config(conn: &Connection) -> Result<PomodoroConfig> {
 pub fn update_config(conn: &Connection, req: &UpdatePomodoroConfigRequest) -> Result<()> {
     conn.execute(
         "UPDATE pomodoro_config
-         SET work_seconds = ?1, short_break_seconds = ?2, long_break_seconds = ?3, sessions_before_long_break = ?4
+         SET work_seconds = ?1, short_break_seconds = ?2, long_break_seconds = ?3, sessions_before_long_break = ?4, auto_start_next_phase = ?5
          WHERE id = 1",
-        params![req.work_seconds, req.short_break_seconds, req.long_break_seconds, req.sessions_before_long_break],
+        params![
+            req.work_seconds,
+            req.short_break_seconds,
+            req.long_break_seconds,
+            req.sessions_before_long_break,
+            req.auto_start_next_phase as i64,
+        ],
     )?;
     Ok(())
 }
@@ -349,6 +359,7 @@ mod tests {
             short_break_seconds: 600,
             long_break_seconds: 1200,
             sessions_before_long_break: 3,
+            auto_start_next_phase: true,
         };
         update_config(&conn, &update).expect("Failed to update config");
 
@@ -357,6 +368,7 @@ mod tests {
         assert_eq!(config.short_break_seconds, 600);
         assert_eq!(config.long_break_seconds, 1200);
         assert_eq!(config.sessions_before_long_break, 3);
+        assert!(config.auto_start_next_phase);
     }
 
     #[test]

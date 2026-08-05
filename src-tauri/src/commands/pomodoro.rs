@@ -14,6 +14,8 @@ pub struct PomodoroConfigData {
     pub short_break_seconds: i64,
     pub long_break_seconds: i64,
     pub sessions_before_long_break: i64,
+    /// 阶段结束后是否自动开始下一阶段计时；false = 暂停等待用户按开始（默认）。
+    pub auto_start_next_phase: bool,
 }
 
 /// 中断处理请求入参。
@@ -174,6 +176,7 @@ pub fn update_pomodoro_config(
         short_break_seconds: config.short_break_seconds,
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
+        auto_start_next_phase: config.auto_start_next_phase,
     };
     crate::db::pomodoro::update_config(&conn, &req).map_err(|e| e.to_string())?;
 
@@ -183,6 +186,7 @@ pub fn update_pomodoro_config(
         short_break_seconds: config.short_break_seconds,
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
+        auto_start_next_phase: config.auto_start_next_phase,
     });
     refresh_completed_sessions_from_history(&conn, &mut eng)?;
     persist_engine_state(&conn, &eng)?;
@@ -201,6 +205,7 @@ pub fn get_pomodoro_config(
         short_break_seconds: config.short_break_seconds,
         long_break_seconds: config.long_break_seconds,
         sessions_before_long_break: config.sessions_before_long_break,
+        auto_start_next_phase: config.auto_start_next_phase,
     })
 }
 

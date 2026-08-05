@@ -48,6 +48,7 @@ export function PomodoroTimer() {
   const [shortBreakMinutes, setShortBreakMinutes] = useState(RANGES.shortBreak.default)
   const [longBreakMinutes, setLongBreakMinutes] = useState(RANGES.longBreak.default)
   const [sessionsBeforeLongBreak, setSessionsBeforeLongBreak] = useState(RANGES.sessions.default)
+  const [autoStartNextPhase, setAutoStartNextPhase] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
   const [configLoading, setConfigLoading] = useState(false)
 
@@ -151,6 +152,7 @@ export function PomodoroTimer() {
       setShortBreakMinutes(Math.floor(config.short_break_seconds / 60))
       setLongBreakMinutes(Math.floor(config.long_break_seconds / 60))
       setSessionsBeforeLongBreak(config.sessions_before_long_break)
+      setAutoStartNextPhase(config.auto_start_next_phase)
     } catch {
       // keep defaults if backend unavailable
     } finally {
@@ -176,6 +178,7 @@ export function PomodoroTimer() {
           short_break_seconds: shortBreakMinutes * 60,
           long_break_seconds: longBreakMinutes * 60,
           sessions_before_long_break: sessionsBeforeLongBreak,
+          auto_start_next_phase: autoStartNextPhase,
         },
       })
       setSettingsOpen(false)
@@ -187,7 +190,7 @@ export function PomodoroTimer() {
     } finally {
       setSavingConfig(false)
     }
-  }, [workMinutes, shortBreakMinutes, longBreakMinutes, sessionsBeforeLongBreak])
+  }, [workMinutes, shortBreakMinutes, longBreakMinutes, sessionsBeforeLongBreak, autoStartNextPhase])
 
   /** 处理中断操作 */
   const handleResolveInterruption = useCallback(async (action: "continue" | "discard" | "complete") => {
@@ -385,6 +388,34 @@ export function PomodoroTimer() {
                 <span className="text-sm text-foreground">长休前番茄数</span>
                 <Stepper value={sessionsBeforeLongBreak} onChange={setSessionsBeforeLongBreak} min={RANGES.sessions.min} max={RANGES.sessions.max} step={RANGES.sessions.step} />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-3">
+              <div className="min-w-0">
+                <span className="block text-sm text-foreground">自动开始下一阶段</span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/70">
+                  关闭时阶段结束后暂停，需按"开始"才进入下一阶段
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoStartNextPhase}
+                aria-label={autoStartNextPhase ? "关闭自动开始下一阶段" : "开启自动开始下一阶段"}
+                onClick={() => setAutoStartNextPhase((v) => !v)}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  autoStartNextPhase ? "bg-primary" : "bg-muted-foreground/25",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none h-5 w-5 rounded-full bg-card shadow-sm ring-0 transition-transform",
+                    autoStartNextPhase ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
