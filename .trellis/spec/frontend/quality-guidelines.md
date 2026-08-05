@@ -91,15 +91,6 @@ if (platform() === 'android') { ... }  // 仅在调用原生API时使用
 
 ---
 
-## 桌面小组件窗口
-
-- 小组件使用 Tauri 独立 webview window，入口通过 `index.html?view=widget` 分流到专用 React 组件。
-- 窗口透明背景由 Tauri `transparent: true` 提供；用户配置的 opacity 只作用在前端根容器上。
-- 不要在 Rust 侧调用平台不稳定或当前栈未暴露的原生窗口 opacity API。
-- 小组件仍然遵守三态覆盖，且紧凑尺寸必须使用稳定宽高、`truncate` 或 `line-clamp` 防止文字重叠。
-
----
-
 ## 性能
 
 - 列表项 callback 用 `useCallback` 包裹
