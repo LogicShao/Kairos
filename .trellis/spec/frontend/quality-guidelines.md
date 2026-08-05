@@ -77,6 +77,18 @@ if (platform() === 'android') { ... }  // 仅在调用原生API时使用
 
 ---
 
+## Android 系统返回键
+
+- 返回键由 Tauri 内置 AppPlugin 接管：JS 注册 `onBackButtonPress` 后默认行为被禁用（不再自动 goBack / 退出）；未注册时 webview 有历史则 `goBack()`，否则 `finish()` 直接退出。
+- Kairos 是 state 导航 SPA（webview 无 history），**必须注册监听**，否则返回键 = 退出应用。
+- 处理模式：维护前端导航栈（`src/App.tsx`）——子页面进入压栈、返回出栈；栈空（主页面）时调用 `exit_app` 命令（`commands/app.rs`）退出。
+- **官方 `plugin:app|exit` 不可用**：tauri `build.rs` 未将 exit 注册进 ACL，JS invoke 会被拒绝；自研 `tauri::command`（`AppHandle::exit(0)`）不走 ACL，是正确退出方式。
+- 平台判断用 `navigator.userAgent.includes("Android")`（Tauri Android webview UA 恒含 Android），避免引入 `@tauri-apps/plugin-os` 依赖与权限。
+- StrictMode 双 mount：async 注册必须用 mounted 标志 + cleanup `unregister()`，防止首轮 mount 的 listener 泄漏。
+- 导航栈更新禁止在 setState updater 内嵌套 setState（StrictMode updater 双调用会重复压栈）；直接用事件闭包里的最新 state 构造新数组。
+
+---
+
 ## 状态覆盖
 
 每个数据展示组件必须覆盖三种状态：

@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "导航栈 state 管理、StrictMode 下 setState 约束"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "useAndroidBack hook 规范（cleanup/依赖）"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "onBackButtonPress/invoke 类型安全"}
+{"file": ".trellis/spec/backend/comment-guidelines.md", "reason": "exit_app 命令注释规范"}
