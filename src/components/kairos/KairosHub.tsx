@@ -6,7 +6,6 @@ import {
   Cloud,
   CreditCard,
   Flag,
-  MonitorCog,
   Moon,
   Palette,
   Settings,
@@ -67,12 +66,6 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "AI 设置",
     description: "配置每日摘要与 API Key",
     icon: Sparkles,
-  },
-  {
-    key: "widget",
-    label: "桌面小组件",
-    description: "管理悬浮窗口、尺寸与置顶",
-    icon: MonitorCog,
   },
   {
     key: "sync",

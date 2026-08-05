@@ -210,11 +210,6 @@ pub fn run() {
             app.manage(db_conn.clone());
             app.manage(engine);
 
-            #[cfg(not(target_os = "android"))]
-            if let Err(e) = commands::widget::restore_widget_on_startup(app.handle(), &db_conn) {
-                log::error!("failed to restore widget window on startup: {e}");
-            }
-
             // ─── 考试通知调度 ───
             if notifications_available {
                 match db_conn.lock() {
@@ -332,18 +327,6 @@ pub fn run() {
             commands::term_phases::create_pomodoro_profile,
             commands::term_phases::update_pomodoro_profile,
             commands::term_phases::delete_pomodoro_profile,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::get_widget_config,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::update_widget_config,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::show_widget,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::hide_widget,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::save_widget_position,
-            #[cfg(not(target_os = "android"))]
-            commands::widget::open_main_window,
             commands::lzu::lzu_login,
             commands::lzu::lzu_logout,
             commands::lzu::lzu_get_auth_status,

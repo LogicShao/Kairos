@@ -130,7 +130,6 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
     "notifications",
     "semester-phases",
     "ai-settings",
-    "widget",
     "sync",
   ].includes(active)
 
