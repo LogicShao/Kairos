@@ -25,13 +25,13 @@ function draftsEqual(a: AiDraft, b: AiDraft): boolean {
   return a.base_url === b.base_url && a.model === b.model
 }
 
-const inputClass = useCallback((): string => {
+function inputClass(): string {
   return cn(
     "w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm outline-none transition-colors",
     "placeholder:text-muted-foreground/45",
     "focus:ring-2 focus:ring-primary/30 border-border focus:border-primary",
   )
-}, [])
+}
 
 /**
  * AI 设置页：启用开关 + base_url/model/api_key。

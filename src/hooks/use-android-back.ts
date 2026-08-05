@@ -25,8 +25,11 @@ export function useAndroidBack(
   onBack: () => void,
 ) {
   // handler 用 ref 间接调用，避免闭包捕获过期回调。
+  // latest-ref 模式：渲染提交后同步（不能在 render 期间写 ref）。
   const onBackRef = useRef(onBack)
-  onBackRef.current = onBack
+  useEffect(() => {
+    onBackRef.current = onBack
+  })
 
   useEffect(() => {
     if (!IS_ANDROID) return

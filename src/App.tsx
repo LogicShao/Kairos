@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppBackground } from "@/components/shared/AppBackground"
 import { AppShell } from "@/components/shared/AppShell"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -43,9 +43,11 @@ function MainApp() {
     setNavStack(navStack.slice(0, -1))
   }
 
-  // 返回键 handler 需要读取最新栈；渲染期同步 ref。
+  // 返回键 handler 需要读取最新栈：渲染提交后同步 ref（latest-ref 模式）。
   const navStackRef = useRef(navStack)
-  navStackRef.current = navStack
+  useEffect(() => {
+    navStackRef.current = navStack
+  }, [navStack])
   useAndroidBack(navStackRef, goBack)
 
   return (
