@@ -19,8 +19,11 @@ AAB_DIR="${PROJECT_DIR}/src-tauri/gen/android/app/build/outputs/bundle"
 echo "=== 重命名 Android 产物 → Kairos_${VERSION}_*.apk / *.aab ==="
 
 # 重命名 release APK：app-<abi>-release.apk → Kairos_<version>_<abi>.apk
+# 用 bash glob 而非 find：从 npm/cmd 启动的 msys bash 中 PATH 不含 /usr/bin，
+# find 会解析到 Windows FIND.EXE 导致失败。
 if [ -d "$APK_DIR" ]; then
-  find "$APK_DIR" -path "*/release/app-*.apk" | while read -r apk; do
+  for apk in "$APK_DIR"/*/release/app-*.apk; do
+    [ -e "$apk" ] || continue
     dir=$(dirname "$apk")
     name=$(basename "$apk")
     # 提取 ABI: app-arm64-release.apk → arm64（仅处理 tauri 原始命名，避免二次重命名）
@@ -34,7 +37,8 @@ fi
 
 # 重命名 AAB：app-arm64-release.aab → Kairos_<version>_arm64.aab（仅 --aab 构建时存在）
 if [ -d "$AAB_DIR" ]; then
-  find "$AAB_DIR" -path "*Release/app-*.aab" | while read -r aab; do
+  for aab in "$AAB_DIR"/*Release/app-*.aab; do
+    [ -e "$aab" ] || continue
     dir=$(dirname "$aab")
     name=$(basename "$aab")
     abi=$(echo "$name" | sed -E 's/^app-(.*)-release\.aab$/\1/')
