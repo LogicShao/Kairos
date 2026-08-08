@@ -195,40 +195,47 @@ fn import_new_exams(
     ))
 }
 
-fn exam_import_key(exam: &Exam) -> String {
+fn exam_key_parts(
+    semester: &str,
+    course_name: &str,
+    exam_datetime: &str,
+    exam_end_datetime: &str,
+    location: &str,
+) -> String {
     [
-        exam.semester.as_str(),
-        exam.course_name.as_str(),
-        exam.exam_datetime.as_str(),
-        exam.exam_end_datetime.as_str(),
-        exam.location.as_str(),
+        semester,
+        course_name,
+        exam_datetime,
+        exam_end_datetime,
+        location,
     ]
     .join("\t")
 }
 
+fn exam_import_key(exam: &Exam) -> String {
+    exam_key_parts(
+        &exam.semester,
+        &exam.course_name,
+        &exam.exam_datetime,
+        &exam.exam_end_datetime,
+        &exam.location,
+    )
+}
+
 fn exam_request_import_key(exam: &CreateExamRequest) -> String {
-    [
-        exam.semester.as_str(),
-        exam.course_name.as_str(),
-        exam.exam_datetime.as_str(),
-        exam.exam_end_datetime.as_str(),
-        exam.location.as_str(),
-    ]
-    .join("\t")
+    exam_key_parts(
+        &exam.semester,
+        &exam.course_name,
+        &exam.exam_datetime,
+        &exam.exam_end_datetime,
+        &exam.location,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_exam() -> CreateExamRequest {
         CreateExamRequest {

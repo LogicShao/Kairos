@@ -346,7 +346,12 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 
 /// 每日任务字段（幂等加列，避免旧库重跑 v4+ 迁移时 duplicate column）。
 fn apply_daily_task_fields_migration(conn: &Connection) -> Result<()> {
-    add_column_if_missing(conn, "tasks", "is_daily", "is_daily INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(
+        conn,
+        "tasks",
+        "is_daily",
+        "is_daily INTEGER NOT NULL DEFAULT 0",
+    )?;
     add_column_if_missing(
         conn,
         "tasks",
@@ -504,12 +509,16 @@ fn add_column_if_missing(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_migration_creates_tables() {
+    fn setup_conn() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        // Enable foreign keys
         conn.pragma_update(None, "foreign_keys", "ON")
             .expect("Failed to enable foreign keys");
+        conn
+    }
+
+    #[test]
+    fn test_migration_creates_tables() {
+        let conn = setup_conn();
 
         run_migrations(&conn).expect("Migrations failed");
 
@@ -560,9 +569,7 @@ mod tests {
 
     #[test]
     fn test_migration_idempotent() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         // Run migrations twice - second should be a no-op
         run_migrations(&conn).expect("First migration failed");
@@ -577,9 +584,7 @@ mod tests {
 
     #[test]
     fn test_migration_v3_tolerates_preexisting_columns() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         conn.execute_batch(
             "
@@ -672,9 +677,7 @@ mod tests {
 
     #[test]
     fn test_migration_v4_backfills_sync_metadata() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         run_migrations(&conn).expect("Migrations failed");
 
@@ -721,9 +724,7 @@ mod tests {
 
     #[test]
     fn test_migration_v10_creates_default_pomodoro_profiles() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         run_migrations(&conn).expect("Migrations failed");
 
@@ -742,9 +743,7 @@ mod tests {
 
     #[test]
     fn test_migration_v10_term_phase_constraints() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         run_migrations(&conn).expect("Migrations failed");
 
@@ -767,9 +766,7 @@ mod tests {
 
     #[test]
     fn test_migration_v12_normalizes_compact_dates() {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
+        let conn = setup_conn();
 
         // 先建旧表 + 写入 YYYYMMDD 数据，再跑迁移验证归一化。
         conn.execute(

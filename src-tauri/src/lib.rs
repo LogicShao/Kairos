@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use sync::AutoSyncState;
 use tauri::{Emitter, Manager};
-use timer::{PomodoroEngine, RestoredPomodoroState, TimerPhase};
+use timer::{PomodoroEngine, PomodoroState, RestoredPomodoroState, TimerPhase};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -103,106 +103,125 @@ pub fn run() {
             let tick_db = db_conn.clone();
             let handle = app.handle().clone();
 
-            std::thread::spawn(move || loop {
-                std::thread::sleep(Duration::from_secs(1));
+            std::thread::spawn(move || {
+                // 上一次发射给前端的快照；暂停阶段状态不变时跳过发射，减少无谓 IPC。
+                let mut last_emitted: Option<PomodoroState> = None;
 
-                let phase_change;
-                let state;
-                {
-                    let Ok(mut eng) = tick_engine.lock() else {
-                        log::error!("failed to lock pomodoro engine; stopping tick worker");
-                        break;
+                loop {
+                    std::thread::sleep(Duration::from_secs(1));
+
+                    let phase_change;
+                    let state;
+                    {
+                        let Ok(mut eng) = tick_engine.lock() else {
+                            log::error!("failed to lock pomodoro engine; stopping tick worker");
+                            break;
+                        };
+                        phase_change = eng.tick();
+                        state = eng.get_state();
+                    }
+
+                    let state_changed = match &last_emitted {
+                        Some(prev) => {
+                            prev.phase != state.phase
+                                || prev.remaining_seconds != state.remaining_seconds
+                                || prev.total_seconds != state.total_seconds
+                                || prev.is_running != state.is_running
+                                || prev.completed_sessions != state.completed_sessions
+                                || prev.interrupted != state.interrupted
+                        }
+                        None => true,
                     };
-                    phase_change = eng.tick();
-                    state = eng.get_state();
-                }
+                    if state_changed {
+                        last_emitted = Some(state.clone());
+                        let _ = handle.emit("pomodoro-tick", &state);
+                    }
 
-                let _ = handle.emit("pomodoro-tick", &state);
-
-                if let Ok(conn) = tick_db.lock() {
-                    if let Some(transition) = phase_change {
-                        if transition.ended_phase == TimerPhase::Work {
-                            if let Some(session_id) = transition.ended_session_id {
-                                let now = db::chrono_now();
-                                if let Err(e) =
-                                    db::pomodoro::update_session_end(&conn, session_id, &now)
-                                {
-                                    log::error!("failed to end pomodoro session: {e}");
+                    if let Ok(conn) = tick_db.lock() {
+                        if let Some(transition) = phase_change {
+                            if transition.ended_phase == TimerPhase::Work {
+                                if let Some(session_id) = transition.ended_session_id {
+                                    let now = db::chrono_now();
+                                    if let Err(e) =
+                                        db::pomodoro::update_session_end(&conn, session_id, &now)
+                                    {
+                                        log::error!("failed to end pomodoro session: {e}");
+                                    }
                                 }
                             }
-                        }
 
-                        if transition.next_phase == TimerPhase::Work && state.is_running {
-                            match tick_engine.lock() {
-                                Ok(mut eng) => {
-                                    if eng.active_session_id.is_none() {
-                                        let req = db::models::CreatePomodoroSessionRequest {
-                                            started_at: db::chrono_now(),
-                                            session_type: "work".to_string(),
-                                            task_id: None,
-                                        };
-                                        match db::pomodoro::create_session(&conn, &req) {
-                                            Ok(id) => {
-                                                eng.active_session_id = Some(id);
-                                            }
-                                            Err(e) => {
-                                                log::error!(
-                                                    "failed to create pomodoro session: {e}"
-                                                );
+                            if transition.next_phase == TimerPhase::Work && state.is_running {
+                                match tick_engine.lock() {
+                                    Ok(mut eng) => {
+                                        if eng.active_session_id.is_none() {
+                                            let req = db::models::CreatePomodoroSessionRequest {
+                                                started_at: db::chrono_now(),
+                                                session_type: "work".to_string(),
+                                                task_id: None,
+                                            };
+                                            match db::pomodoro::create_session(&conn, &req) {
+                                                Ok(id) => {
+                                                    eng.active_session_id = Some(id);
+                                                }
+                                                Err(e) => {
+                                                    log::error!(
+                                                        "failed to create pomodoro session: {e}"
+                                                    );
+                                                }
                                             }
                                         }
                                     }
+                                    Err(e) => log::error!("failed to lock pomodoro engine: {e}"),
                                 }
-                                Err(e) => log::error!("failed to lock pomodoro engine: {e}"),
+                            }
+                        }
+
+                        let persisted = match tick_engine.lock() {
+                            Ok(eng) => Some((eng.active_session_id, eng.interrupted)),
+                            Err(e) => {
+                                log::error!("failed to lock pomodoro engine: {e}");
+                                None
+                            }
+                        };
+                        if let Some((active_session_id, interrupted)) = persisted {
+                            if let Err(e) = db::pomodoro::update_runtime_state(
+                                &conn,
+                                &state.phase,
+                                state.remaining_seconds as i64,
+                                state.total_seconds as i64,
+                                state.is_running,
+                                active_session_id,
+                                interrupted,
+                            ) {
+                                log::error!("failed to persist pomodoro runtime state: {e}");
                             }
                         }
                     }
 
-                    let persisted = match tick_engine.lock() {
-                        Ok(eng) => Some((eng.active_session_id, eng.interrupted)),
-                        Err(e) => {
-                            log::error!("failed to lock pomodoro engine: {e}");
-                            None
+                    if let Some(transition) = phase_change {
+                        let _ = handle.emit("pomodoro-phase-change", &state.phase);
+
+                        if notifications_available {
+                            // Cancel the notification for the just-ended phase
+                            notifications::pomodoro_scheduler::cancel_pomodoro_notification();
+
+                            // Schedule a notification for the new phase ending
+                            notifications::pomodoro_scheduler::schedule_pomodoro_notification(
+                                &handle,
+                                &state.phase,
+                                state.remaining_seconds as u64,
+                            );
+
+                            // Send an immediate notification about the phase change
+                            let (title, body) = match transition.ended_phase {
+                                TimerPhase::Work => ("番茄钟", "专注时间结束！休息一下吧"),
+                                TimerPhase::ShortBreak => ("番茄钟", "短休息结束！开始专注吧"),
+                                TimerPhase::LongBreak => ("番茄钟", "长休息结束！开始专注吧"),
+                            };
+                            notifications::pomodoro_scheduler::send_immediate_notification(
+                                &handle, title, body,
+                            );
                         }
-                    };
-                    if let Some((active_session_id, interrupted)) = persisted {
-                        if let Err(e) = db::pomodoro::update_runtime_state(
-                            &conn,
-                            &state.phase,
-                            state.remaining_seconds as i64,
-                            state.total_seconds as i64,
-                            state.is_running,
-                            active_session_id,
-                            interrupted,
-                        ) {
-                            log::error!("failed to persist pomodoro runtime state: {e}");
-                        }
-                    }
-                }
-
-                if let Some(transition) = phase_change {
-                    let _ = handle.emit("pomodoro-phase-change", &state.phase);
-
-                    if notifications_available {
-                        // Cancel the notification for the just-ended phase
-                        notifications::pomodoro_scheduler::cancel_pomodoro_notification();
-
-                        // Schedule a notification for the new phase ending
-                        notifications::pomodoro_scheduler::schedule_pomodoro_notification(
-                            &handle,
-                            &state.phase,
-                            state.remaining_seconds as u64,
-                        );
-
-                        // Send an immediate notification about the phase change
-                        let (title, body) = match transition.ended_phase {
-                            TimerPhase::Work => ("番茄钟", "专注时间结束！休息一下吧"),
-                            TimerPhase::ShortBreak => ("番茄钟", "短休息结束！开始专注吧"),
-                            TimerPhase::LongBreak => ("番茄钟", "长休息结束！开始专注吧"),
-                        };
-                        notifications::pomodoro_scheduler::send_immediate_notification(
-                            &handle, title, body,
-                        );
                     }
                 }
             });
@@ -244,7 +263,10 @@ pub fn run() {
                 if let Ok(conn) = db_conn.lock() {
                     notifications::daily_reminder::clear_expired_remind_at(&conn);
                 }
-                notifications::daily_reminder::ensure_scheduled(db_conn.clone(), app.handle().clone());
+                notifications::daily_reminder::ensure_scheduled(
+                    db_conn.clone(),
+                    app.handle().clone(),
+                );
             }
 
             // ─── 自动同步状态初始化 ───

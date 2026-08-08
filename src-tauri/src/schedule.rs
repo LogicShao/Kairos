@@ -95,6 +95,31 @@ pub struct CalendarWeekResponse {
     pub events: Vec<CalendarEvent>,
 }
 
+/// 解析考试时间范围（start/end，UTC+8）与展示颜色。结束时间为空时复用开始时间。
+fn parse_exam_time_and_color(
+    exam: &Exam,
+    course_colors: &HashMap<i64, String>,
+) -> Result<(DateTime<FixedOffset>, DateTime<FixedOffset>, NaiveDate, String), String> {
+    let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
+    let start = DateTime::parse_from_rfc3339(&exam.exam_datetime)
+        .map_err(|_| format!("无法解析考试开始时间: {}", exam.exam_datetime))?
+        .with_timezone(&china_offset);
+    let end = if exam.exam_end_datetime.is_empty() {
+        start
+    } else {
+        DateTime::parse_from_rfc3339(&exam.exam_end_datetime)
+            .map_err(|_| format!("无法解析考试结束时间: {}", exam.exam_end_datetime))?
+            .with_timezone(&china_offset)
+    };
+    let exam_date = start.date_naive();
+    let color = exam
+        .course_id
+        .and_then(|course_id| course_colors.get(&course_id))
+        .cloned()
+        .unwrap_or_else(|| EXAM_FALLBACK_COLOR.to_string());
+    Ok((start, end, exam_date, color))
+}
+
 pub fn build_week_schedule(
     courses: &[Course],
     exams: &[Exam],
@@ -157,29 +182,12 @@ pub fn build_week_schedule(
         Vec::new()
     };
 
-    let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
     for exam in semester_exams {
-        let start = DateTime::parse_from_rfc3339(&exam.exam_datetime)
-            .map_err(|_| format!("无法解析考试开始时间: {}", exam.exam_datetime))?
-            .with_timezone(&china_offset);
-        let end = if exam.exam_end_datetime.is_empty() {
-            start
-        } else {
-            DateTime::parse_from_rfc3339(&exam.exam_end_datetime)
-                .map_err(|_| format!("无法解析考试结束时间: {}", exam.exam_end_datetime))?
-                .with_timezone(&china_offset)
-        };
-
-        let exam_date = start.date_naive();
+        let (start, end, exam_date, color) =
+            parse_exam_time_and_color(exam, &course_colors)?;
         if exam_date < week_start || exam_date > week_end {
             continue;
         }
-
-        let color = exam
-            .course_id
-            .and_then(|course_id| course_colors.get(&course_id))
-            .cloned()
-            .unwrap_or_else(|| EXAM_FALLBACK_COLOR.to_string());
 
         items.push(WeekScheduleItem {
             kind: "exam".to_string(),
@@ -295,27 +303,11 @@ pub fn build_calendar_week(
     let china_offset = FixedOffset::east_opt(8 * 3600).expect("china utc offset");
     let today = chrono::Utc::now().with_timezone(&china_offset).date_naive();
     for exam in exams {
-        let start = DateTime::parse_from_rfc3339(&exam.exam_datetime)
-            .map_err(|_| format!("无法解析考试开始时间: {}", exam.exam_datetime))?
-            .with_timezone(&china_offset);
-        let end = if exam.exam_end_datetime.is_empty() {
-            start
-        } else {
-            DateTime::parse_from_rfc3339(&exam.exam_end_datetime)
-                .map_err(|_| format!("无法解析考试结束时间: {}", exam.exam_end_datetime))?
-                .with_timezone(&china_offset)
-        };
-
-        let exam_date = start.date_naive();
+        let (start, end, exam_date, color) =
+            parse_exam_time_and_color(exam, &course_colors)?;
         if exam_date < week_start || exam_date > week_end {
             continue;
         }
-
-        let color = exam
-            .course_id
-            .and_then(|course_id| course_colors.get(&course_id))
-            .cloned()
-            .unwrap_or_else(|| EXAM_FALLBACK_COLOR.to_string());
 
         let mut tags = vec!["考试".to_string()];
         if !exam.notes.is_empty() {
@@ -650,23 +642,20 @@ mod tests {
     }
 
     fn sample_daily_task(id: i64, title: &str, last_completed: Option<&str>) -> Task {
-        Task {
+        let mut t = sample_task(
             id,
-            sync_id: format!("task-sync-{id}"),
-            title: title.to_string(),
-            description: String::new(),
-            status: if last_completed.is_some() { "done" } else { "todo" }.to_string(),
-            priority: "medium".to_string(),
-            due_date: None,
-            tags: "[]".to_string(),
-            created_at: "2026-01-01T00:00:00Z".to_string(),
-            updated_at: "2026-01-01T00:00:00Z".to_string(),
-            is_daily: true,
-            last_completed_date: last_completed.map(|s| s.to_string()),
-            reminder_time: None,
-            remind_at: None,
-            deleted_at: None,
-        }
+            title,
+            "",
+            if last_completed.is_some() {
+                "done"
+            } else {
+                "todo"
+            },
+        );
+        t.due_date = None;
+        t.is_daily = true;
+        t.last_completed_date = last_completed.map(|s| s.to_string());
+        t
     }
 
     #[test]
@@ -815,21 +804,8 @@ mod tests {
     #[test]
     fn test_build_calendar_week_task_no_due_date() {
         let task_no_date = Task {
-            id: 400,
-            sync_id: "task-sync-400".to_string(),
-            title: "无截止日期".to_string(),
-            description: String::new(),
-            status: "todo".to_string(),
-            priority: "medium".to_string(),
             due_date: None,
-            tags: "[]".to_string(),
-            created_at: "2026-01-01T00:00:00Z".to_string(),
-            updated_at: "2026-01-01T00:00:00Z".to_string(),
-            is_daily: false,
-            last_completed_date: None,
-            reminder_time: None,
-            remind_at: None,
-            deleted_at: None,
+            ..sample_task(400, "无截止日期", "", "todo")
         };
 
         let response = build_calendar_week(
@@ -993,7 +969,11 @@ mod tests {
             } else {
                 TASK_COLOR
             };
-            assert_eq!(event.color, expect_color, "day_of_week={} 颜色错误", event.day_of_week);
+            assert_eq!(
+                event.color, expect_color,
+                "day_of_week={} 颜色错误",
+                event.day_of_week
+            );
         }
     }
 

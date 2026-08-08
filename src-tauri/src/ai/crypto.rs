@@ -24,6 +24,18 @@ fn key_path(app_data_dir: &Path) -> std::path::PathBuf {
     app_data_dir.join(KEY_FILE_NAME)
 }
 
+/// Unix 下将文件权限收紧为 0600（敏感密钥/加密包文件用）；非 Unix 平台为空操作。
+#[cfg_attr(not(unix), allow(unused_variables))]
+pub fn set_file_mode_0600(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("设置文件权限失败（{}）: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// 首次启动生成 16 随机字节 key 文件并返回；已存在则读取。Unix 下 chmod 600。
 pub fn ensure_key_file(app_data_dir: &Path) -> Result<[u8; 16], String> {
     let path = key_path(app_data_dir);
@@ -38,9 +50,7 @@ pub fn ensure_key_file(app_data_dir: &Path) -> Result<[u8; 16], String> {
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("设置 AI key 文件权限失败: {e}"))?;
+        set_file_mode_0600(&path)?;
     }
 
     Ok(key)

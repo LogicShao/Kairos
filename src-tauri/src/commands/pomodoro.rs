@@ -7,6 +7,22 @@ use tauri::State;
 use crate::db::models::{PomodoroConfig, UpdatePomodoroConfigRequest};
 use crate::timer::{PomodoroEngine, PomodoroState};
 
+/// 按固定顺序（db → engine）加锁，避免死锁；返回两个 guard。
+fn lock_db_engine<'a>(
+    db: &'a Arc<Mutex<Connection>>,
+    engine: &'a Arc<Mutex<PomodoroEngine>>,
+) -> Result<
+    (
+        std::sync::MutexGuard<'a, Connection>,
+        std::sync::MutexGuard<'a, PomodoroEngine>,
+    ),
+    String,
+> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let eng = engine.lock().map_err(|e| e.to_string())?;
+    Ok((conn, eng))
+}
+
 /// Config shape without database `id`, for clean frontend interaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PomodoroConfigData {
@@ -79,14 +95,7 @@ pub fn start_pomodoro(
     db: State<'_, Arc<Mutex<Connection>>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    if let Err(e) =
-        crate::notifications::system::request_system_notification_permission(&app_handle)
-    {
-        log::warn!("failed to request notification permission before starting pomodoro: {e}");
-    }
-
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
 
     // 清除中断标记（用户主动开始意味着接受当前状态）
     clear_interruption(&mut eng);
@@ -125,8 +134,7 @@ pub fn pause_pomodoro(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
     db: State<'_, Arc<Mutex<Connection>>>,
 ) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
     eng.pause();
 
     persist_and_cancel_notification(conn, eng)
@@ -137,8 +145,7 @@ pub fn reset_pomodoro(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
     db: State<'_, Arc<Mutex<Connection>>>,
 ) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
 
     // 如果有未结束的活跃 session，软删除
     soft_delete_active_session(&conn, &mut eng)?;
@@ -154,8 +161,7 @@ pub fn get_pomodoro_state(
     engine: State<'_, Arc<Mutex<PomodoroEngine>>>,
     db: State<'_, Arc<Mutex<Connection>>>,
 ) -> Result<PomodoroState, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
     refresh_completed_sessions_from_history(&conn, &mut eng)?;
     Ok(eng.get_state())
 }
@@ -166,8 +172,7 @@ pub fn update_pomodoro_config(
     db: State<'_, Arc<Mutex<Connection>>>,
     config: PomodoroConfigData,
 ) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
 
     soft_delete_active_session(&conn, &mut eng)?;
 
@@ -216,8 +221,7 @@ pub fn resolve_pomodoro_interruption(
     db: State<'_, Arc<Mutex<Connection>>>,
     request: ResolvePomodoroInterruptionRequest,
 ) -> Result<PomodoroState, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    let mut eng = engine.lock().map_err(|e| e.to_string())?;
+    let (conn, mut eng) = lock_db_engine(&db, &engine)?;
 
     match request.action.as_str() {
         "continue" => {

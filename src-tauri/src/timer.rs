@@ -281,6 +281,13 @@ mod tests {
         last_transition
     }
 
+    /// 构造一个已启动的引擎（phase=Work, running）。
+    fn started_engine() -> PomodoroEngine {
+        let mut engine = PomodoroEngine::new(default_config());
+        engine.start();
+        engine
+    }
+
     fn assert_work_to_short_break(
         result: Option<PomodoroPhaseTransition>,
         ended_session_id: Option<i64>,
@@ -315,8 +322,7 @@ mod tests {
 
     #[test]
     fn start_and_tick_decrements() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         assert!(engine.is_running);
 
         engine.tick();
@@ -327,8 +333,7 @@ mod tests {
 
     #[test]
     fn tick_returns_phase_on_expiry() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
 
         let result = tick_times(&mut engine, 3);
 
@@ -341,8 +346,7 @@ mod tests {
 
     #[test]
     fn long_break_after_n_sessions() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
 
         tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
@@ -360,8 +364,7 @@ mod tests {
 
     #[test]
     fn break_switches_back_to_work() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
 
         tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
@@ -373,8 +376,7 @@ mod tests {
 
     #[test]
     fn pause_stops_ticking() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         tick_times(&mut engine, 1);
         assert_eq!(engine.remaining_seconds, 2);
 
@@ -386,8 +388,7 @@ mod tests {
 
     #[test]
     fn reset_restores_full_duration() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         tick_times(&mut engine, 2);
         assert_eq!(engine.remaining_seconds, 1);
 
@@ -398,8 +399,7 @@ mod tests {
 
     #[test]
     fn update_config_resets_to_work() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         engine.tick();
 
         let new_config = PomodoroConfig {
@@ -454,8 +454,7 @@ mod tests {
 
     #[test]
     fn reset_during_break_restores_break_duration() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
@@ -468,8 +467,7 @@ mod tests {
 
     #[test]
     fn multiple_cycles_track_correct_count() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         for _ in 0..50 {
             engine.tick();
         }
@@ -478,8 +476,7 @@ mod tests {
 
     #[test]
     fn tick_at_zero_no_double_advance() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
@@ -487,8 +484,7 @@ mod tests {
 
     #[test]
     fn pause_during_break_and_resume() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let mut engine = started_engine();
         tick_times(&mut engine, 3);
         assert_eq!(engine.phase, TimerPhase::ShortBreak);
         assert_eq!(engine.remaining_seconds, 1);
@@ -506,8 +502,7 @@ mod tests {
 
     #[test]
     fn get_state_reflects_current_phase() {
-        let mut engine = PomodoroEngine::new(default_config());
-        engine.start();
+        let engine = started_engine();
 
         let state = engine.get_state();
         assert_eq!(state.phase, "work");

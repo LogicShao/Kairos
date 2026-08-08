@@ -40,10 +40,13 @@ pub fn request_system_notification_permission(
         return Err("通知插件不可用".to_string());
     }
 
-    app_handle
-        .notification()
-        .request_permission()
-        .map_err(|e| e.to_string())
+    let notification = app_handle.notification();
+    let state = notification.permission_state().map_err(|e| e.to_string())?;
+    if should_request_permission(state) {
+        notification.request_permission().map_err(|e| e.to_string())
+    } else {
+        Ok(state)
+    }
 }
 
 pub fn permission_state_key(state: PermissionState) -> &'static str {
@@ -53,6 +56,13 @@ pub fn permission_state_key(state: PermissionState) -> &'static str {
         PermissionState::Prompt => "prompt",
         PermissionState::PromptWithRationale => "prompt-with-rationale",
     }
+}
+
+fn should_request_permission(state: PermissionState) -> bool {
+    matches!(
+        state,
+        PermissionState::Prompt | PermissionState::PromptWithRationale
+    )
 }
 
 fn show_tauri_notification(app_handle: &AppHandle, id: i32, title: &str, body: &str) {
@@ -164,5 +174,15 @@ mod tests {
             permission_state_key(PermissionState::PromptWithRationale),
             "prompt-with-rationale"
         );
+    }
+
+    #[test]
+    fn permission_request_only_prompts_when_system_can_prompt() {
+        assert!(!should_request_permission(PermissionState::Granted));
+        assert!(!should_request_permission(PermissionState::Denied));
+        assert!(should_request_permission(PermissionState::Prompt));
+        assert!(should_request_permission(
+            PermissionState::PromptWithRationale
+        ));
     }
 }

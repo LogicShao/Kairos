@@ -58,6 +58,40 @@ fn clear_session(lzu_auth: &SharedLzuAuth, db: &Arc<Mutex<Connection>>) {
     }
 }
 
+/// API code 校验：`code != 1` 视为登录态失效，清会话并返回错误。
+fn fail_with_session_clear(
+    lzu_auth: &SharedLzuAuth,
+    db: &Arc<Mutex<Connection>>,
+    code: i64,
+    message: String,
+) -> Result<(), String> {
+    if code != 1 {
+        clear_session(lzu_auth, db);
+        return Err(api_error(code, message));
+    }
+    Ok(())
+}
+
+/// 请求失败时清除本地会话并返回错误文案，供 `map_err` 使用。
+fn clear_on_err(lzu_auth: &SharedLzuAuth, db: &Arc<Mutex<Connection>>, msg: String) -> String {
+    clear_session(lzu_auth, db);
+    msg
+}
+
+/// 拉取 LZU 学期信息（xlxx）。`code != 1` 或缺 data 均返回错误。
+async fn fetch_xlxx(client: &AppServiceClient, session: &LzuSession) -> Result<XlxxData, String> {
+    let response = client
+        .get_xlxx(&session.gateway_token)
+        .await
+        .map_err(|e| e.to_string())?;
+    if response.code != 1 {
+        return Err(api_error(response.code, response.message));
+    }
+    response
+        .data
+        .ok_or_else(|| "LZU 学期信息响应缺少 data 字段".to_string())
+}
+
 fn schedule_week_limit(xlxx: &XlxxData) -> Result<(i64, bool), String> {
     if let Some(raw) = xlxx
         .zzx
@@ -355,15 +389,9 @@ pub async fn lzu_refresh_st(
     let response = client
         .get_st(&session.login_token, service_id.as_deref().unwrap_or(""))
         .await
-        .map_err(|e| {
-            clear_session(&lzu_auth, &db);
-            format!("LZU 会话已过期，请重新登录: {e}")
-        })?;
+        .map_err(|e| clear_on_err(&lzu_auth, &db, format!("LZU 会话已过期，请重新登录: {e}")))?;
 
-    if response.code != 1 {
-        clear_session(&lzu_auth, &db);
-        return Err(api_error(response.code, response.message));
-    }
+    fail_with_session_clear(&lzu_auth, &db, response.code, response.message)?;
 
     let st = response.data.ok_or_else(|| {
         LzuError::Api {
@@ -398,14 +426,8 @@ pub async fn lzu_get_campus_card_overview(
     let wallet_response = easytong_client
         .get_wallet_money(&easytong_session)
         .await
-        .map_err(|e| {
-            clear_session(&lzu_auth, &db);
-            e.to_string()
-        })?;
-    if wallet_response.code != 1 {
-        clear_session(&lzu_auth, &db);
-        return Err(api_error(wallet_response.code, wallet_response.msg.clone()));
-    }
+        .map_err(|e| clear_on_err(&lzu_auth, &db, e.to_string()))?;
+    fail_with_session_clear(&lzu_auth, &db, wallet_response.code, wallet_response.msg.clone())?;
 
     {
         let mut auth = lzu_auth.lock().map_err(|e| format!("内部错误: {e}"))?;
@@ -426,14 +448,8 @@ pub async fn lzu_get_service_directory(
     let response = client
         .get_service_directory(&session.login_token)
         .await
-        .map_err(|e| {
-            clear_session(&lzu_auth, &db);
-            e.to_string()
-        })?;
-    if response.code != 1 {
-        clear_session(&lzu_auth, &db);
-        return Err(api_error(response.code, response.message));
-    }
+        .map_err(|e| clear_on_err(&lzu_auth, &db, e.to_string()))?;
+    fail_with_session_clear(&lzu_auth, &db, response.code, response.message.clone())?;
 
     Ok(sanitize_service_directory(response))
 }
@@ -454,15 +470,9 @@ pub async fn lzu_open_service(
     let response = client
         .get_st(&session.login_token, &service_id)
         .await
-        .map_err(|e| {
-            clear_session(&lzu_auth, &db);
-            e.to_string()
-        })?;
+        .map_err(|e| clear_on_err(&lzu_auth, &db, e.to_string()))?;
 
-    if response.code != 1 {
-        clear_session(&lzu_auth, &db);
-        return Err(api_error(response.code, response.message));
-    }
+    fail_with_session_clear(&lzu_auth, &db, response.code, response.message)?;
 
     let st = response.data.ok_or_else(|| {
         clear_session(&lzu_auth, &db);
@@ -505,17 +515,7 @@ async fn import_lzu_courses_inner(
     client: Arc<AppServiceClient>,
     session: LzuSession,
 ) -> Result<LzuCourseImportResult, String> {
-    let xlxx_response = client
-        .get_xlxx(&session.gateway_token)
-        .await
-        .map_err(|e| e.to_string())?;
-    if xlxx_response.code != 1 {
-        return Err(api_error(xlxx_response.code, xlxx_response.message));
-    }
-
-    let xlxx = xlxx_response
-        .data
-        .ok_or_else(|| "LZU 学期信息响应缺少 data 字段".to_string())?;
+    let xlxx = fetch_xlxx(&client, &session).await?;
     let (total_weeks, has_authoritative_total_weeks) = schedule_week_limit(&xlxx)?;
 
     let mut remote_courses = Vec::new();
@@ -563,7 +563,9 @@ async fn import_lzu_courses_inner(
     if courses.is_empty() {
         let xlxx = xlxx.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            let conn = db_for_blocking.lock().map_err(|e| format!("内部错误: {e}"))?;
+            let conn = db_for_blocking
+                .lock()
+                .map_err(|e| format!("内部错误: {e}"))?;
             persist_lzu_semester_context(&conn, &xlxx, None, total_weeks)?;
             Ok::<_, String>(())
         })
@@ -577,7 +579,9 @@ async fn import_lzu_courses_inner(
         let semester = courses[0].semester.clone();
         let xlxx = xlxx.clone();
         let result = tauri::async_runtime::spawn_blocking(move || {
-            let conn = db_for_blocking.lock().map_err(|e| format!("内部错误: {e}"))?;
+            let conn = db_for_blocking
+                .lock()
+                .map_err(|e| format!("内部错误: {e}"))?;
             let result = crate::commands::courses::import_new_courses(&conn, &courses, &semester)?;
             persist_lzu_semester_context(&conn, &xlxx, Some(&semester), total_weeks)?;
             Ok::<_, String>(result)
@@ -613,16 +617,7 @@ async fn auto_import_lzu_after_login(
     app_handle: tauri::AppHandle,
 ) {
     let result = async {
-        let xlxx_response = client
-            .get_xlxx(&session.gateway_token)
-            .await
-            .map_err(|e| e.to_string())?;
-        if xlxx_response.code != 1 {
-            return Err(api_error(xlxx_response.code, xlxx_response.message));
-        }
-        let xlxx = xlxx_response
-            .data
-            .ok_or_else(|| "LZU 学期信息响应缺少 data 字段".to_string())?;
+        let xlxx = fetch_xlxx(&client, &session).await?;
 
         // 幂等判断：远程学期与已导入学期一致则跳过全量拉取。
         // 学期上下文映射失败时降级为全量导入（与手动路径行为一致），

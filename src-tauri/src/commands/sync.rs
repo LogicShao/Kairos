@@ -150,8 +150,7 @@ pub fn sync_now(
     // 锁已释放，后续网络 I/O 不会阻塞 update_sync_config
 
     // RAII 护栏：guard drop 时自动释放 running
-    let _guard =
-        SyncGuard::acquire(&running).ok_or_else(|| "同步正在进行中".to_string())?;
+    let _guard = SyncGuard::acquire(&running).ok_or_else(|| "同步正在进行中".to_string())?;
 
     let result = {
         let mut conn = open_app_connection(&app_handle)?;

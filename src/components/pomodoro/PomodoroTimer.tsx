@@ -18,6 +18,9 @@ import { Play, Pause, RotateCcw, Settings } from "lucide-react"
 
 const CIRCUMFERENCE = 2 * Math.PI * 120
 
+/** Android WebView 渲染性能较弱：禁用高开销的 SVG drop-shadow 与长过渡动画。 */
+const IS_ANDROID = typeof navigator !== "undefined" && navigator.userAgent.includes("Android")
+
 const PHASE_LABELS: Record<PomodoroPhase, string> = {
   work: "专注",
   short_break: "短休",
@@ -87,7 +90,22 @@ export function PomodoroTimer() {
       cleanupTick = listenWithCleanup<PomodoroState>(
         "pomodoro-tick",
         (event) => {
-          setState(event.payload)
+          // 状态未变化时跳过重渲染（暂停阶段每秒也会收到 tick 事件）。
+          setState((prev) => {
+            if (!prev) return event.payload
+            const next = event.payload
+            if (
+              prev.phase === next.phase &&
+              prev.remaining_seconds === next.remaining_seconds &&
+              prev.total_seconds === next.total_seconds &&
+              prev.is_running === next.is_running &&
+              prev.completed_sessions === next.completed_sessions &&
+              prev.interrupted === next.interrupted
+            ) {
+              return prev
+            }
+            return next
+          })
         },
         () => {
           setError("无法监听计时器事件")
@@ -262,11 +280,17 @@ export function PomodoroTimer() {
             strokeDashoffset={offset}
             className={cn(
               isWork ? "text-primary" : "text-emerald-400",
-              "transition-[stroke-dashoffset] duration-1000 ease-linear",
+              IS_ANDROID
+                ? "transition-[stroke-dashoffset] duration-150 ease-linear"
+                : "transition-[stroke-dashoffset] duration-1000 ease-linear",
             )}
-            style={{
-              filter: `drop-shadow(0 0 7px ${isWork ? "oklch(0.66 0.15 235 / 0.55)" : "oklch(0.72 0.15 160 / 0.55)"})`,
-            }}
+            style={
+              IS_ANDROID
+                ? undefined
+                : {
+                    filter: `drop-shadow(0 0 7px ${isWork ? "oklch(0.66 0.15 235 / 0.55)" : "oklch(0.72 0.15 160 / 0.55)"})`,
+                  }
+            }
           />
         </svg>
 

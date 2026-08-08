@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 
 use super::models::{CreateTaskRequest, Task, UpdateTaskRequest};
 
@@ -25,30 +25,32 @@ pub fn create_task(conn: &Connection, req: &CreateTaskRequest) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
+fn row_to_task(row: &Row<'_>) -> Result<Task> {
+    Ok(Task {
+        id: row.get(0)?,
+        sync_id: row.get(1)?,
+        title: row.get(2)?,
+        description: row.get(3)?,
+        status: row.get(4)?,
+        priority: row.get(5)?,
+        due_date: row.get(6)?,
+        tags: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+        is_daily: row.get::<_, i64>(10)? != 0,
+        last_completed_date: row.get(11)?,
+        reminder_time: row.get(12)?,
+        remind_at: row.get(13)?,
+        deleted_at: row.get(14)?,
+    })
+}
+
 pub fn get_task(conn: &Connection, id: i64) -> Result<Task> {
     conn.query_row(
         "SELECT id, sync_id, title, description, status, priority, due_date, tags, created_at, updated_at, is_daily, last_completed_date, reminder_time, remind_at, deleted_at
          FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
-        |row| {
-            Ok(Task {
-                id: row.get(0)?,
-                sync_id: row.get(1)?,
-                title: row.get(2)?,
-                description: row.get(3)?,
-                status: row.get(4)?,
-                priority: row.get(5)?,
-                due_date: row.get(6)?,
-                tags: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
-                is_daily: row.get::<_, i64>(10)? != 0,
-                last_completed_date: row.get(11)?,
-                reminder_time: row.get(12)?,
-                remind_at: row.get(13)?,
-                deleted_at: row.get(14)?,
-            })
-        },
+        row_to_task,
     )
 }
 
@@ -99,25 +101,7 @@ pub fn get_all_tasks(
     let param_refs: Vec<&dyn rusqlite::types::ToSql> =
         params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(param_refs.as_slice(), |row| {
-        Ok(Task {
-            id: row.get(0)?,
-            sync_id: row.get(1)?,
-            title: row.get(2)?,
-            description: row.get(3)?,
-            status: row.get(4)?,
-            priority: row.get(5)?,
-            due_date: row.get(6)?,
-            tags: row.get(7)?,
-            created_at: row.get(8)?,
-            updated_at: row.get(9)?,
-            is_daily: row.get::<_, i64>(10)? != 0,
-            last_completed_date: row.get(11)?,
-            reminder_time: row.get(12)?,
-            remind_at: row.get(13)?,
-            deleted_at: row.get(14)?,
-        })
-    })?;
+    let rows = stmt.query_map(param_refs.as_slice(), row_to_task)?;
 
     rows.collect()
 }
@@ -147,27 +131,13 @@ pub fn update_task(conn: &Connection, id: i64, req: &UpdateTaskRequest) -> Resul
 }
 
 pub fn delete_task(conn: &Connection, id: i64) -> Result<()> {
-    let now = super::chrono_now();
-    conn.execute(
-        "UPDATE tasks SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-        params![now, id],
-    )?;
-    Ok(())
+    super::soft_delete(conn, "tasks", id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_task(extra: &str) -> CreateTaskRequest {
         CreateTaskRequest {
@@ -239,14 +209,8 @@ mod tests {
         // 创建时写入 remind_at。
         let req = CreateTaskRequest {
             title: String::from("Remind me"),
-            description: String::new(),
-            status: String::from("todo"),
-            priority: String::from("medium"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
             remind_at: Some(String::from("2026-08-05 14:00")),
+            ..sample_task("remind")
         };
         let id = create_task(&conn, &req).expect("Failed to create task");
         let task = get_task(&conn, id).expect("Failed to get task");
@@ -298,36 +262,18 @@ mod tests {
 
         let t1 = CreateTaskRequest {
             title: String::from("High priority task"),
-            description: String::new(),
-            status: String::from("todo"),
             priority: String::from("high"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
-            remind_at: None,
+            ..sample_task("high")
         };
         let t2 = CreateTaskRequest {
             title: String::from("Low priority task"),
-            description: String::new(),
-            status: String::from("todo"),
             priority: String::from("low"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
-            remind_at: None,
+            ..sample_task("low")
         };
         let t3 = CreateTaskRequest {
             title: String::from("Done task"),
-            description: String::new(),
             status: String::from("done"),
-            priority: String::from("medium"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
-            remind_at: None,
+            ..sample_task("done")
         };
 
         create_task(&conn, &t1).expect("Failed to create t1");
@@ -363,25 +309,11 @@ mod tests {
 
         let t1 = CreateTaskRequest {
             title: String::from("A"),
-            description: String::new(),
-            status: String::from("todo"),
-            priority: String::from("medium"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
-            remind_at: None,
+            ..sample_task("A")
         };
         let t2 = CreateTaskRequest {
             title: String::from("Z"),
-            description: String::new(),
-            status: String::from("todo"),
-            priority: String::from("medium"),
-            due_date: None,
-            tags: String::from("[]"),
-            is_daily: false,
-            reminder_time: None,
-            remind_at: None,
+            ..sample_task("Z")
         };
         create_task(&conn, &t1).expect("Failed to create t1");
         create_task(&conn, &t2).expect("Failed to create t2");

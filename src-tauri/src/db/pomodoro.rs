@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 
 use chrono::FixedOffset;
 
@@ -93,6 +93,18 @@ pub fn update_session_end(conn: &Connection, id: i64, ended_at: &str) -> Result<
     Ok(())
 }
 
+fn row_to_session(row: &Row<'_>) -> Result<PomodoroSession> {
+    Ok(PomodoroSession {
+        id: row.get(0)?,
+        sync_id: row.get(1)?,
+        started_at: row.get(2)?,
+        ended_at: row.get(3)?,
+        session_type: row.get(4)?,
+        task_id: row.get(5)?,
+        deleted_at: row.get(6)?,
+    })
+}
+
 pub fn get_sessions(conn: &Connection, limit: i64, offset: i64) -> Result<Vec<PomodoroSession>> {
     let mut stmt = conn.prepare(
         "SELECT id, sync_id, started_at, ended_at, session_type, task_id, deleted_at
@@ -102,17 +114,7 @@ pub fn get_sessions(conn: &Connection, limit: i64, offset: i64) -> Result<Vec<Po
          LIMIT ?1 OFFSET ?2",
     )?;
 
-    let rows = stmt.query_map(params![limit, offset], |row| {
-        Ok(PomodoroSession {
-            id: row.get(0)?,
-            sync_id: row.get(1)?,
-            started_at: row.get(2)?,
-            ended_at: row.get(3)?,
-            session_type: row.get(4)?,
-            task_id: row.get(5)?,
-            deleted_at: row.get(6)?,
-        })
-    })?;
+    let rows = stmt.query_map(params![limit, offset], row_to_session)?;
 
     rows.collect()
 }
@@ -125,17 +127,7 @@ pub fn get_sessions_by_task(conn: &Connection, task_id: i64) -> Result<Vec<Pomod
          ORDER BY started_at DESC",
     )?;
 
-    let rows = stmt.query_map(params![task_id], |row| {
-        Ok(PomodoroSession {
-            id: row.get(0)?,
-            sync_id: row.get(1)?,
-            started_at: row.get(2)?,
-            ended_at: row.get(3)?,
-            session_type: row.get(4)?,
-            task_id: row.get(5)?,
-            deleted_at: row.get(6)?,
-        })
-    })?;
+    let rows = stmt.query_map(params![task_id], row_to_session)?;
 
     rows.collect()
 }
@@ -322,15 +314,18 @@ pub fn soft_delete_session(conn: &Connection, id: i64) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
+    use crate::db::setup_db;
 
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
+    fn sample_session(
+        started_at: &str,
+        session_type: &str,
+        task_id: Option<i64>,
+    ) -> CreatePomodoroSessionRequest {
+        CreatePomodoroSessionRequest {
+            started_at: started_at.to_string(),
+            session_type: session_type.to_string(),
+            task_id,
+        }
     }
 
     #[test]
@@ -375,11 +370,7 @@ mod tests {
     fn test_create_and_end_session() {
         let conn = setup_db();
 
-        let req = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T10:00:00Z".to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req = sample_session("2024-06-01T10:00:00Z", "work", None);
         let id = create_session(&conn, &req).expect("Failed to create session");
         assert!(id > 0);
 
@@ -400,11 +391,7 @@ mod tests {
         let conn = setup_db();
 
         for i in 0..5 {
-            let req = CreatePomodoroSessionRequest {
-                started_at: format!("2024-06-01T10:0{}:00Z", i),
-                session_type: "work".to_string(),
-                task_id: None,
-            };
+            let req = sample_session(&format!("2024-06-01T10:0{}:00Z", i), "work", None);
             create_session(&conn, &req).expect("Failed to create session");
         }
 
@@ -433,18 +420,10 @@ mod tests {
         let task_id =
             crate::db::tasks::create_task(&conn, &task_req).expect("Failed to create task");
 
-        let req1 = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T10:00:00Z".to_string(),
-            session_type: "work".to_string(),
-            task_id: Some(task_id),
-        };
+        let req1 = sample_session("2024-06-01T10:00:00Z", "work", Some(task_id));
         create_session(&conn, &req1).expect("Failed to create session");
 
-        let req2 = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T10:30:00Z".to_string(),
-            session_type: "short_break".to_string(),
-            task_id: None,
-        };
+        let req2 = sample_session("2024-06-01T10:30:00Z", "short_break", None);
         create_session(&conn, &req2).expect("Failed to create session");
 
         let sessions = get_sessions_by_task(&conn, task_id).expect("Failed to query by task");
@@ -497,11 +476,11 @@ mod tests {
     fn test_update_runtime_state_persists_active_session_and_interruption() {
         let conn = setup_db();
 
-        let req = CreatePomodoroSessionRequest {
-            started_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req = sample_session(
+            &chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            "work",
+            None,
+        );
         let session_id = create_session(&conn, &req).expect("Failed to create session");
         let _ = get_or_create_runtime_state(&conn).expect("Failed to create initial");
 
@@ -539,11 +518,11 @@ mod tests {
         assert_eq!(count, 0);
 
         // Create an un-ended session — should not count
-        let req = CreatePomodoroSessionRequest {
-            started_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req = sample_session(
+            &chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            "work",
+            None,
+        );
         let id1 = create_session(&conn, &req).expect("Failed to create session");
 
         let count = count_completed_work_sessions_for_date(&conn).expect("Failed to count");
@@ -573,11 +552,7 @@ mod tests {
         assert!(result.is_none(), "no sessions means no open session");
 
         // Create an ended session
-        let req = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T10:00:00Z".to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req = sample_session("2024-06-01T10:00:00Z", "work", None);
         let id1 = create_session(&conn, &req).expect("Failed to create session");
         update_session_end(&conn, id1, "2024-06-01T10:25:00Z").expect("Failed to end session");
 
@@ -585,11 +560,7 @@ mod tests {
         assert!(result.is_none(), "ended session should not be returned");
 
         // Create an open session
-        let req2 = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T11:00:00Z".to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req2 = sample_session("2024-06-01T11:00:00Z", "work", None);
         let id2 = create_session(&conn, &req2).expect("Failed to create session");
         let result = find_latest_open_work_session(&conn).expect("Failed to find");
         assert_eq!(result, Some(id2));
@@ -599,11 +570,7 @@ mod tests {
     fn test_soft_delete_session() {
         let conn = setup_db();
 
-        let req = CreatePomodoroSessionRequest {
-            started_at: "2024-06-01T10:00:00Z".to_string(),
-            session_type: "work".to_string(),
-            task_id: None,
-        };
+        let req = sample_session("2024-06-01T10:00:00Z", "work", None);
         let id = create_session(&conn, &req).expect("Failed to create session");
 
         soft_delete_session(&conn, id).expect("Failed to soft delete");

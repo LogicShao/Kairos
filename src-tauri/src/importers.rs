@@ -39,6 +39,14 @@ fn normalize_line(raw_line: &str) -> String {
     raw_line.replace('\r', "").trim().to_string()
 }
 
+/// 归一化并过滤空行的文本行序列。
+fn normalized_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(normalize_line)
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
 fn is_course_header_line(line: &str) -> bool {
     line.contains("课程号")
         || line.contains("课程名称")
@@ -203,11 +211,7 @@ pub fn parse_course_import_text(
     semester: &str,
     semester_start_date: &str,
 ) -> Result<Vec<CreateCourseRequest>, String> {
-    let lines: Vec<String> = text
-        .lines()
-        .map(normalize_line)
-        .filter(|line| !line.is_empty())
-        .collect();
+    let lines = normalized_lines(text);
 
     let mut courses = Vec::new();
     let mut index = 0usize;
@@ -286,11 +290,7 @@ pub fn parse_exam_import_text(
     text: &str,
     semester: &str,
 ) -> Result<Vec<CreateExamRequest>, String> {
-    let lines: Vec<String> = text
-        .lines()
-        .map(normalize_line)
-        .filter(|line| !line.is_empty())
-        .collect();
+    let lines = normalized_lines(text);
 
     let mut exams = Vec::new();
     for line in lines {

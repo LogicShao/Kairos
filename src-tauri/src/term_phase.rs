@@ -81,10 +81,7 @@ pub fn get_phase_status_for_term_week(
             .map_err(|e| e.to_string())?
     {
         return Ok(downgrade_teaching_if_no_courses(
-            conn,
-            source,
-            week_index,
-            phase,
+            conn, source, week_index, phase,
         ));
     }
 
@@ -155,6 +152,33 @@ fn status_from_phase(source: &str, current_week: i64, phase: TermPhase) -> Curre
     }
 }
 
+/// 该学期是否存在活跃课程。查询失败时保守视为有课（不降级），
+/// 避免 DB 异常导致真实教学周被误判假期。
+fn has_courses(conn: &Connection, term_label: &str) -> bool {
+    conn.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM courses WHERE semester = ?1 AND deleted_at IS NULL
+         )",
+        params![term_label],
+        |row| row.get::<_, i64>(0),
+    )
+    .unwrap_or(1)
+        > 0
+}
+
+/// 将教学状态重置为假期（break）字段。
+fn mark_as_break(mut status: CurrentPhaseStatus) -> CurrentPhaseStatus {
+    status.phase_type = PHASE_BREAK.to_string();
+    status.current_week = None;
+    status.start_week = None;
+    status.end_week = None;
+    status.courses_visible = false;
+    status.exam_notifications_enabled = false;
+    status.pomodoro_profile = "relaxed".to_string();
+    status.inferred = true;
+    status
+}
+
 /// 教学周但该学期无任何活跃课程 → 降级为假期。
 ///
 /// 覆盖 LZU 返回暑期小学期等无课学期上下文的场景：学期锚点日期落在暑假，
@@ -168,32 +192,10 @@ fn downgrade_teaching_if_no_courses(
     if phase.phase_type != PHASE_TEACHING {
         return status_from_phase(source, current_week, phase);
     }
-
-    // 查询失败时保守视为有课（不降级），避免 DB 异常导致真实教学周被误判假期。
-    let has_courses = conn
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM courses WHERE semester = ?1 AND deleted_at IS NULL
-             )",
-            params![phase.term_label],
-            |row| row.get::<_, i64>(0),
-        )
-        .unwrap_or(1);
-
-    if has_courses > 0 {
+    if has_courses(conn, &phase.term_label) {
         return status_from_phase(source, current_week, phase);
     }
-
-    let mut status = status_from_phase(source, current_week, phase);
-    status.phase_type = PHASE_BREAK.to_string();
-    status.current_week = None;
-    status.start_week = None;
-    status.end_week = None;
-    status.courses_visible = false;
-    status.exam_notifications_enabled = false;
-    status.pomodoro_profile = "relaxed".to_string();
-    status.inferred = true;
-    status
+    mark_as_break(status_from_phase(source, current_week, phase))
 }
 
 fn downgrade_inferred_teaching_if_no_courses(
@@ -204,33 +206,10 @@ fn downgrade_inferred_teaching_if_no_courses(
     if status.phase_type != PHASE_TEACHING || term_label.is_empty() {
         return status;
     }
-
-    let has_courses = conn
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM courses WHERE semester = ?1 AND deleted_at IS NULL
-             )",
-            params![term_label],
-            |row| row.get::<_, i64>(0),
-        )
-        .unwrap_or(1);
-
-    if has_courses > 0 {
+    if has_courses(conn, term_label) {
         return status;
     }
-
-    CurrentPhaseStatus {
-        source: status.source,
-        term_label: status.term_label,
-        phase_type: PHASE_BREAK.to_string(),
-        current_week: None,
-        start_week: None,
-        end_week: None,
-        courses_visible: false,
-        exam_notifications_enabled: false,
-        pomodoro_profile: "relaxed".to_string(),
-        inferred: true,
-    }
+    mark_as_break(status)
 }
 
 fn inferred_status(
@@ -275,16 +254,8 @@ fn inferred_status_from_parts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
     use crate::db::models::{CreateTermPhaseRequest, UpsertSemesterContextRequest};
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn insert_course(conn: &Connection, semester: &str) {
         conn.execute(
@@ -439,13 +410,9 @@ mod tests {
         crate::db::term_phases::create_term_phase(&conn, &sample_phase(PHASE_TEACHING, 1, 16))
             .expect("create phase");
 
-        let status = get_phase_status_for_term_week(
-            &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
-            "2026S1",
-            2,
-        )
-        .expect("phase status");
+        let status =
+            get_phase_status_for_term_week(&conn, LZU_SEMESTER_CONTEXT_SOURCE, "2026S1", 2)
+                .expect("phase status");
 
         assert_eq!(status.phase_type, PHASE_BREAK);
         assert!(!status.courses_visible);

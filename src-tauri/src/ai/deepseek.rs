@@ -96,8 +96,7 @@ impl AsyncDeepseekProvider {
         }
 
         log::warn!("SSE 流式返回空内容，回退非流式请求");
-        self.generate_daily_brief_non_streaming(briefing)
-            .await
+        self.generate_daily_brief_non_streaming(briefing).await
     }
 
     /// 非流式回退：stream=false 发送请求，返回完整响应文本。
@@ -361,35 +360,8 @@ async fn collect_sse_stream(
     let mut raw_lines: Vec<String> = Vec::new();
     const MAX_RAW_LINES: usize = 10;
 
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(map_reqwest_error)?;
-        buf.extend_from_slice(&chunk);
-
-        // 切出完整行（以 \n 结尾）逐行解析；残留部分等下个 chunk。
-        while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
-            let line: Vec<u8> = buf.drain(..=pos).collect();
-            let line_text = String::from_utf8_lossy(&line);
-            let trimmed = line_text.trim_end_matches(['\r', '\n']);
-            if !trimmed.is_empty() && raw_lines.len() < MAX_RAW_LINES {
-                raw_lines.push(trimmed.chars().take(160).collect());
-            }
-            if let Some(data) = trimmed.trim_start().strip_prefix("data:") {
-                data_lines += 1;
-                if first_data_line.is_none() {
-                    first_data_line = Some(data.trim().chars().take(200).collect());
-                }
-            }
-            if let Some(delta) = handle_sse_line(trimmed, &mut full) {
-                parsed_deltas += 1;
-                let _ = channel.send(StreamChunk { delta });
-            }
-        }
-    }
-
-    // 流结束后的残留行（最后一行可能无 \n 结尾）。
-    if !buf.is_empty() {
-        let line_text = String::from_utf8_lossy(&buf);
-        let trimmed = line_text.trim_end_matches(['\r', '\n']);
+    // 处理已切出的 SSE 行（循环内完整行 + 流结束残留共用）。
+    let mut process_sse_line = |trimmed: &str, full: &mut String| {
         if !trimmed.is_empty() && raw_lines.len() < MAX_RAW_LINES {
             raw_lines.push(trimmed.chars().take(160).collect());
         }
@@ -399,10 +371,30 @@ async fn collect_sse_stream(
                 first_data_line = Some(data.trim().chars().take(200).collect());
             }
         }
-        if let Some(delta) = handle_sse_line(trimmed, &mut full) {
+        if let Some(delta) = handle_sse_line(trimmed, full) {
             parsed_deltas += 1;
             let _ = channel.send(StreamChunk { delta });
         }
+    };
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(map_reqwest_error)?;
+        buf.extend_from_slice(&chunk);
+
+        // 切出完整行（以 \n 结尾）逐行解析；残留部分等下个 chunk。
+        while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
+            let line: Vec<u8> = buf.drain(..=pos).collect();
+            let line_text = String::from_utf8_lossy(&line);
+            let trimmed = line_text.trim_end_matches(['\r', '\n']);
+            process_sse_line(trimmed, &mut full);
+        }
+    }
+
+    // 流结束后的残留行（最后一行可能无 \n 结尾）。
+    if !buf.is_empty() {
+        let line_text = String::from_utf8_lossy(&buf);
+        let trimmed = line_text.trim_end_matches(['\r', '\n']);
+        process_sse_line(trimmed, &mut full);
     }
 
     // 兜底：未解析出任何 delta 且响应体是 JSON → 按非流式 DTO 解析一次。
@@ -412,7 +404,9 @@ async fn collect_sse_stream(
             if let Ok(parsed) = serde_json::from_str::<ChatCompletionResponse>(&text) {
                 if let Some(content) = parsed.choices.into_iter().next() {
                     full = content.message.content;
-                    let _ = channel.send(StreamChunk { delta: full.clone() });
+                    let _ = channel.send(StreamChunk {
+                        delta: full.clone(),
+                    });
                 }
             }
         }
@@ -557,7 +551,10 @@ mod tests {
         let mut full = String::new();
         // data 行 → 提取 delta 并追加。
         assert_eq!(
-            handle_sse_line(r#"data: {"choices":[{"delta":{"content":"你好"}}]}"#, &mut full),
+            handle_sse_line(
+                r#"data: {"choices":[{"delta":{"content":"你好"}}]}"#,
+                &mut full
+            ),
             Some("你好".to_string())
         );
         assert_eq!(full, "你好");
@@ -565,15 +562,27 @@ mod tests {
         assert_eq!(handle_sse_line("", &mut full), None);
         assert_eq!(handle_sse_line(":keep-alive", &mut full), None);
         assert_eq!(handle_sse_line("data: [DONE]", &mut full), None);
-        assert_eq!(handle_sse_line(r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#, &mut full), None);
+        assert_eq!(
+            handle_sse_line(
+                r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#,
+                &mut full
+            ),
+            None
+        );
         assert_eq!(full, "你好");
     }
 
     #[test]
     fn test_handle_sse_line_multiple_deltas_accumulate() {
         let mut full = String::new();
-        handle_sse_line(r#"data: {"choices":[{"delta":{"content":"今天"}}]}"#, &mut full);
-        handle_sse_line(r#"data: {"choices":[{"delta":{"content":"很棒"}}]}"#, &mut full);
+        handle_sse_line(
+            r#"data: {"choices":[{"delta":{"content":"今天"}}]}"#,
+            &mut full,
+        );
+        handle_sse_line(
+            r#"data: {"choices":[{"delta":{"content":"很棒"}}]}"#,
+            &mut full,
+        );
         assert_eq!(full, "今天很棒");
     }
 }

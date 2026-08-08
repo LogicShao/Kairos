@@ -289,18 +289,23 @@ fn merge_tasks(tx: &Transaction<'_>, remote: &[Task]) -> Result<usize> {
 ///
 /// 不修改 `updated_at`：本次合并不是一次新的本地修改，保持幂等，避免误判 LWW。
 fn merge_daily_fields(tx: &Transaction<'_>, local_id: i64, remote: &Task) -> Result<()> {
-    let (local_is_daily, local_last_completed, local_reminder): (i64, Option<String>, Option<String>) =
-        tx.query_row(
-            "SELECT is_daily, last_completed_date, reminder_time FROM tasks WHERE id = ?1",
-            params![local_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
+    let (local_is_daily, local_last_completed, local_reminder): (
+        i64,
+        Option<String>,
+        Option<String>,
+    ) = tx.query_row(
+        "SELECT is_daily, last_completed_date, reminder_time FROM tasks WHERE id = ?1",
+        params![local_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
 
     let new_is_daily = local_is_daily != 0 || remote.is_daily;
     let new_last_completed = local_last_completed
         .clone()
         .or_else(|| remote.last_completed_date.clone());
-    let new_reminder = local_reminder.clone().or_else(|| remote.reminder_time.clone());
+    let new_reminder = local_reminder
+        .clone()
+        .or_else(|| remote.reminder_time.clone());
 
     if new_is_daily != (local_is_daily != 0)
         || new_last_completed != local_last_completed
@@ -753,16 +758,7 @@ fn map_remote_entity_id(map: &HashMap<i64, i64>, remote_id: Option<i64>) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_sync_data() -> SyncData {
         SyncData {
@@ -946,7 +942,10 @@ mod tests {
         assert_eq!(stats.tasks_merged, 0);
         let exported = export_all(&conn).expect("re-export");
         assert_eq!(exported.tasks.len(), 1);
-        assert!(exported.tasks[0].is_daily, "平局时远端 is_daily=true 应合并进本地");
+        assert!(
+            exported.tasks[0].is_daily,
+            "平局时远端 is_daily=true 应合并进本地"
+        );
         assert_eq!(
             exported.tasks[0].reminder_time.as_deref(),
             Some("09:30"),

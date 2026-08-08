@@ -218,11 +218,13 @@ pub async fn generate_today_brief_streaming(
                         summary.chars().count(),
                         summary.chars().take(120).collect::<String>()
                     );
-                    rule.generate_daily_brief(&briefing).map_err(|e| e.to_string())?
+                    rule.generate_daily_brief(&briefing)
+                        .map_err(|e| e.to_string())?
                 }
                 Err(e) => {
                     log::warn!("AI 流式生成失败，降级本地规则: {e:?}");
-                    rule.generate_daily_brief(&briefing).map_err(|e| e.to_string())?
+                    rule.generate_daily_brief(&briefing)
+                        .map_err(|e| e.to_string())?
                 }
             }
         }

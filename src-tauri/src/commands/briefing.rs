@@ -482,21 +482,30 @@ mod tests {
     }
 
     fn task_no_date(id: i64, title: &str) -> Task {
-        Task {
+        let mut t = sample_task(id, title, "", "todo", "medium");
+        t.due_date = None;
+        t
+    }
+
+    fn sample_exam(
+        id: i64,
+        course_name: &str,
+        exam_datetime: &str,
+        exam_end_datetime: &str,
+        location: &str,
+    ) -> Exam {
+        Exam {
             id,
-            sync_id: format!("task-sync-{id}"),
-            title: title.to_string(),
-            description: String::new(),
-            status: "todo".to_string(),
-            priority: "medium".to_string(),
-            due_date: None,
-            tags: "[]".to_string(),
-            created_at: "2026-01-01T00:00:00Z".to_string(),
-            updated_at: "2026-01-01T00:00:00Z".to_string(),
-            is_daily: false,
-            last_completed_date: None,
-            reminder_time: None,
-            remind_at: None,
+            sync_id: format!("exam-{id}"),
+            course_name: course_name.to_string(),
+            exam_datetime: exam_datetime.to_string(),
+            exam_end_datetime: exam_end_datetime.to_string(),
+            location: location.to_string(),
+            notes: String::new(),
+            course_id: None,
+            semester: "2026S1".to_string(),
+            created_at: String::new(),
+            updated_at: String::new(),
             deleted_at: None,
         }
     }
@@ -611,34 +620,20 @@ mod tests {
         let _china_offset = FixedOffset::east_opt(8 * 3600).unwrap();
         let now = chrono::DateTime::parse_from_rfc3339("2026-06-28T10:00:00+08:00").unwrap();
         let exams = vec![
-            Exam {
-                id: 1,
-                sync_id: "exam-1".to_string(),
-                course_name: "高数期末".to_string(),
-                exam_datetime: "2026-07-01T08:00:00+08:00".to_string(),
-                exam_end_datetime: "2026-07-01T10:00:00+08:00".to_string(),
-                location: "天山堂A409".to_string(),
-                notes: String::new(),
-                course_id: None,
-                semester: "2026S1".to_string(),
-                created_at: String::new(),
-                updated_at: String::new(),
-                deleted_at: None,
-            },
-            Exam {
-                id: 2,
-                sync_id: "exam-2".to_string(),
-                course_name: "已过去考试".to_string(),
-                exam_datetime: "2026-06-27T08:00:00+08:00".to_string(),
-                exam_end_datetime: "2026-06-27T10:00:00+08:00".to_string(),
-                location: "教室A".to_string(),
-                notes: String::new(),
-                course_id: None,
-                semester: "2026S1".to_string(),
-                created_at: String::new(),
-                updated_at: String::new(),
-                deleted_at: None,
-            },
+            sample_exam(
+                1,
+                "高数期末",
+                "2026-07-01T08:00:00+08:00",
+                "2026-07-01T10:00:00+08:00",
+                "天山堂A409",
+            ),
+            sample_exam(
+                2,
+                "已过去考试",
+                "2026-06-27T08:00:00+08:00",
+                "2026-06-27T10:00:00+08:00",
+                "教室A",
+            ),
         ];
         let result = build_upcoming_exam(&exams, &now);
         assert!(result.is_some());
@@ -651,20 +646,13 @@ mod tests {
     fn test_build_upcoming_exam_none_when_all_past() {
         let _china_offset = FixedOffset::east_opt(8 * 3600).unwrap();
         let now = chrono::DateTime::parse_from_rfc3339("2026-07-01T12:00:00+08:00").unwrap();
-        let exams = vec![Exam {
-            id: 1,
-            sync_id: "exam-1".to_string(),
-            course_name: "已过去考试".to_string(),
-            exam_datetime: "2026-06-27T08:00:00+08:00".to_string(),
-            exam_end_datetime: "2026-06-27T10:00:00+08:00".to_string(),
-            location: "教室A".to_string(),
-            notes: String::new(),
-            course_id: None,
-            semester: "2026S1".to_string(),
-            created_at: String::new(),
-            updated_at: String::new(),
-            deleted_at: None,
-        }];
+        let exams = vec![sample_exam(
+            1,
+            "已过去考试",
+            "2026-06-27T08:00:00+08:00",
+            "2026-06-27T10:00:00+08:00",
+            "教室A",
+        )];
         let result = build_upcoming_exam(&exams, &now);
         assert!(result.is_none());
     }

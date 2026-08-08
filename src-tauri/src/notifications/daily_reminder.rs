@@ -151,7 +151,11 @@ fn next_occurrence_dt(now: NaiveDateTime, target: NaiveTime) -> NaiveDateTime {
 /// 无任何提醒时等待 1 小时后重试，避免空转忙轮询。
 fn plan_next(reminders: &[Reminder], now: NaiveDateTime) -> (u64, Vec<Reminder>) {
     // 一次性任务已过期（错过不补发）不参与排程。
-    let active: Vec<Reminder> = reminders.iter().filter(|r| !r.is_expired(now)).cloned().collect();
+    let active: Vec<Reminder> = reminders
+        .iter()
+        .filter(|r| !r.is_expired(now))
+        .cloned()
+        .collect();
 
     if active.is_empty() {
         return (3600, Vec::new());
@@ -435,10 +439,18 @@ mod tests {
         clear_expired_remind_at(&conn);
 
         let expired: Option<String> = conn
-            .query_row("SELECT remind_at FROM tasks WHERE sync_id = 's1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT remind_at FROM tasks WHERE sync_id = 's1'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         let future: Option<String> = conn
-            .query_row("SELECT remind_at FROM tasks WHERE sync_id = 's2'", [], |r| r.get(0))
+            .query_row(
+                "SELECT remind_at FROM tasks WHERE sync_id = 's2'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert!(expired.is_none(), "过期 remind_at 应被清理");
         assert_eq!(future.as_deref(), Some("2099-01-01 08:00"));

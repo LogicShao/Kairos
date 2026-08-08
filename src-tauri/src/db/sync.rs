@@ -105,16 +105,7 @@ pub fn update_ai_settings_remote_etag(conn: &Connection, etag: Option<&str>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     #[test]
     fn test_get_config_creates_default() {

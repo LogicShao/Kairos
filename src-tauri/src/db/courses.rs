@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 
 use super::models::{Course, CreateCourseRequest, UpdateCourseRequest};
 
@@ -25,30 +25,32 @@ pub fn create_course(conn: &Connection, req: &CreateCourseRequest) -> Result<i64
     Ok(conn.last_insert_rowid())
 }
 
+fn row_to_course(row: &Row<'_>) -> Result<Course> {
+    Ok(Course {
+        id: row.get(0)?,
+        sync_id: row.get(1)?,
+        name: row.get(2)?,
+        day_of_week: row.get(3)?,
+        start_time: row.get(4)?,
+        end_time: row.get(5)?,
+        week_pattern: row.get(6)?,
+        semester_start_date: row.get(7)?,
+        location: row.get(8)?,
+        teacher: row.get(9)?,
+        color: row.get(10)?,
+        semester: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+        deleted_at: row.get(14)?,
+    })
+}
+
 pub fn get_course(conn: &Connection, id: i64) -> Result<Course> {
     conn.query_row(
         "SELECT id, sync_id, name, day_of_week, start_time, end_time, week_pattern, semester_start_date, location, teacher, color, semester, created_at, updated_at, deleted_at
          FROM courses WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
-        |row| {
-            Ok(Course {
-                id: row.get(0)?,
-                sync_id: row.get(1)?,
-                name: row.get(2)?,
-                day_of_week: row.get(3)?,
-                start_time: row.get(4)?,
-                end_time: row.get(5)?,
-                week_pattern: row.get(6)?,
-                semester_start_date: row.get(7)?,
-                location: row.get(8)?,
-                teacher: row.get(9)?,
-                color: row.get(10)?,
-                semester: row.get(11)?,
-                created_at: row.get(12)?,
-                updated_at: row.get(13)?,
-                deleted_at: row.get(14)?,
-            })
-        },
+        row_to_course,
     )
 }
 
@@ -69,25 +71,7 @@ pub fn get_all_courses(conn: &Connection, semester: Option<&str>) -> Result<Vec<
         params_vec.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql)?;
 
-    let rows = stmt.query_map(param_refs.as_slice(), |row| {
-        Ok(Course {
-            id: row.get(0)?,
-            sync_id: row.get(1)?,
-            name: row.get(2)?,
-            day_of_week: row.get(3)?,
-            start_time: row.get(4)?,
-            end_time: row.get(5)?,
-            week_pattern: row.get(6)?,
-            semester_start_date: row.get(7)?,
-            location: row.get(8)?,
-            teacher: row.get(9)?,
-            color: row.get(10)?,
-            semester: row.get(11)?,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
-            deleted_at: row.get(14)?,
-        })
-    })?;
+    let rows = stmt.query_map(param_refs.as_slice(), row_to_course)?;
 
     rows.collect()
 }
@@ -129,27 +113,13 @@ pub fn update_all_semester_start_dates(conn: &Connection, date: &str) -> Result<
 }
 
 pub fn delete_course(conn: &Connection, id: i64) -> Result<()> {
-    let now = super::chrono_now();
-    conn.execute(
-        "UPDATE courses SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-        params![now, id],
-    )?;
-    Ok(())
+    super::soft_delete(conn, "courses", id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_course(name: &str) -> CreateCourseRequest {
         CreateCourseRequest {

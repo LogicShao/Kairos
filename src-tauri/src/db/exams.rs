@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 
 use super::models::{CreateExamRequest, Exam, UpdateExamRequest};
 
@@ -22,27 +22,29 @@ pub fn create_exam(conn: &Connection, req: &CreateExamRequest) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
+fn row_to_exam(row: &Row<'_>) -> Result<Exam> {
+    Ok(Exam {
+        id: row.get(0)?,
+        sync_id: row.get(1)?,
+        course_name: row.get(2)?,
+        exam_datetime: row.get(3)?,
+        exam_end_datetime: row.get(4)?,
+        location: row.get(5)?,
+        notes: row.get(6)?,
+        course_id: row.get(7)?,
+        semester: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        deleted_at: row.get(11)?,
+    })
+}
+
 pub fn get_exam(conn: &Connection, id: i64) -> Result<Exam> {
     conn.query_row(
         "SELECT id, sync_id, course_name, exam_datetime, exam_end_datetime, location, notes, course_id, semester, created_at, updated_at, deleted_at
          FROM exams WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
-        |row| {
-            Ok(Exam {
-                id: row.get(0)?,
-                sync_id: row.get(1)?,
-                course_name: row.get(2)?,
-                exam_datetime: row.get(3)?,
-                exam_end_datetime: row.get(4)?,
-                location: row.get(5)?,
-                notes: row.get(6)?,
-                course_id: row.get(7)?,
-                semester: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
-                deleted_at: row.get(11)?,
-            })
-        },
+        row_to_exam,
     )
 }
 
@@ -54,22 +56,7 @@ pub fn get_all_exams(conn: &Connection) -> Result<Vec<Exam>> {
          ORDER BY exam_datetime ASC",
     )?;
 
-    let rows = stmt.query_map([], |row| {
-        Ok(Exam {
-            id: row.get(0)?,
-            sync_id: row.get(1)?,
-            course_name: row.get(2)?,
-            exam_datetime: row.get(3)?,
-            exam_end_datetime: row.get(4)?,
-            location: row.get(5)?,
-            notes: row.get(6)?,
-            course_id: row.get(7)?,
-            semester: row.get(8)?,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
-            deleted_at: row.get(11)?,
-        })
-    })?;
+    let rows = stmt.query_map([], row_to_exam)?;
 
     rows.collect()
 }
@@ -96,27 +83,13 @@ pub fn update_exam(conn: &Connection, id: i64, req: &UpdateExamRequest) -> Resul
 }
 
 pub fn delete_exam(conn: &Connection, id: i64) -> Result<()> {
-    let now = super::chrono_now();
-    conn.execute(
-        "UPDATE exams SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-        params![now, id],
-    )?;
-    Ok(())
+    super::soft_delete(conn, "exams", id)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
-    use rusqlite::Connection;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_exam(name: &str) -> CreateExamRequest {
         CreateExamRequest {

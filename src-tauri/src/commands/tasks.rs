@@ -156,12 +156,12 @@ pub fn delete_task(
     Ok(())
 }
 
-/// 完成每日任务：标记今日已完成（status=done + last_completed_date=今日）。
-#[tauri::command]
-pub fn complete_daily_task(
-    db: State<'_, Arc<Mutex<Connection>>>,
-    app_handle: AppHandle,
+/// 完成/取消完成每日任务。`completed=true` 标记今日已完成，`false` 回到 todo。
+fn set_daily_completed(
+    db: &State<'_, Arc<Mutex<Connection>>>,
+    app_handle: &AppHandle,
     id: i64,
+    completed: bool,
 ) -> Result<(), String> {
     {
         let conn = db.lock().map_err(|e| e.to_string())?;
@@ -170,14 +170,28 @@ pub fn complete_daily_task(
             return Err("该任务不是每日任务".to_string());
         }
         let req = UpdateTaskRequest {
-            status: String::from("done"),
-            last_completed_date: Some(crate::ai::morning_brief::today_china()),
+            status: if completed { "done" } else { "todo" }.to_string(),
+            last_completed_date: if completed {
+                Some(crate::ai::morning_brief::today_china())
+            } else {
+                None
+            },
             ..task_to_update(&existing)
         };
         crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
     }
-    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
+    crate::notifications::daily_reminder::reschedule(db.inner().clone(), app_handle);
     Ok(())
+}
+
+/// 完成每日任务：标记今日已完成（status=done + last_completed_date=今日）。
+#[tauri::command]
+pub fn complete_daily_task(
+    db: State<'_, Arc<Mutex<Connection>>>,
+    app_handle: AppHandle,
+    id: i64,
+) -> Result<(), String> {
+    set_daily_completed(&db, &app_handle, id, true)
 }
 
 /// 取消今日完成：status 回到 todo，last_completed_date 清空。
@@ -187,21 +201,7 @@ pub fn uncomplete_daily_task(
     app_handle: AppHandle,
     id: i64,
 ) -> Result<(), String> {
-    {
-        let conn = db.lock().map_err(|e| e.to_string())?;
-        let existing = crate::db::tasks::get_task(&conn, id).map_err(|e| e.to_string())?;
-        if !existing.is_daily {
-            return Err("该任务不是每日任务".to_string());
-        }
-        let req = UpdateTaskRequest {
-            status: String::from("todo"),
-            last_completed_date: None,
-            ..task_to_update(&existing)
-        };
-        crate::db::tasks::update_task(&conn, id, &req).map_err(|e| e.to_string())?;
-    }
-    crate::notifications::daily_reminder::reschedule(db.inner().clone(), &app_handle);
-    Ok(())
+    set_daily_completed(&db, &app_handle, id, false)
 }
 
 /// 把 Task 转成全字段 UpdateTaskRequest（保留其余字段，仅覆盖指定字段）。

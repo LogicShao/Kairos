@@ -495,7 +495,8 @@ fn sync_ai_settings(
                 };
                 ai_sync::payload_from_config(&cfg, &pk)
             };
-            let winner = match ai_sync::merge_payload(Some(&local_payload_now), &decrypted.payload) {
+            let winner = match ai_sync::merge_payload(Some(&local_payload_now), &decrypted.payload)
+            {
                 ai_sync::MergeOutcome::RemoteWins(payload) => payload,
                 ai_sync::MergeOutcome::LocalWins => local_payload_now,
             };

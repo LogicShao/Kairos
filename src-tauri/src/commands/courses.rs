@@ -193,50 +193,67 @@ fn reset_semester_start_dates(conn: &Connection, date: &str) -> Result<usize, St
     Ok(course_count)
 }
 
-fn course_import_key(course: &Course) -> String {
+/// 课程导入去重键的公共字段拼接。参数多但均为课程判定键的必要字段。
+#[allow(clippy::too_many_arguments)]
+fn course_key_parts(
+    semester: &str,
+    name: &str,
+    day_of_week: i64,
+    start_time: &str,
+    end_time: &str,
+    week_pattern: &str,
+    semester_start_date: &str,
+    location: &str,
+    teacher: &str,
+) -> String {
     [
-        course.semester.as_str(),
-        course.name.as_str(),
-        &course.day_of_week.to_string(),
-        course.start_time.as_str(),
-        course.end_time.as_str(),
-        course.week_pattern.as_str(),
-        course.semester_start_date.as_str(),
-        course.location.as_str(),
-        course.teacher.as_str(),
+        semester,
+        name,
+        &day_of_week.to_string(),
+        start_time,
+        end_time,
+        week_pattern,
+        semester_start_date,
+        location,
+        teacher,
     ]
     .join("\t")
 }
 
+fn course_import_key(course: &Course) -> String {
+    course_key_parts(
+        &course.semester,
+        &course.name,
+        course.day_of_week,
+        &course.start_time,
+        &course.end_time,
+        &course.week_pattern,
+        &course.semester_start_date,
+        &course.location,
+        &course.teacher,
+    )
+}
+
 fn course_request_import_key(course: &CreateCourseRequest) -> String {
-    [
-        course.semester.as_str(),
-        course.name.as_str(),
-        &course.day_of_week.to_string(),
-        course.start_time.as_str(),
-        course.end_time.as_str(),
-        course.week_pattern.as_str(),
-        course.semester_start_date.as_str(),
-        course.location.as_str(),
-        course.teacher.as_str(),
-    ]
-    .join("\t")
+    course_key_parts(
+        &course.semester,
+        &course.name,
+        course.day_of_week,
+        &course.start_time,
+        &course.end_time,
+        &course.week_pattern,
+        &course.semester_start_date,
+        &course.location,
+        &course.teacher,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
     use crate::db::models::UpsertSemesterContextRequest;
     use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
-
-    fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("Failed to enable foreign keys");
-        migrations::run_migrations(&conn).expect("Migrations failed");
-        conn
-    }
+    use crate::db::setup_db;
 
     fn sample_course() -> CreateCourseRequest {
         CreateCourseRequest {

@@ -147,8 +147,8 @@ pub fn decrypt_blob(
     blob_json: &str,
     local_dek: Option<[u8; DEK_LEN]>,
 ) -> Result<DecryptedBlob, String> {
-    let blob: AiSettingsBlob = serde_json::from_str(blob_json)
-        .map_err(|e| format!("AI 设置加密包解析失败: {e}"))?;
+    let blob: AiSettingsBlob =
+        serde_json::from_str(blob_json).map_err(|e| format!("AI 设置加密包解析失败: {e}"))?;
     if blob.format_version != FORMAT_VERSION {
         return Err(format!(
             "AI 设置加密包版本不受支持: {}",
@@ -159,7 +159,8 @@ pub fn decrypt_blob(
     let salt = hex::decode(&blob.kdf_salt_hex).map_err(|_| "加密包盐解码失败".to_string())?;
     let kek = derive_kek_with_iterations(password, &salt, blob.kdf_iterations);
     let wrap_nonce = decode_nonce(&blob.dek_wrap_nonce_hex)?;
-    let wrapped_dek = hex::decode(&blob.wrapped_dek_hex).map_err(|_| "包裹 DEK 解码失败".to_string())?;
+    let wrapped_dek =
+        hex::decode(&blob.wrapped_dek_hex).map_err(|_| "包裹 DEK 解码失败".to_string())?;
 
     // 当前密码解包裹成功 → DEK 直接从包内获得，无需本地副本。
     let (dek, needs_rewrap) = match open(&kek, &wrap_nonce, &wrapped_dek, AAD) {
@@ -208,7 +209,8 @@ pub fn load_dek(app_data_dir: &Path) -> Result<Option<[u8; DEK_LEN]>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    let bytes = fs::read(&path).map_err(|e| format!("读取 AI 同步 DEK 失败（{}）: {e}", path.display()))?;
+    let bytes =
+        fs::read(&path).map_err(|e| format!("读取 AI 同步 DEK 失败（{}）: {e}", path.display()))?;
     let dek: [u8; DEK_LEN] = bytes
         .try_into()
         .map_err(|_| "AI 同步 DEK 文件长度异常，请删除该文件后重新同步".to_string())?;
@@ -230,13 +232,12 @@ pub fn load_or_create_dek(app_data_dir: &Path) -> Result<[u8; DEK_LEN], String> 
 /// 写入本地 DEK 副本（Unix 下 0600，仿 `.ai_encryption_key`）。
 pub fn save_dek(app_data_dir: &Path, dek: &[u8; DEK_LEN]) -> Result<(), String> {
     let path = dek_path(app_data_dir);
-    fs::write(&path, dek).map_err(|e| format!("写入 AI 同步 DEK 失败（{}）: {e}", path.display()))?;
+    fs::write(&path, dek)
+        .map_err(|e| format!("写入 AI 同步 DEK 失败（{}）: {e}", path.display()))?;
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("设置 AI 同步 DEK 权限失败: {e}"))?;
+        crate::ai::crypto::set_file_mode_0600(&path)?;
     }
 
     Ok(())
@@ -298,22 +299,29 @@ fn seal(key: &[u8; DEK_LEN], nonce: &[u8], msg: &[u8], aad: &[u8]) -> Result<Vec
 }
 
 /// AES-256-GCM 解密（带 AAD，GCM tag 校验失败即返回 Err）。
-fn open(key: &[u8; DEK_LEN], nonce: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
+fn open(
+    key: &[u8; DEK_LEN],
+    nonce: &[u8],
+    ciphertext: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, String> {
     let cipher =
         Aes256Gcm::new_from_slice(key).map_err(|_| "初始化 AES-256-GCM 失败".to_string())?;
     let nonce = Nonce::from_slice(nonce);
     cipher
-        .decrypt(nonce, Payload {
-            msg: ciphertext,
-            aad,
-        })
+        .decrypt(
+            nonce,
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
         .map_err(|_| "AES-256-GCM 解密失败".to_string())
 }
 
 /// 从 hex 解码并校验 GCM nonce 长度。
 fn decode_nonce(hex_str: &str) -> Result<Vec<u8>, String> {
-    let bytes =
-        hex::decode(hex_str).map_err(|_| "加密包 nonce 解码失败".to_string())?;
+    let bytes = hex::decode(hex_str).map_err(|_| "加密包 nonce 解码失败".to_string())?;
     if bytes.len() != NONCE_LEN {
         return Err("加密包 nonce 长度无效".to_string());
     }
@@ -425,12 +433,9 @@ mod tests {
 
         let mut parsed: AiSettingsBlob = serde_json::from_str(&blob).expect("parse");
         // 翻转 payload 密文的一个 hex 字符。
-        let flip = |hex_str: &str| {
-            let mut bytes = hex::decode(hex_str).expect("hex");
-            bytes[0] ^= 0x01;
-            hex::encode(bytes)
-        };
-        parsed.payload_cipher_hex = flip(&parsed.payload_cipher_hex);
+        let mut payload_cipher_bytes = hex::decode(&parsed.payload_cipher_hex).expect("hex");
+        payload_cipher_bytes[0] ^= 0x01;
+        parsed.payload_cipher_hex = hex::encode(payload_cipher_bytes);
         let tampered = serde_json::to_string(&parsed).expect("serialize");
 
         assert!(decrypt_blob(TEST_PASSWORD, &tampered, Some(dek)).is_err());
@@ -500,12 +505,14 @@ mod tests {
 
     fn test_dir() -> std::path::PathBuf {
         static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let base = std::env::temp_dir().join(format!(
-            "kairos-ai-settings-test-{}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("kairos-ai-settings-test-{}", std::process::id()));
         fs::create_dir_all(&base).expect("Failed to create temp dir");
-        let dir = base.join(COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst).to_string());
+        let dir = base.join(
+            COUNTER
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                .to_string(),
+        );
         fs::create_dir_all(&dir).expect("Failed to create dir");
         dir
     }

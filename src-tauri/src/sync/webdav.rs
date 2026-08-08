@@ -90,8 +90,7 @@ impl WebDavClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&auth_value)
-                .map_err(|e| format!("认证信息无效：{e}"))?,
+            HeaderValue::from_str(&auth_value).map_err(|e| format!("认证信息无效：{e}"))?,
         );
 
         Ok(headers)
@@ -113,7 +112,16 @@ impl WebDavClient {
     /// 下载远端 kairos-sync.json。返回解析后的数据 + ETag。
     /// 404 = "No remote sync data found"，调用方视为无远端数据正常跳过。
     pub fn download(&self) -> Result<DownloadedSyncData, String> {
-        let url = self.sync_file_url();
+        const NOT_FOUND: &str = "No remote sync data found";
+        let (etag, body) = self.get_file("kairos-sync.json", NOT_FOUND)?;
+        let data = serde_json::from_str::<SyncData>(&body)
+            .map_err(|e| format!("同步数据解析失败：{e}"))?;
+        Ok(DownloadedSyncData { data, etag })
+    }
+
+    /// 下载远端文件，返回 (ETag, 原始文本)。404 → `not_found` 错误文案，供调用方按无远端处理。
+    fn get_file(&self, file_name: &str, not_found: &str) -> Result<(Option<String>, String), String> {
+        let url = self.file_url(file_name);
         let headers = self.auth_header()?;
 
         let response = self
@@ -129,12 +137,9 @@ impl WebDavClient {
             let body = response
                 .text()
                 .map_err(|e| format!("读取响应内容失败：{e}"))?;
-
-            let data = serde_json::from_str::<SyncData>(&body)
-                .map_err(|e| format!("同步数据解析失败：{e}"))?;
-            Ok(DownloadedSyncData { data, etag })
+            Ok((etag, body))
         } else if status.as_u16() == 404 {
-            Err("No remote sync data found (404)".to_string())
+            Err(not_found.to_string())
         } else {
             Err(format!(
                 "下载失败：HTTP {} — {}",
@@ -172,32 +177,9 @@ impl WebDavClient {
 
     /// 下载远端 AI 设置加密包。404 = "No remote AI settings (404)"，调用方按无远端处理。
     pub fn download_ai_settings(&self) -> Result<DownloadedAiSettings, String> {
-        let url = self.file_url("kairos-ai-settings.enc");
-        let headers = self.auth_header()?;
-
-        let response = self
-            .client
-            .get(&url)
-            .headers(headers)
-            .send()
-            .map_err(|e| map_reqwest_error(e, &url))?;
-
-        let status = response.status();
-        if status.is_success() {
-            let etag = response_etag(response.headers());
-            let blob = response
-                .text()
-                .map_err(|e| format!("读取响应内容失败：{e}"))?;
-            Ok(DownloadedAiSettings { blob, etag })
-        } else if status.as_u16() == 404 {
-            Err("No remote AI settings (404)".to_string())
-        } else {
-            Err(format!(
-                "下载失败：HTTP {} — {}",
-                status.as_u16(),
-                response.text().unwrap_or_default()
-            ))
-        }
+        const NOT_FOUND: &str = "No remote AI settings (404)";
+        let (etag, blob) = self.get_file("kairos-ai-settings.enc", NOT_FOUND)?;
+        Ok(DownloadedAiSettings { blob, etag })
     }
 
     /// 通用 JSON PUT（上传主快照 / AI 加密包共用）。409/201/204/412 语义与主快照一致。
