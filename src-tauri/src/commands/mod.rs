@@ -3,7 +3,6 @@ pub mod app;
 pub mod briefing;
 pub mod courses;
 pub mod exams;
-pub mod lzu;
 pub mod notifications;
 pub mod pomodoro;
 pub mod schedule;

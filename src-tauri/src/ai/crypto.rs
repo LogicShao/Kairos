@@ -2,7 +2,7 @@
 //!
 //! # 设计决策
 //!
-//! - **不复用** `lzu/crypto.rs`（其 IV=Key 弱配置，文件头注释明确禁止复用）。
+//! - **不复用** 旧 Rust 后端的弱 AES-CBC IV=Key 配置方案（其实现已随 LZU 剥离移除）。
 //! - 密钥：16 随机字节写入 `app_data_dir/.ai_encryption_key`，首次启动生成；Unix 下 chmod 600。
 //! - 加密：AES-128-CBC + **每次随机 16 字节 IV** + PKCS7 padding（复用 `aes`/`cbc`，零新依赖）。
 //! - 存储格式：`hex(iv) || ":" || hex(cipher)`。

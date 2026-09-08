@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::db::models::{Course, Exam, SemesterContext, Task};
-use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
+use crate::db::semester::DEFAULT_SEMESTER_CONTEXT_SOURCE;
 use crate::schedule::{current_week_index_from_start, matches_week_pattern};
 use crate::term_phase::CurrentPhaseStatus;
 use crate::timer::PomodoroEngine;
@@ -128,7 +128,7 @@ pub(crate) fn collect_today_briefing(
 
     let date = today.format("%Y-%m-%d").to_string();
     let weekday_label = weekday_label(today.weekday());
-    let phase_status = crate::term_phase::latest_lzu_phase_status(conn)?;
+    let phase_status = crate::term_phase::latest_phase_status(conn)?;
     let phase = phase_briefing(&phase_status);
 
     // 1. Courses
@@ -274,7 +274,7 @@ fn phase_briefing(status: &CurrentPhaseStatus) -> PhaseBriefing {
 fn semester_context_start_dates(contexts: &[SemesterContext]) -> HashMap<String, String> {
     contexts
         .iter()
-        .filter(|context| context.source == LZU_SEMESTER_CONTEXT_SOURCE)
+        .filter(|context| context.source == DEFAULT_SEMESTER_CONTEXT_SOURCE)
         .filter(|context| !context.start_date.trim().is_empty())
         .map(|context| (context.term_label.clone(), context.start_date.clone()))
         .collect()
@@ -540,7 +540,7 @@ mod tests {
     fn sample_context(term_label: &str, start_date: &str) -> SemesterContext {
         SemesterContext {
             id: 1,
-            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
             academic_year: Some("2026".to_string()),
             term: Some("1".to_string()),
             term_label: term_label.to_string(),
@@ -555,7 +555,7 @@ mod tests {
 
     fn teaching_phase() -> CurrentPhaseStatus {
         CurrentPhaseStatus {
-            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
             term_label: Some("2026S1".to_string()),
             phase_type: "teaching".to_string(),
             current_week: Some(17),

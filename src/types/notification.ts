@@ -120,9 +120,9 @@ export interface SemesterContext {
   term_label: string
   /** 学期锚点日期，格式 YYYY-MM-DD。 */
   start_date: string
-  /** LZU 返回的当前周；null 表示未知。 */
+  /** 当前周；null 表示未知。 */
   current_week: number | null
-  /** LZU 总周次；null 表示未知。 */
+  /** 总周次；null 表示未知。 */
   total_weeks: number | null
   /** UTC ISO 8601 最后刷新时间。 */
   refreshed_at: string

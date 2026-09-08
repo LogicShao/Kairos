@@ -4,7 +4,6 @@ import {
   CalendarClock,
   Check,
   Cloud,
-  CreditCard,
   Flag,
   Moon,
   Palette,
@@ -42,12 +41,6 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "考试倒计时",
     description: "查看考试时间、地点与剩余天数",
     icon: CalendarClock,
-  },
-  {
-    key: "lzu-services",
-    label: "LZU 校园服务",
-    description: "查看校园卡余额与服务目录",
-    icon: CreditCard,
   },
   {
     key: "notifications",

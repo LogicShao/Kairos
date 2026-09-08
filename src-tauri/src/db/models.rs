@@ -265,19 +265,19 @@ pub struct UpdateCourseRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SemesterContext {
     pub id: i64,
-    /// 学期上下文来源，例如 "lzu"。
+    /// 学期上下文来源，例如 "manual"（LZU 自动来源已剥离）。
     pub source: String,
-    /// LZU 学年 xn，缺失时不从课程反推。
+    /// 学年，例如 2026；缺失时不从课程反推。
     pub academic_year: Option<String>,
-    /// LZU 学期 xqm / xq，缺失时不从课程反推。
+    /// 学期序号（上/下学期），例如 "1"/"2"；缺失时不从课程反推。
     pub term: Option<String>,
     /// 与课程 semester 对齐的本地学期标识，例如 2026S1。
     pub term_label: String,
     /// 学期锚点日期，格式 YYYY-MM-DD。
     pub start_date: String,
-    /// LZU 导入时返回的当前周，仅作刷新参考；自然当前周仍由日期推导。
+    /// 导入/刷新时记录的当前周，仅作参考；自然当前周仍由日期推导。
     pub current_week: Option<i64>,
-    /// LZU 总周次 zzx。接口缺失时保持 None。
+    /// 总周次；未知时保持 None。
     pub total_weeks: Option<i64>,
     /// UTC ISO 8601 最后刷新时间。
     pub refreshed_at: String,

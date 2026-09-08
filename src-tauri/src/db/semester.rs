@@ -2,7 +2,8 @@ use rusqlite::{params, Connection, Result, Row};
 
 use super::models::{SemesterContext, UpsertSemesterContextRequest};
 
-pub const LZU_SEMESTER_CONTEXT_SOURCE: &str = "lzu";
+/// 学期上下文默认（手动维护）来源。LZU 自动来源已随 W0 剥离移除。
+pub const DEFAULT_SEMESTER_CONTEXT_SOURCE: &str = "manual";
 
 pub fn upsert_semester_context(
     conn: &Connection,
@@ -138,7 +139,7 @@ mod tests {
 
     fn sample_context() -> UpsertSemesterContextRequest {
         UpsertSemesterContextRequest {
-            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
             academic_year: Some("2026".to_string()),
             term: Some("1".to_string()),
             term_label: "2026S1".to_string(),
@@ -149,7 +150,7 @@ mod tests {
     }
 
     fn find_required_context(conn: &Connection) -> SemesterContext {
-        find_semester_context(conn, LZU_SEMESTER_CONTEXT_SOURCE, "2026S1")
+        find_semester_context(conn, DEFAULT_SEMESTER_CONTEXT_SOURCE, "2026S1")
             .expect("find context")
             .expect("context exists")
     }
@@ -157,7 +158,7 @@ mod tests {
     #[test]
     fn test_find_semester_context_returns_none_when_empty() {
         let conn = setup_db();
-        let context = find_semester_context(&conn, LZU_SEMESTER_CONTEXT_SOURCE, "2026S1")
+        let context = find_semester_context(&conn, DEFAULT_SEMESTER_CONTEXT_SOURCE, "2026S1")
             .expect("find context");
         assert!(context.is_none());
     }
@@ -231,7 +232,7 @@ mod tests {
         latest.start_date = "2026-09-01".to_string();
         upsert_semester_context(&conn, &latest).expect("upsert latest");
 
-        let context = find_semester_context(&conn, LZU_SEMESTER_CONTEXT_SOURCE, "")
+        let context = find_semester_context(&conn, DEFAULT_SEMESTER_CONTEXT_SOURCE, "")
             .expect("find latest")
             .expect("latest exists");
         assert_eq!(context.term_label, "2026S2");

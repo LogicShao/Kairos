@@ -58,7 +58,7 @@ pub fn schedule_exam_notifications(
     // Cancel all existing timers
     cancel_all_exam_notifications()?;
 
-    let phase = crate::term_phase::latest_lzu_phase_status(conn)?;
+    let phase = crate::term_phase::latest_phase_status(conn)?;
     if !exam_notifications_allowed(&phase) {
         log::info!(
             "exam notifications suppressed in phase: {}",
@@ -123,7 +123,7 @@ pub fn schedule_exam_for_one(
         return Ok(());
     }
 
-    let phase = crate::term_phase::latest_lzu_phase_status(conn)?;
+    let phase = crate::term_phase::latest_phase_status(conn)?;
     if !exam_notifications_allowed(&phase) {
         return Ok(());
     }
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_exam_notifications_allowed_uses_phase_flag() {
         let allowed = crate::term_phase::CurrentPhaseStatus {
-            source: "lzu".to_string(),
+            source: "manual".to_string(),
             term_label: Some("2026S1".to_string()),
             phase_type: "teaching".to_string(),
             current_week: Some(1),

@@ -252,7 +252,7 @@ fn course_request_import_key(course: &CreateCourseRequest) -> String {
 mod tests {
     use super::*;
     use crate::db::models::UpsertSemesterContextRequest;
-    use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
+    use crate::db::semester::DEFAULT_SEMESTER_CONTEXT_SOURCE;
     use crate::db::setup_db;
 
     fn sample_course() -> CreateCourseRequest {
@@ -299,7 +299,7 @@ mod tests {
         crate::db::semester::upsert_semester_context(
             &conn,
             &UpsertSemesterContextRequest {
-                source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+                source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
                 academic_year: Some("2026".to_string()),
                 term: Some("1".to_string()),
                 term_label: "2026S1".to_string(),
@@ -320,7 +320,7 @@ mod tests {
 
         let context = crate::db::semester::find_semester_context(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             "2026S1",
         )
         .expect("find context")

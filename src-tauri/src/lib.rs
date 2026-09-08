@@ -2,7 +2,6 @@ pub mod ai;
 pub mod commands;
 pub mod db;
 pub mod importers;
-pub mod lzu;
 pub mod notifications;
 pub mod schedule;
 pub mod sync;
@@ -287,22 +286,6 @@ pub fn run() {
             }
             app.manage(Arc::new(Mutex::new(auto_sync_state)));
 
-            // ─── LZU 认证状态初始化 ───
-            let lzu_auth =
-                crate::lzu::auth::create_shared_auth().expect("failed to create LZU auth manager");
-
-            // 从本地 SQLite 恢复登录态（token + profile），避免每次启动重新登录。
-            {
-                match db_conn.lock() {
-                    Ok(c) => match lzu_auth.lock() {
-                        Ok(mut auth) => auth.restore_from_db(&c),
-                        Err(e) => log::error!("failed to lock LZU auth for restore: {e}"),
-                    },
-                    Err(e) => log::error!("failed to lock DB for LZU session restore: {e}"),
-                }
-            }
-
-            app.manage(lzu_auth);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -349,15 +332,6 @@ pub fn run() {
             commands::term_phases::create_pomodoro_profile,
             commands::term_phases::update_pomodoro_profile,
             commands::term_phases::delete_pomodoro_profile,
-            commands::lzu::lzu_login,
-            commands::lzu::lzu_logout,
-            commands::lzu::lzu_get_auth_status,
-            commands::lzu::lzu_refresh_profile,
-            commands::lzu::lzu_refresh_st,
-            commands::lzu::lzu_get_campus_card_overview,
-            commands::lzu::lzu_get_service_directory,
-            commands::lzu::lzu_open_service,
-            commands::lzu::import_lzu_courses,
             commands::briefing::get_today_briefing,
             commands::ai::get_ai_config,
             commands::ai::update_ai_config,

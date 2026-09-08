@@ -126,7 +126,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
         const [contextList, profileList, status] = await Promise.all([
           invoke<SemesterContext[]>("get_semester_contexts"),
           invoke<PomodoroProfile[]>("get_pomodoro_profiles"),
-          invoke<CurrentPhaseStatus>("get_current_phase_status", { source: "lzu" }),
+          invoke<CurrentPhaseStatus>("get_current_phase_status", { source: "manual" }),
         ])
         if (!active) return
 

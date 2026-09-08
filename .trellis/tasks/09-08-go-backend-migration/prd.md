@@ -27,6 +27,9 @@
 6. 数据：**从零开始**
 7. **LZU 模块整体剔除**（登录/校园卡/服务目录/课表自动导入/EasyTong/AES-MD5 协议，及其前端页面；登录 bug 系外部接口变化，不作为迁移目标）
 8. 工作流：Trellis（本任务为 parent，children 独立规划/实现/归档）
+9. **LZU v1 依赖提前剥离（W0 先行波）**：不等 src-tauri 整体退役，迁移开工即从 src-tauri 与前端**同步移除**全部 LZU 代码（网络层/命令/会话表/前端页面）与 `source='lzu'` 派生语义；**不实现、不跟进**学校 API 任何新版本（v2 及以后）
+10. **本地只做轻量验证**：本地开发环境仅承载 smoke / lsp / `tsc --noEmit` / eslint / `go test` 等轻量检测，**不承载部署**；全栈部署（PostgreSQL + Go API + nginx TLS）目标为**远端服务器**；本地 dev 数据库按需以 docker 容器启动，不安装系统级 PostgreSQL 服务
+11. **迁移完成后 Rust 从仓库完整移除**：W11 验证通过后删除 `src-tauri/` 目录与 Cargo 文件、Rust Makefile 目标、`.github/workflows/release.yml`（Tauri CI），**不做旁置归档**；回滚完全依赖 git 历史与 `pre-go-migration` tag
 
 ## Requirements
 
@@ -129,7 +132,7 @@
 - ❌ Android/Tauri 壳、onBackButtonPress、exit_app、桌面安装包（NSIS/MSI/deb/rpm/APK）
 - ❌ 多用户/多租户、注册体系
 - ❌ SQLite 数据迁移脚本（从零开始）
-- ❌ 现有 Rust 代码改造（LZU 登录 bug 不修）
+- ❌ 修复 LZU 登录 bug / 适配学校 API 新版接口——现有 LZU v1 代码在 **W0 整体剥离**（删除而非修复），不属"不改造"豁免范围
 - ❌ 前端组件/视觉重写（仅替换 API 层与移除 LZU）
 
 ## Acceptance Criteria（parent 全局验收）
@@ -140,7 +143,7 @@
 - [ ] AC4 邮件通知在开发环境（MailHog 或真实 SMTP）实测触发：番茄钟阶段结束、考试偏移、每日任务、remind_at、AI 7:00
 - [ ] AC5 docker compose up 后浏览器访问（HTTPS）完成登录、任务/课程/考试 CRUD、日历查看、番茄钟开始/结束落库、手动同步、AI 晨报生成
 - [ ] AC6 现有 React 页面全部可用（除已移除的 LZU），数据持久化到 PostgreSQL
-- [ ] AC7 无 Rust 构建依赖：仓库中 src-tauri 不再参与构建；README/Makefile 更新
+- [ ] AC7 Rust 从仓库完整移除：`src-tauri/` 目录与 Cargo 文件删除，Rust Makefile 目标与 `.github/workflows/release.yml` 移除，README/Makefile 更新为纯 Go + 前端
 - [ ] AC8 WSL 开发环境可一键启动（make dev）本地跑通
 
 ## Notes

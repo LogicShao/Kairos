@@ -242,10 +242,11 @@ compose.yaml
 
 ## 11. WSL 开发环境
 
-- WSL2 Ubuntu：安装 `go`（官方 tarball）、`docker`（Docker Desktop WSL2 backend 或 WSL docker）、`postgresql`（本地 dev 实例，`createdb kairos_dev`）
-- 开发运行：`make dev` = 启动本地 PG → `go run ./cmd/api`（迁移自动跑）→ `npm run dev`（Vite 代理 `/api`）
+- WSL2 Ubuntu：安装 `go`（官方 tarball）、`docker`（Docker Desktop WSL2 backend 或 WSL docker）；**不装系统级 PostgreSQL 服务**——dev 数据库按需以 docker 容器启动（`docker run postgres:16`），本地不承载任何部署
+- 开发运行：`make dev` = 启动 dev PG 容器 → `go run ./cmd/api`（迁移自动跑）→ `npm run dev`（Vite 代理 `/api`）
+- **部署目标为远端服务器**（docker compose + HTTPS 全栈），本地仅 smoke/lsp/tsc/eslint/`go test` 轻量验证
 - 代码位置：仓库 clone 在 WSL 内（`~/proj/Kairos`）或 Windows 侧经 WSL 访问（`/mnt/d/proj/Kairos`）——**建议 WSL 原生路径**避免文件系统性能问题
-- 本地邮件调试：`MailHog`（docker run，SMTP 1025 + Web UI 8025）验证邮件触发
+- 邮件调试：MailHog 或远端 SMTP；本地仅验证协议与模板，不做邮件服务部署
 
 ## 12. 兼容性与回滚
 

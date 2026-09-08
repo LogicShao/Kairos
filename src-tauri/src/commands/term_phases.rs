@@ -19,7 +19,7 @@ pub fn get_current_phase_status(
         &conn,
         source
             .as_deref()
-            .unwrap_or(crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE),
+            .unwrap_or(crate::db::semester::DEFAULT_SEMESTER_CONTEXT_SOURCE),
     )
 }
 

@@ -12,7 +12,6 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { SemesterPhaseSettings } from "@/components/settings/SemesterPhaseSettings"
 import { AiSettings } from "@/components/settings/AiSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
-import { LzuServicesPage } from "@/pages/lzu/LzuServicesPage"
 import { TodayPage } from "@/pages/today/TodayPage"
 import { useAndroidBack } from "@/hooks/use-android-back"
 
@@ -67,7 +66,6 @@ function MainApp() {
         {active === "kairos" && <KairosHub onNavigate={navigate} />}
         {active === "courses" && <CourseSchedule onNavigate={navigate} />}
         {active === "exams" && <ExamList onNavigate={navigate} />}
-        {active === "lzu-services" && <LzuServicesPage onNavigate={navigate} />}
         {active === "notifications" && <NotificationSettings onNavigate={navigate} />}
         {active === "semester-phases" && <SemesterPhaseSettings onNavigate={navigate} />}
         {active === "ai-settings" && <AiSettings onNavigate={navigate} />}

@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use serde::Deserialize;
 use tauri::State;
 
-use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
+use crate::db::semester::DEFAULT_SEMESTER_CONTEXT_SOURCE;
 
 #[derive(Debug, Deserialize)]
 pub struct WeekScheduleCmd {
@@ -35,7 +35,7 @@ fn effective_semester_start_date(
         }
     }
 
-    crate::db::semester::find_semester_context(conn, LZU_SEMESTER_CONTEXT_SOURCE, semester)
+    crate::db::semester::find_semester_context(conn, DEFAULT_SEMESTER_CONTEXT_SOURCE, semester)
         .map_err(|e| e.to_string())
         .map(|context| context.map(|value| value.start_date))
 }
@@ -53,7 +53,7 @@ pub fn get_week_schedule(
         effective_semester_start_date(&conn, &cmd.semester, cmd.semester_start_date.as_ref())?;
     let phase_status = crate::term_phase::get_phase_status_for_term_week(
         &conn,
-        LZU_SEMESTER_CONTEXT_SOURCE,
+        DEFAULT_SEMESTER_CONTEXT_SOURCE,
         &cmd.semester,
         cmd.week_index,
     )?;
@@ -83,7 +83,7 @@ pub fn get_calendar_week(
         effective_semester_start_date(&conn, &cmd.semester, cmd.semester_start_date.as_ref())?;
     let phase_status = crate::term_phase::get_phase_status_for_term_week(
         &conn,
-        LZU_SEMESTER_CONTEXT_SOURCE,
+        DEFAULT_SEMESTER_CONTEXT_SOURCE,
         &cmd.semester,
         cmd.week_index,
     )?;
@@ -108,7 +108,7 @@ mod tests {
 
     fn sample_context() -> UpsertSemesterContextRequest {
         UpsertSemesterContextRequest {
-            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
             academic_year: Some("2026".to_string()),
             term: Some("1".to_string()),
             term_label: "2026S1".to_string(),

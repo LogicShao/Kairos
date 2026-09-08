@@ -7,6 +7,7 @@
 
 | 波 | Child 任务 | 交付物 | 验证命令（WSL） |
 |---|---|---|---|
+| W0 | （parent 先行波，用户拍板） | src-tauri 与前端 LZU v1 代码整体剥离 | `tsc --noEmit` + `npm run lint` + 静态引用自检（grep 无 lzu 残留） |
 | W1 | 09-08-wsl-dev-env | WSL 工具链就绪、Makefile dev 骨架 | `go version` / `docker ps` / `psql --version` |
 | W2 | 09-08-postgres-schema | server/internal/store/migrations、sqlc 生成 | `golang-migrate` up + `sqlc generate` + `go test ./internal/store/...` |
 | W3 | 09-08-go-backend-auth | server 骨架、config、JWT、/healthz、/api/auth/* | `go test ./...` + `curl /healthz` |
@@ -20,6 +21,14 @@
 | W11 | 09-08-deployment | compose.yaml、nginx、TLS、.env 模板、README/Makefile 更新 | `docker compose up` + 浏览器 HTTPS 全流程 AC5 |
 
 ## 波次详细步骤（每波 = 一个 child 的 implement.md 输入）
+
+### W0 strip-lzu-v1（用户拍板的先行剥离，不等 W11）
+1. **Rust 侧**：删除 `src-tauri/src/lzu/`（10 文件）与 `src-tauri/src/commands/lzu.rs`、`src-tauri/src/db/lzu_session.rs`
+2. 同步清理引用：`lib.rs` 的 `pub mod lzu`、setup 段 LZU 状态初始化（290-305）、`invoke_handler` 注册的 9 个 LZU 命令（352-360）；`commands/mod.rs` 的 `pub mod lzu`
+3. `source='lzu'` 派生语义收敛：`db/semester.rs` 的 `LZU_SEMESTER_CONTEXT_SOURCE`、`term_phase.rs::latest_lzu_phase_status`、commands/schedule.rs / briefing.rs / term_phases.rs、`notifications/exam_scheduler.rs` 中依赖 LZU 源的默认上下文逻辑，改为通用学期上下文（无 LZU 写入后自然回退手动源）
+4. **前端侧**（与后端同步，防 IPC 断链）：删除 `src/pages/lzu/`、`src/types/lzu.ts`；`LzuImportPanel.tsx`/`ImportModal.tsx`（去 lzu tab）/`CourseSchedule.tsx` 接线；App.tsx / AppShell.tsx isKairosArea / KairosHub.tsx 导航 3 处；`SemesterPhaseSettings.tsx` 的 `source: "lzu"` 改为中性源
+5. **验证（轻量）**：`npx tsc --noEmit` + `npm run lint` 绿；grep `lzu|Lzu|LZU` 于 src/ 与 src-tauri/ 仅剩注释/无关命中；Rust 编译正确性依赖引用完整性（本地无 toolchain，不做 cargo check，由回滚 tag 兜底）
+6. 验收证据：无 LZU UI 入口、无 `lzu_*` command、无 `lzu_session` 表写入路径、无 `source='lzu'` 默认源
 
 ### W1 wsl-dev-env
 1. WSL2 Ubuntu 下安装：Go 1.24+（官方 tarball 至 /usr/local）、Docker（Docker Desktop WSL2 backend 或 docker-ce）、PostgreSQL（`sudo apt install postgresql`）
@@ -124,8 +133,9 @@
 ## 回滚点
 
 - 每波完成 = 可运行状态（可提交）
-- `git tag pre-go-migration` 于迁移开始前，标记旧 Tauri 版本；随时可切回
-- 迁移期间 src-tauri 保留，直到 W10 前端替换完成、W11 部署验证通过后再移除/归档
+- `git tag pre-go-migration`（已打）于迁移开始前，标记旧 Tauri 版本；随时可切回
+- 迁移期间 src-tauri 保留（LZU 已于 W0 剥离），直到 W10 前端替换、W11 部署验证通过后**从仓库完整删除**（目录 + Cargo + Rust Makefile 目标 + Rust CI workflow），不做旁置归档
+- 回滚完全依赖 git：`pre-go-migration` tag + 历史 commit；主分支迁移完成后不再含 Rust 依赖
 - 单波失败：修复该波 child（`task.py start` 该 child → 修复 → check）→ 不阻塞下一波环境准备
 
 ## 完成条件（对应 prd AC1-AC8）

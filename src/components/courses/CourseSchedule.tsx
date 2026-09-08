@@ -316,11 +316,6 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
     }
   }
 
-  async function handleLzuImportSuccess() {
-    await fetchCourses(semesterFilter)
-    setWeekRefresh((n) => n + 1)
-  }
-
   // ── Inline navigation handlers ──
   const handlePrevWeek = () => {
     setWeekIndex((w) => Math.max(1, w - 1))
@@ -804,7 +799,6 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
         importFeedback={importFeedback}
         onReadClipboard={handleReadClipboard}
         onImport={handleImport}
-        onLzuImportSuccess={handleLzuImportSuccess}
       />
 
       {/* ─── Reset Semester Start Date Modal ─── */}

@@ -126,7 +126,6 @@ export function AppShell({ active, onNavigate, children }: AppShellProps) {
     "kairos",
     "courses",
     "exams",
-    "lzu-services",
     "notifications",
     "semester-phases",
     "ai-settings",

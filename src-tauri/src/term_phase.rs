@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::db::models::{SemesterContext, TermPhase};
-use crate::db::semester::LZU_SEMESTER_CONTEXT_SOURCE;
+use crate::db::semester::DEFAULT_SEMESTER_CONTEXT_SOURCE;
 
 pub const PHASE_UNKNOWN: &str = "unknown";
 pub const PHASE_TEACHING: &str = "teaching";
@@ -118,8 +118,8 @@ pub fn current_week_from_context(
     Ok(diff_days.div_euclid(7) + 1).map(|week| week.max(1))
 }
 
-pub fn latest_lzu_phase_status(conn: &Connection) -> Result<CurrentPhaseStatus, String> {
-    get_current_phase_status(conn, LZU_SEMESTER_CONTEXT_SOURCE)
+pub fn latest_phase_status(conn: &Connection) -> Result<CurrentPhaseStatus, String> {
+    get_current_phase_status(conn, DEFAULT_SEMESTER_CONTEXT_SOURCE)
 }
 
 fn unknown_status(source: &str) -> CurrentPhaseStatus {
@@ -181,7 +181,7 @@ fn mark_as_break(mut status: CurrentPhaseStatus) -> CurrentPhaseStatus {
 
 /// 教学周但该学期无任何活跃课程 → 降级为假期。
 ///
-/// 覆盖 LZU 返回暑期小学期等无课学期上下文的场景：学期锚点日期落在暑假，
+/// 覆盖暑期小学期等无课学期上下文的场景：学期锚点日期落在暑假，
 /// 但用户没有该学期课程时不应显示"教学周"（见 08-01 暑假误报排查）。
 fn downgrade_teaching_if_no_courses(
     conn: &Connection,
@@ -269,7 +269,7 @@ mod tests {
 
     fn sample_context(total_weeks: Option<i64>) -> UpsertSemesterContextRequest {
         UpsertSemesterContextRequest {
-            source: LZU_SEMESTER_CONTEXT_SOURCE.to_string(),
+            source: DEFAULT_SEMESTER_CONTEXT_SOURCE.to_string(),
             academic_year: Some("2026".to_string()),
             term: Some("1".to_string()),
             term_label: "2026S1".to_string(),
@@ -303,7 +303,7 @@ mod tests {
 
         let status = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 2, 24).unwrap(),
         )
         .expect("phase status");
@@ -321,7 +321,7 @@ mod tests {
 
         let teaching = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
         )
         .expect("teaching status");
@@ -330,7 +330,7 @@ mod tests {
 
         let break_phase = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 7, 20).unwrap(),
         )
         .expect("break status");
@@ -349,7 +349,7 @@ mod tests {
 
         let status = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
         )
         .expect("phase status");
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_explicit_teaching_without_courses_downgrades_to_break() {
-        // 回归：LZU 暑期小学期上下文（teaching 阶段）但无任何课程时，应显示假期而非教学周。
+        // 回归：暑期小学期上下文（teaching 阶段）但无任何课程时，应显示假期而非教学周。
         let conn = setup_db();
         crate::db::semester::upsert_semester_context(&conn, &sample_context(Some(16)))
             .expect("upsert context");
@@ -371,7 +371,7 @@ mod tests {
 
         let status = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
         )
         .expect("phase status");
@@ -392,7 +392,7 @@ mod tests {
 
         let status = get_phase_status_for_date(
             &conn,
-            LZU_SEMESTER_CONTEXT_SOURCE,
+            DEFAULT_SEMESTER_CONTEXT_SOURCE,
             NaiveDate::from_ymd_opt(2026, 2, 26).unwrap(),
         )
         .expect("phase status");
@@ -411,7 +411,7 @@ mod tests {
             .expect("create phase");
 
         let status =
-            get_phase_status_for_term_week(&conn, LZU_SEMESTER_CONTEXT_SOURCE, "2026S1", 2)
+            get_phase_status_for_term_week(&conn, DEFAULT_SEMESTER_CONTEXT_SOURCE, "2026S1", 2)
                 .expect("phase status");
 
         assert_eq!(status.phase_type, PHASE_BREAK);
