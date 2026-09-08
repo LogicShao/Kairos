@@ -15,6 +15,7 @@ import (
 
 	"kairos/server/internal/config"
 	"kairos/server/internal/httpapi"
+	"kairos/server/internal/store"
 	"kairos/server/internal/store/migrate"
 )
 
@@ -56,6 +57,7 @@ func main() {
 		JWTSecret:    []byte(cfg.JWTSecret),
 		JWTTTL:       cfg.JWTTTL,
 		DB:           pool,
+		Store:        store.New(pool),
 	})
 
 	srv := &http.Server{

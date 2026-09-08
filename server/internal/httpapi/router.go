@@ -11,6 +11,7 @@ import (
 
 	"kairos/server/internal/httpapi/handlers"
 	"kairos/server/internal/httpapi/middleware"
+	"kairos/server/internal/store"
 )
 
 // Options configures the router.
@@ -24,6 +25,8 @@ type Options struct {
 	DB interface {
 		Ping(ctx context.Context) error
 	}
+	// Store is optional; when set, the authenticated business routes are enabled.
+	Store *store.Queries
 }
 
 // New builds the chi router with the full middleware chain and routes.
@@ -51,8 +54,53 @@ func New(opts Options) http.Handler {
 			protected.Use(middleware.Auth(opts.JWTSecret))
 			protected.Post("/auth/logout", auth.Logout)
 			protected.Get("/auth/me", auth.Me)
+
+			if opts.Store != nil {
+				registerCoreRoutes(protected, opts)
+			}
 		})
 	})
 
 	return r
+}
+
+func registerCoreRoutes(protected chi.Router, opts Options) {
+	tasks := &handlers.Tasks{Q: opts.Store, Log: opts.Log}
+	protected.Route("/tasks", func(rt chi.Router) {
+		rt.Get("/", tasks.List)
+		rt.Post("/", tasks.Create)
+		rt.Patch("/{id}", tasks.Update)
+		rt.Delete("/{id}", tasks.Delete)
+		rt.Post("/{id}/complete", tasks.Complete)
+		rt.Post("/{id}/uncomplete", tasks.Uncomplete)
+	})
+
+	courses := &handlers.Courses{Q: opts.Store, Log: opts.Log}
+	protected.Route("/courses", func(rt chi.Router) {
+		rt.Get("/", courses.List)
+		rt.Post("/", courses.Create)
+		rt.Patch("/{id}", courses.Update)
+		rt.Delete("/{id}", courses.Delete)
+		rt.Post("/import-text", courses.ImportText)
+		rt.Post("/reset-semester-dates", courses.ResetSemesterDates)
+	})
+
+	exams := &handlers.Exams{Q: opts.Store, Log: opts.Log}
+	protected.Route("/exams", func(rt chi.Router) {
+		rt.Get("/", exams.List)
+		rt.Post("/", exams.Create)
+		rt.Patch("/{id}", exams.Update)
+		rt.Delete("/{id}", exams.Delete)
+		rt.Post("/import-text", exams.ImportText)
+	})
+
+	semester := &handlers.Semester{Q: opts.Store, Log: opts.Log}
+	protected.Get("/semesters", semester.ListSemesters)
+	protected.Route("/term-phases", func(rt chi.Router) {
+		rt.Get("/", semester.ListPhases)
+		rt.Post("/", semester.CreatePhase)
+		rt.Patch("/{id}", semester.UpdatePhase)
+		rt.Delete("/{id}", semester.DeletePhase)
+		rt.Get("/current-status", semester.CurrentStatus)
+	})
 }
