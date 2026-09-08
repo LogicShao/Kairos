@@ -22,6 +22,10 @@ go-dev: ## Start Go backend (placeholder) + Vite dev server
 	@cd server && KAIROS_API_PORT=$(API_PORT) $(GO) run ./cmd/api &
 	@npm run dev
 
+gen-password: ## Print a bcrypt hash for a password (usage: make gen-password PASSWORD=secret)
+	@test -n "$(PASSWORD)" || (echo "Usage: make gen-password PASSWORD=<password>" && exit 1)
+	@cd server && $(GO) run ./cmd/genpassword "$(PASSWORD)"
+
 dev: ## Start Tauri dev server (hot reload)
 	cargo tauri dev
 
