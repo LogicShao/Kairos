@@ -1,7 +1,26 @@
-.PHONY: dev build check test lint audit clean version help
+.PHONY: dev build check test lint audit clean version help go-build go-test go-lint go-dev
 
 CARGO := cargo
 MANIFEST := src-tauri/Cargo.toml
+GO := go
+GOMOD := server/go.mod
+GOAPI := server/cmd/api
+API_PORT ?= 8080
+
+go-build: ## Build Go backend binary
+	cd server && $(GO) build -o bin/api ./cmd/api
+
+go-test: ## Run Go backend tests
+	cd server && $(GO) test ./...
+
+go-lint: ## Lint Go backend (gofumpt + golangci-lint if available)
+	cd server && test -z "$$(gofumpt -l .)" && echo "  ✓ gofumpt clean" || (gofumpt -d . && exit 1)
+	cd server && command -v golangci-lint >/dev/null && golangci-lint run ./... || echo "  (golangci-lint 未安装，跳过)"
+
+go-dev: ## Start Go backend (placeholder) + Vite dev server
+	@echo "==> starting Go API on :$(API_PORT)"
+	@cd server && KAIROS_API_PORT=$(API_PORT) $(GO) run ./cmd/api &
+	@npm run dev
 
 dev: ## Start Tauri dev server (hot reload)
 	cargo tauri dev

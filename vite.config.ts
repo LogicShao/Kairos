@@ -21,6 +21,12 @@ export default defineConfig({
     host: process.env.TAURI_DEV_HOST ?? process.env.VITE_DEV_HOST ?? "127.0.0.1",
     port: 5173,
     strictPort: true,
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_PROXY_TARGET ?? "http://localhost:8080",
+        changeOrigin: true,
+      },
+    },
     allowedHosts: [
       "localhost",
       "127.0.0.1",

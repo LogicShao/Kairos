@@ -268,4 +268,35 @@ compose.yaml
 | 8 | frontend-api-layer | go-backend-core/calendar/pomodoro/sync/ai/notify（API 就绪后） |
 | 9 | deployment | 全部后端 + frontend-api-layer |
 
+## 14. Rust→Go 移植方法（防无脑搬运）
+
+> Rust 代码是**行为规格来源**（读其逻辑 + `#[cfg(test)]` 场景），Go 实现按 web 范式重建，
+> 严禁把 Tauri 本地单进程模式机械搬进 HTTP 服务。
+
+### 14.1 范式差异映射（app → web）
+| Rust 桌面 app 模式 | Go web 后端模式 | 说明 |
+|---|---|---|
+| 全局 `Mutex<Connection>` + 内存引擎/状态 | pgxpool 连接池 + 无状态 handler + 运行态落库 | 并发 + 进程重启可恢复 |
+| 59 command 前端进程内直调 | REST 端点 + JWT + DTO（`src/types/*` 为契约） | 进程边界 → HTTP 边界 |
+| Tauri event / Channel 推流 | 前端本地时钟 + 轮询/SSE + 响应后刷新 | 无常驻事件总线 |
+| 后台线程（tick/通知/7:00/自动同步） | 调度器 goroutine + SMTP；自动同步取消 | B/S 设备不在线 |
+| SQLite 手写 SQL + 软删除 + sync_id LWW | pgx/sqlc + 同语义表 + 部分唯一索引 | 保留跨设备合并 |
+| 本地文件路径/key | 环境变量 `.env` 注入 | 服务器部署 |
+| LZU/剪贴板/通知/Android 壳 | W0 已剔除 / `navigator.clipboard` / SMTP / 删除 | 不再依赖学校 API |
+
+### 14.2 移植锚点（每模块）
+1. 读 Rust 对应源文件：`timer.rs`→pomodoro、`schedule.rs`→calendar、`importers.rs`→importer、
+   `sync/`→sync、`term_phase.rs`+`semester.rs`→termphase、`notifications/*`→notify、`ai/`→ai、`db/*.rs`→store
+2. 提取 Rust `#[cfg(test)]` 测试场景与断言 → 作为 Go 单测的行为规格（tests-after 行为对齐）
+3. domain 层先纯函数化（可单测），store/handler 后补；handler 不写业务逻辑
+4. DTO/字段命名以 `src/types/*` 为准（snake_case），禁止另造一套
+5. 每波完成独立 commit，main 保持可运行；波内可细分为多次 commit（如 schema 的 migration 与 sqlc 生成分提）
+
+### 14.3 明确不做的事（照搬反例）
+- ❌ 在 Go 里复刻 Tauri `State<Mutex<...>>`/invoke handler/事件发射器
+- ❌ 把本地 db 路径、桌面弹窗、系统通知 API 搬到 HTTP handler
+- ❌ 逐函数抄 Rust（行级翻译）；只对齐**行为与边界语义**（校验、软删、筛选、LWW 合并、时区）
+- ❌ 保留任何 source='lzu' / 学校接口残留
+
+
 > 通知 child 依赖多个后端模块（考试/番茄钟/任务/AI 触发点），排在后端主体之后；前端替换依赖全部 API 端点就绪。
