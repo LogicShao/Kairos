@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+
+# Go backend build output
+server/bin/
 *.local
 _ui_temp_figs/
 _TEMP/

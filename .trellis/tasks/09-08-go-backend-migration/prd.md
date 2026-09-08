@@ -30,6 +30,7 @@
 9. **LZU v1 依赖提前剥离（W0 先行波）**：不等 src-tauri 整体退役，迁移开工即从 src-tauri 与前端**同步移除**全部 LZU 代码（网络层/命令/会话表/前端页面）与 `source='lzu'` 派生语义；**不实现、不跟进**学校 API 任何新版本（v2 及以后）
 10. **本地只做轻量验证**：本地开发环境仅承载 smoke / lsp / `tsc --noEmit` / eslint / `go test` 等轻量检测，**不承载部署**；全栈部署（PostgreSQL + Go API + nginx TLS）目标为**远端服务器**；本地 dev 数据库按需以 docker 容器启动，不安装系统级 PostgreSQL 服务
 11. **迁移完成后 Rust 从仓库完整移除**：W11 验证通过后删除 `src-tauri/` 目录与 Cargo 文件、Rust Makefile 目标、`.github/workflows/release.yml`（Tauri CI），**不做旁置归档**；回滚完全依赖 git 历史与 `pre-go-migration` tag
+12. **dev 容器用后即关**：本地 dev PostgreSQL（docker 容器 `kairos-pg`）等容器**仅调试/跑集成测试时临时启动，用后自觉关闭**，不常驻占用端口与资源
 
 ## Requirements
 
