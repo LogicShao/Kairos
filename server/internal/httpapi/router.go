@@ -103,4 +103,13 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Delete("/{id}", semester.DeletePhase)
 		rt.Get("/current-status", semester.CurrentStatus)
 	})
+
+	calendar := &handlers.Calendar{Q: opts.Store, Log: opts.Log}
+	protected.Route("/calendar", func(rt chi.Router) {
+		rt.Get("/week", calendar.Week)
+		rt.Get("/day", calendar.Day)
+	})
+
+	briefing := &handlers.Briefing{Q: opts.Store, Log: opts.Log}
+	protected.Get("/briefing/today", briefing.Today)
 }
