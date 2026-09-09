@@ -65,6 +65,16 @@ INSERT INTO pomodoro_sessions (
 )
 RETURNING *;
 
+-- name: GetPomodoroSession :one
+SELECT * FROM pomodoro_sessions
+WHERE id = @id;
+
+-- name: SetPomodoroSessionTask :exec
+UPDATE pomodoro_sessions
+SET task_id = @task_id
+WHERE id = @id
+  AND task_id IS NULL;
+
 -- name: ListPomodoroSessions :many
 SELECT * FROM pomodoro_sessions
 WHERE deleted_at IS NULL

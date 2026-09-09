@@ -235,6 +235,26 @@ func (q *Queries) GetPomodoroProfile(ctx context.Context, id int64) (PomodoroPro
 	return i, err
 }
 
+const getPomodoroSession = `-- name: GetPomodoroSession :one
+SELECT id, sync_id, started_at, ended_at, session_type, task_id, deleted_at FROM pomodoro_sessions
+WHERE id = $1
+`
+
+func (q *Queries) GetPomodoroSession(ctx context.Context, id int64) (PomodoroSession, error) {
+	row := q.db.QueryRow(ctx, getPomodoroSession, id)
+	var i PomodoroSession
+	err := row.Scan(
+		&i.ID,
+		&i.SyncID,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.SessionType,
+		&i.TaskID,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getRuntimeState = `-- name: GetRuntimeState :one
 SELECT id, phase, remaining_seconds, total_seconds, is_running, active_session_id, date_key, last_seen_at, interrupted, created_at, updated_at FROM pomodoro_runtime_state
 WHERE id = 1
@@ -399,6 +419,23 @@ func (q *Queries) ListPomodoroSessionsByTask(ctx context.Context, taskID pgtype.
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPomodoroSessionTask = `-- name: SetPomodoroSessionTask :exec
+UPDATE pomodoro_sessions
+SET task_id = $1
+WHERE id = $2
+  AND task_id IS NULL
+`
+
+type SetPomodoroSessionTaskParams struct {
+	TaskID pgtype.Int8
+	ID     int64
+}
+
+func (q *Queries) SetPomodoroSessionTask(ctx context.Context, arg SetPomodoroSessionTaskParams) error {
+	_, err := q.db.Exec(ctx, setPomodoroSessionTask, arg.TaskID, arg.ID)
+	return err
 }
 
 const softDeletePomodoroSession = `-- name: SoftDeletePomodoroSession :exec

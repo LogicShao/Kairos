@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"kairos/server/internal/domain/pomodoro"
 	"kairos/server/internal/httpapi/handlers"
 	"kairos/server/internal/httpapi/middleware"
 	"kairos/server/internal/store"
@@ -27,6 +28,9 @@ type Options struct {
 	}
 	// Store is optional; when set, the authenticated business routes are enabled.
 	Store *store.Queries
+	// PomodoroNotifier is the optional W9 email hook for finished pomodoro
+	// phases; nil disables notifications.
+	PomodoroNotifier pomodoro.Notifier
 }
 
 // New builds the chi router with the full middleware chain and routes.
@@ -112,4 +116,20 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 
 	briefing := &handlers.Briefing{Q: opts.Store, Log: opts.Log}
 	protected.Get("/briefing/today", briefing.Today)
+
+	pomodoroHandlers := handlers.NewPomodoro(opts.Store, opts.Log, opts.PomodoroNotifier)
+	protected.Route("/pomodoro", func(rt chi.Router) {
+		rt.Get("/state", pomodoroHandlers.State)
+		rt.Post("/start", pomodoroHandlers.Start)
+		rt.Post("/pause", pomodoroHandlers.Pause)
+		rt.Post("/reset", pomodoroHandlers.Reset)
+		rt.Post("/interrupt", pomodoroHandlers.Interrupt)
+		rt.Post("/finish-phase", pomodoroHandlers.FinishPhase)
+		rt.Get("/config", pomodoroHandlers.GetConfig)
+		rt.Patch("/config", pomodoroHandlers.UpdateConfig)
+		rt.Get("/profiles", pomodoroHandlers.ListProfiles)
+		rt.Post("/profiles", pomodoroHandlers.CreateProfile)
+		rt.Patch("/profiles/{id}", pomodoroHandlers.UpdateProfile)
+		rt.Delete("/profiles/{id}", pomodoroHandlers.DeleteProfile)
+	})
 }
