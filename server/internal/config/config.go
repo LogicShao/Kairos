@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +36,16 @@ type Config struct {
 	// DataDir is the server-side directory for the AI sync DEK and API-key
 	// key files.
 	DataDir string
+
+	// SMTP settings for the notification mailer. All are optional: an empty
+	// SMTPHost disables email delivery (the scheduler only logs warnings).
+	SMTPHost string
+	SMTPPort int
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
+	SMTPTo   string
+	SMTPTLS  string
 }
 
 // Load reads configuration from the environment and validates it.
@@ -46,6 +57,14 @@ func Load() (*Config, error) {
 		Port:      getenv("KAIROS_API_PORT", "APP_API_PORT", "8080"),
 		Username:  getenv("APP_USER", "KAIROS_USER", ""),
 		DataDir:   getenv("KAIROS_DATA_DIR", "APP_DATA_DIR", "./data"),
+
+		SMTPHost: getenv("SMTP_HOST", "KAIROS_SMTP_HOST", ""),
+		SMTPPort: intEnv([]string{"SMTP_PORT", "KAIROS_SMTP_PORT"}, 587),
+		SMTPUser: getenv("SMTP_USER", "KAIROS_SMTP_USER", ""),
+		SMTPPass: getenv("SMTP_PASS", "KAIROS_SMTP_PASS", ""),
+		SMTPFrom: getenv("SMTP_FROM", "KAIROS_SMTP_FROM", "Kairos <no-reply@kairos.local>"),
+		SMTPTo:   getenv("SMTP_TO", "KAIROS_SMTP_TO", ""),
+		SMTPTLS:  getenv("SMTP_TLS", "KAIROS_SMTP_TLS", "starttls"),
 	}
 
 	hash := getenv("APP_PASSWORD_HASH", "KAIROS_PASSWORD_HASH", "")
@@ -101,6 +120,18 @@ func durationEnv(keys []string, fallback time.Duration) time.Duration {
 		if v := os.Getenv(k); v != "" {
 			if d, err := time.ParseDuration(v); err == nil {
 				return d
+			}
+		}
+	}
+	return fallback
+}
+
+// intEnv returns the first parseable integer among keys, else fallback.
+func intEnv(keys []string, fallback int) int {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				return n
 			}
 		}
 	}

@@ -13,8 +13,9 @@ import (
 
 // Exams implements the /api/exams endpoints.
 type Exams struct {
-	Q   *store.Queries
-	Log *slog.Logger
+	Q         *store.Queries
+	Log       *slog.Logger
+	Scheduler NotifyRecomputer
 }
 
 // List handles GET /api/exams.
@@ -71,6 +72,9 @@ func (h *Exams) Create(w http.ResponseWriter, r *http.Request) {
 		h.Log.Error("create exam", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
 	}
 	writeJSON(w, http.StatusCreated, dto.FromExam(exam))
 }
@@ -141,6 +145,9 @@ func (h *Exams) Update(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
+	}
 	writeJSON(w, http.StatusOK, dto.FromExam(updated))
 }
 
@@ -153,6 +160,9 @@ func (h *Exams) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.Q.SoftDeleteExam(r.Context(), id); err != nil {
 		writeStoreError(w, err)
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -173,6 +183,9 @@ func (h *Exams) ImportText(w http.ResponseWriter, r *http.Request) {
 		h.Log.Error("import exams", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
 	}
 	writeJSON(w, http.StatusOK, dto.ImportTextResult{
 		Parsed:   result.Parsed,

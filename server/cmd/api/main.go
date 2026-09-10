@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"kairos/server/internal/config"
+	"kairos/server/internal/domain/ai"
+	"kairos/server/internal/domain/notify"
 	"kairos/server/internal/httpapi"
 	"kairos/server/internal/store"
 	"kairos/server/internal/store/migrate"
@@ -50,17 +52,36 @@ func main() {
 	}
 	log.Info("migrations applied")
 
+	q := store.New(pool)
+	generator := ai.NewGenerator(q, cfg.DataDir)
+	mailer := notify.NewMailer(notify.SMTPConfig{
+		Host: cfg.SMTPHost,
+		Port: cfg.SMTPPort,
+		User: cfg.SMTPUser,
+		Pass: cfg.SMTPPass,
+		From: cfg.SMTPFrom,
+		To:   cfg.SMTPTo,
+		TLS:  cfg.SMTPTLS,
+	}, log)
+	scheduler := notify.NewScheduler(q, mailer, generator, log)
+
 	handler := httpapi.New(httpapi.Options{
-		Log:          log,
-		Username:     cfg.Username,
-		PasswordHash: cfg.PasswordHash,
-		JWTSecret:    []byte(cfg.JWTSecret),
-		JWTTTL:       cfg.JWTTTL,
-		DB:           pool,
-		Store:        store.New(pool),
-		Pool:         pool,
-		DataDir:      cfg.DataDir,
+		Log:              log,
+		Username:         cfg.Username,
+		PasswordHash:     cfg.PasswordHash,
+		JWTSecret:        []byte(cfg.JWTSecret),
+		JWTTTL:           cfg.JWTTTL,
+		DB:               pool,
+		Store:            q,
+		Pool:             pool,
+		DataDir:          cfg.DataDir,
+		AIGenerator:      generator,
+		NotifyScheduler:  scheduler,
+		PomodoroNotifier: scheduler,
 	})
+
+	scheduler.Start(ctx)
+	log.Info("notifications", "smtp_enabled", mailer.Enabled())
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"kairos/server/internal/domain/ai"
 	"kairos/server/internal/domain/pomodoro"
 	"kairos/server/internal/domain/sync"
 	"kairos/server/internal/httpapi/handlers"
@@ -38,6 +39,12 @@ type Options struct {
 	// PomodoroNotifier is the optional W9 email hook for finished pomodoro
 	// phases; nil disables notifications.
 	PomodoroNotifier pomodoro.Notifier
+	// NotifyScheduler recomputes notification timers after mutations; nil
+	// disables recomputation.
+	NotifyScheduler handlers.NotifyRecomputer
+	// AIGenerator, when set, is shared by the AI handler and the notify
+	// scheduler so the morning-brief cache stays coherent.
+	AIGenerator *ai.Generator
 }
 
 // New builds the chi router with the full middleware chain and routes.
@@ -76,7 +83,7 @@ func New(opts Options) http.Handler {
 }
 
 func registerCoreRoutes(protected chi.Router, opts Options) {
-	tasks := &handlers.Tasks{Q: opts.Store, Log: opts.Log}
+	tasks := &handlers.Tasks{Q: opts.Store, Log: opts.Log, Scheduler: opts.NotifyScheduler}
 	protected.Route("/tasks", func(rt chi.Router) {
 		rt.Get("/", tasks.List)
 		rt.Post("/", tasks.Create)
@@ -96,7 +103,7 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Post("/reset-semester-dates", courses.ResetSemesterDates)
 	})
 
-	exams := &handlers.Exams{Q: opts.Store, Log: opts.Log}
+	exams := &handlers.Exams{Q: opts.Store, Log: opts.Log, Scheduler: opts.NotifyScheduler}
 	protected.Route("/exams", func(rt chi.Router) {
 		rt.Get("/", exams.List)
 		rt.Post("/", exams.Create)
@@ -105,7 +112,7 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Post("/import-text", exams.ImportText)
 	})
 
-	semester := &handlers.Semester{Q: opts.Store, Log: opts.Log}
+	semester := &handlers.Semester{Q: opts.Store, Log: opts.Log, Scheduler: opts.NotifyScheduler}
 	protected.Get("/semesters", semester.ListSemesters)
 	protected.Route("/term-phases", func(rt chi.Router) {
 		rt.Get("/", semester.ListPhases)
@@ -124,7 +131,7 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 	briefing := &handlers.Briefing{Q: opts.Store, Log: opts.Log}
 	protected.Get("/briefing/today", briefing.Today)
 
-	aiHandlers := handlers.NewAI(opts.Store, opts.Log, opts.DataDir)
+	aiHandlers := handlers.NewAIWithGenerator(opts.Store, opts.Log, opts.DataDir, opts.AIGenerator)
 	protected.Route("/ai", func(rt chi.Router) {
 		rt.Get("/config", aiHandlers.GetConfig)
 		rt.Patch("/config", aiHandlers.UpdateConfig)
@@ -132,6 +139,12 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Post("/morning-brief/generate", aiHandlers.GenerateMorningBrief)
 		rt.Get("/sync-recovery-key", aiHandlers.GetRecoveryKey)
 		rt.Post("/sync-recovery-key", aiHandlers.SetRecoveryKey)
+	})
+
+	notifyHandlers := handlers.NewNotify(opts.Store, opts.Log, opts.NotifyScheduler)
+	protected.Route("/notify", func(rt chi.Router) {
+		rt.Get("/config", notifyHandlers.GetConfig)
+		rt.Patch("/config", notifyHandlers.UpdateConfig)
 	})
 
 	pomodoroHandlers := handlers.NewPomodoro(opts.Store, opts.Log, opts.PomodoroNotifier)

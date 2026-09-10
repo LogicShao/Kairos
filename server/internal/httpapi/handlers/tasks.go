@@ -14,8 +14,9 @@ import (
 
 // Tasks implements the /api/tasks endpoints.
 type Tasks struct {
-	Q   *store.Queries
-	Log *slog.Logger
+	Q         *store.Queries
+	Log       *slog.Logger
+	Scheduler NotifyRecomputer
 }
 
 // List handles GET /api/tasks?status_filter=&priority_filter=&sort_by=&sort_order=.
@@ -132,6 +133,9 @@ func (h *Tasks) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeTasks(r.Context())
+	}
 	writeJSON(w, http.StatusCreated, dto.FromTask(task))
 }
 
@@ -244,6 +248,9 @@ func (h *Tasks) Update(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeTasks(r.Context())
+	}
 	writeJSON(w, http.StatusOK, dto.FromTask(updated))
 }
 
@@ -256,6 +263,9 @@ func (h *Tasks) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.Q.SoftDeleteTask(r.Context(), id); err != nil {
 		writeStoreError(w, err)
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeTasks(r.Context())
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -296,6 +306,9 @@ func (h *Tasks) setDailyCompleted(w http.ResponseWriter, r *http.Request, comple
 		h.Log.Error("set daily completed", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeTasks(r.Context())
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

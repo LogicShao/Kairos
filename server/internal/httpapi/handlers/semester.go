@@ -13,8 +13,9 @@ import (
 
 // Semester implements the /api/semesters and /api/term-phases endpoints.
 type Semester struct {
-	Q   *store.Queries
-	Log *slog.Logger
+	Q         *store.Queries
+	Log       *slog.Logger
+	Scheduler NotifyRecomputer
 }
 
 // ListSemesters handles GET /api/semesters.
@@ -75,6 +76,9 @@ func (h *Semester) CreatePhase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
+	}
 	writeJSON(w, http.StatusCreated, dto.FromTermPhase(phase))
 }
 
@@ -108,6 +112,9 @@ func (h *Semester) UpdatePhase(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
+	}
 	writeJSON(w, http.StatusOK, dto.FromTermPhase(phase))
 }
 
@@ -120,6 +127,9 @@ func (h *Semester) DeletePhase(w http.ResponseWriter, r *http.Request) {
 	if err := h.Q.SoftDeleteTermPhase(r.Context(), id); err != nil {
 		writeStoreError(w, err)
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeExams(r.Context())
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

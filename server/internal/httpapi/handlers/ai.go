@@ -19,15 +19,26 @@ import (
 
 // AI implements the /api/ai endpoints.
 type AI struct {
-	Q       *store.Queries
-	Log     *slog.Logger
-	DataDir string
-	gen     *ai.Generator
+	Q         *store.Queries
+	Log       *slog.Logger
+	DataDir   string
+	Scheduler NotifyRecomputer
+	gen       *ai.Generator
 }
 
-// NewAI builds the AI handler with its domain generator.
+// NewAI builds the AI handler with its own domain generator.
 func NewAI(q *store.Queries, log *slog.Logger, dataDir string) *AI {
-	return &AI{Q: q, Log: log, DataDir: dataDir, gen: ai.NewGenerator(q, dataDir)}
+	return NewAIWithGenerator(q, log, dataDir, nil)
+}
+
+// NewAIWithGenerator builds the AI handler with a shared generator. When gen is
+// nil a fresh one is created; the router injects the scheduler's instance so the
+// per-date cache and in-flight guard stay coherent across handlers.
+func NewAIWithGenerator(q *store.Queries, log *slog.Logger, dataDir string, gen *ai.Generator) *AI {
+	if gen == nil {
+		gen = ai.NewGenerator(q, dataDir)
+	}
+	return &AI{Q: q, Log: log, DataDir: dataDir, gen: gen}
 }
 
 // GetConfig handles GET /api/ai/config.
@@ -94,6 +105,9 @@ func (h *AI) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		h.Log.Error("get ai config after update", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
+	}
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeAI(ctx)
 	}
 	writeJSON(w, http.StatusOK, dto.FromAiConfig(updated))
 }

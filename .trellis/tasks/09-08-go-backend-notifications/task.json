@@ -3,7 +3,7 @@
   "name": "go-backend-notifications",
   "title": "SMTP 邮件通知服务",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
