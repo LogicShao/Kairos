@@ -160,7 +160,7 @@ func TestPomodoroSessionPagination(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		if _, err := q.CreatePomodoroSession(context.Background(), CreatePomodoroSessionParams{
-			SyncID: "", StartedAt: tsOf("2024-06-01T10:0"+string(rune('0'+i))+":00Z"),
+			SyncID: "", StartedAt: tsOf("2024-06-01T10:0" + string(rune('0'+i)) + ":00Z"),
 			SessionType: "work", TaskID: pgtype_Int8Invalid(),
 		}); err != nil {
 			t.Fatalf("create session %d: %v", i, err)

@@ -21,6 +21,7 @@ FROM tasks
 WHERE deleted_at IS NULL
   AND ($1::text IS NULL OR status = $1)
   AND ($2::text IS NULL OR priority = $2)`
+
 // ListTasksWithSort lists non-deleted tasks, optionally filtered by status
 // and priority, ordered by a whitelisted column. sortBy is validated against
 // taskSortColumns (fallback: created_at) and sortOrder is coerced to ASC or
