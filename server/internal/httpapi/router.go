@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"kairos/server/internal/domain/pomodoro"
+	"kairos/server/internal/domain/sync"
 	"kairos/server/internal/httpapi/handlers"
 	"kairos/server/internal/httpapi/middleware"
 	"kairos/server/internal/store"
@@ -28,6 +29,12 @@ type Options struct {
 	}
 	// Store is optional; when set, the authenticated business routes are enabled.
 	Store *store.Queries
+	// Pool is the transaction-capable connection used by the sync module; when
+	// set together with Store, the /api/sync routes are enabled.
+	Pool sync.TxBeginner
+	// DataDir is the server-side directory for the AI sync DEK and API-key
+	// key files.
+	DataDir string
 	// PomodoroNotifier is the optional W9 email hook for finished pomodoro
 	// phases; nil disables notifications.
 	PomodoroNotifier pomodoro.Notifier
@@ -132,4 +139,16 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Patch("/profiles/{id}", pomodoroHandlers.UpdateProfile)
 		rt.Delete("/profiles/{id}", pomodoroHandlers.DeleteProfile)
 	})
+
+	if opts.Pool != nil {
+		syncHandlers := handlers.NewSync(opts.Store, opts.Pool, opts.Log, opts.DataDir)
+		protected.Route("/sync", func(rt chi.Router) {
+			rt.Get("/config", syncHandlers.GetConfig)
+			rt.Patch("/config", syncHandlers.UpdateConfig)
+			rt.Post("/test", syncHandlers.TestConnection)
+			rt.Post("/now", syncHandlers.SyncNow)
+			rt.Get("/ai-recovery-key", syncHandlers.GetRecoveryKey)
+			rt.Post("/ai-recovery-key", syncHandlers.SetRecoveryKey)
+		})
+	}
 }

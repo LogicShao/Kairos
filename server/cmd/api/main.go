@@ -58,6 +58,8 @@ func main() {
 		JWTTTL:       cfg.JWTTTL,
 		DB:           pool,
 		Store:        store.New(pool),
+		Pool:         pool,
+		DataDir:      cfg.DataDir,
 	})
 
 	srv := &http.Server{

@@ -32,6 +32,9 @@ type Config struct {
 	Username string
 	// PasswordHash is the bcrypt hash of the account password.
 	PasswordHash string
+	// DataDir is the server-side directory for the AI sync DEK and API-key
+	// key files.
+	DataDir string
 }
 
 // Load reads configuration from the environment and validates it.
@@ -42,6 +45,7 @@ func Load() (*Config, error) {
 		JWTTTL:    durationEnv([]string{"KAIROS_JWT_TTL", "APP_JWT_TTL"}, 7*24*time.Hour),
 		Port:      getenv("KAIROS_API_PORT", "APP_API_PORT", "8080"),
 		Username:  getenv("APP_USER", "KAIROS_USER", ""),
+		DataDir:   getenv("KAIROS_DATA_DIR", "APP_DATA_DIR", "./data"),
 	}
 
 	hash := getenv("APP_PASSWORD_HASH", "KAIROS_PASSWORD_HASH", "")
