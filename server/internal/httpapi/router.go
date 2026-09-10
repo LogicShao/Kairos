@@ -124,6 +124,16 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 	briefing := &handlers.Briefing{Q: opts.Store, Log: opts.Log}
 	protected.Get("/briefing/today", briefing.Today)
 
+	aiHandlers := handlers.NewAI(opts.Store, opts.Log, opts.DataDir)
+	protected.Route("/ai", func(rt chi.Router) {
+		rt.Get("/config", aiHandlers.GetConfig)
+		rt.Patch("/config", aiHandlers.UpdateConfig)
+		rt.Get("/morning-brief", aiHandlers.GetMorningBrief)
+		rt.Post("/morning-brief/generate", aiHandlers.GenerateMorningBrief)
+		rt.Get("/sync-recovery-key", aiHandlers.GetRecoveryKey)
+		rt.Post("/sync-recovery-key", aiHandlers.SetRecoveryKey)
+	})
+
 	pomodoroHandlers := handlers.NewPomodoro(opts.Store, opts.Log, opts.PomodoroNotifier)
 	protected.Route("/pomodoro", func(rt chi.Router) {
 		rt.Get("/state", pomodoroHandlers.State)
