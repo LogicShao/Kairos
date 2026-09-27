@@ -3,7 +3,7 @@
   "name": "deployment",
   "title": "部署拓扑（docker compose + nginx + HTTPS）",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
