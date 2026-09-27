@@ -3,7 +3,7 @@
   "name": "frontend-api-layer",
   "title": "前端 API 层替换（invoke→HTTP）并移除 LZU",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

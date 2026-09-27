@@ -1,1 +1,7 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端层 Quality Check 清单，复核时的检查项来源"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量规范（lint/typecheck 门）复核依据"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "复核无 as any/@ts-ignore、类型完整"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "复核事件→拉取替换后的状态一致性（番茄钟/同步/AI）"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/backend-api-contract.md", "reason": "核对 wrapper 的方法/路径/body/query 与后端契约一致"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/invoke-inventory.md", "reason": "核对 51 命令零遗漏、包装键已正确解包、无删除命令残留"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/tauri-deps-inventory.md", "reason": "核对 @tauri-apps 零残留、事件监听已移除"}

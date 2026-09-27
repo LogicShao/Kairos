@@ -1,1 +1,9 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端层 Pre-Development Checklist 与 Quality Check 入口，实现前必读"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "确定 src/lib/api/、src/components/auth/ 的目录与文件组织约定"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "禁止 as any/@ts-ignore；API 模块返回类型须显式且与 src/types 对齐"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "数据获取/刷新模式；事件替换为拉取后的状态更新约定"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "本地时钟 setInterval 与数据加载 hook 的写法与清理约定"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件替换时保持结构/样式不变，仅换数据层"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/backend-api-contract.md", "reason": "后端端点/DTO/SSE/错误体契约，API wrapper 的唯一事实来源"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/invoke-inventory.md", "reason": "68 处 invoke / 51 命令 / 入参包装键清单，逐条替换依据"}
+{"file": ".trellis/tasks/09-08-frontend-api-layer/research/tauri-deps-inventory.md", "reason": "非 invoke 的 Tauri 依赖（事件/Channel/剪贴板/返回键）替换依据"}
