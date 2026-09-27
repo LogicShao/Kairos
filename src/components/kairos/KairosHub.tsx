@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   Bell,
   BookOpen,
@@ -5,6 +6,7 @@ import {
   Check,
   Cloud,
   Flag,
+  LogOut,
   Moon,
   Palette,
   Settings,
@@ -15,6 +17,8 @@ import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
 import { ACCENT_OPTIONS, useTheme } from "@/hooks/use-theme"
 import { cn } from "@/lib/utils"
+import { logout } from "@/lib/api/auth"
+import { clearToken } from "@/lib/api/client"
 import kairosLogo from "@/assets/kairos-logo.svg"
 
 interface KairosHubProps {
@@ -72,6 +76,15 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
   const { theme, accent, toggle, setAccent } = useTheme()
   const ThemeIcon = theme === "dark" ? Sun : Moon
   const activeAccent = ACCENT_OPTIONS.find((option) => option.value === accent)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    await logout().catch(() => {})
+    clearToken()
+    window.dispatchEvent(new Event("kairos:unauthorized"))
+  }
 
   return (
     <div className={cn("min-h-0 flex-1 overflow-y-auto pb-4", className)}>
@@ -168,6 +181,28 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          disabled={loggingOut}
+          className={cn(
+            "flex min-h-16 w-full items-center gap-3 rounded-lg border border-border/60 bg-card/70 px-4 py-3 text-left",
+            "transition-colors hover:bg-card active:bg-muted/60 disabled:pointer-events-none disabled:opacity-60",
+          )}
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+            <LogOut className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">
+              {loggingOut ? "正在退出…" : "退出登录"}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              清除本机登录状态并返回登录页
+            </span>
+          </span>
+        </button>
 
         <p className="text-center text-[11px] text-muted-foreground/50">
           v{__APP_VERSION__}

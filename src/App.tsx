@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { AppBackground } from "@/components/shared/AppBackground"
 import { AppShell } from "@/components/shared/AppShell"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
+import { LoginPage } from "@/components/auth/LoginPage"
+import { getToken } from "@/lib/api/client"
 import { PomodoroTimer } from "@/components/pomodoro/PomodoroTimer"
 import { TaskList } from "@/components/todo/TaskList"
 import { CalendarView } from "@/components/calendar/CalendarView"
@@ -13,41 +15,13 @@ import { SemesterPhaseSettings } from "@/components/settings/SemesterPhaseSettin
 import { AiSettings } from "@/components/settings/AiSettings"
 import { SyncSettings } from "@/components/sync/SyncSettings"
 import { TodayPage } from "@/pages/today/TodayPage"
-import { useAndroidBack } from "@/hooks/use-android-back"
-
-/** 主页面（底部 Tab 平级切换，不进导航栈；切换时重置导航栈） */
-const MAIN_PAGES = ["today", "pomodoro", "todo", "calendar", "kairos"]
 
 function MainApp() {
   const [active, setActive] = useState("today")
-  // 子页面导航栈：进入子页面压栈，返回键出栈；空栈 = 主页面（返回键退出应用）。
-  const [navStack, setNavStack] = useState<string[]>([])
 
   const navigate = (key: string) => {
-    if (key === active) return
-    if (MAIN_PAGES.includes(key)) {
-      // Tab 平级切换：重置导航栈（Android 惯例：切换后返回键退出）。
-      setNavStack([])
-    } else {
-      // 进入子页面：当前页压栈。
-      setNavStack([...navStack, active])
-    }
     setActive(key)
   }
-
-  const goBack = () => {
-    if (navStack.length === 0) return
-    const prev = navStack[navStack.length - 1]
-    setActive(prev)
-    setNavStack(navStack.slice(0, -1))
-  }
-
-  // 返回键 handler 需要读取最新栈：渲染提交后同步 ref（latest-ref 模式）。
-  const navStackRef = useRef(navStack)
-  useEffect(() => {
-    navStackRef.current = navStack
-  }, [navStack])
-  useAndroidBack(navStackRef, goBack)
 
   return (
     <>
@@ -76,6 +50,23 @@ function MainApp() {
 }
 
 function App() {
+  const [authed, setAuthed] = useState(() => getToken() !== null)
+
+  useEffect(() => {
+    const handleUnauthorized = () => setAuthed(false)
+    window.addEventListener("kairos:unauthorized", handleUnauthorized)
+    return () => window.removeEventListener("kairos:unauthorized", handleUnauthorized)
+  }, [])
+
+  if (!authed) {
+    return (
+      <>
+        <AppBackground />
+        <LoginPage onSuccess={() => setAuthed(true)} />
+      </>
+    )
+  }
+
   return <MainApp />
 }
 
