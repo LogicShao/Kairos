@@ -62,3 +62,7 @@ CLAUDE_PROMPT_TEMPLATES.md
 *.njsproj
 *.sln
 *.sw?
+
+# Deployment TLS certificates (user-provided, never committed)
+deploy/certs/*
+!deploy/certs/.gitkeep
