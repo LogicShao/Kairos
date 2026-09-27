@@ -18,7 +18,7 @@ export default defineConfig({
   },
   clearScreen: false,
   server: {
-    host: process.env.TAURI_DEV_HOST ?? process.env.VITE_DEV_HOST ?? "127.0.0.1",
+    host: process.env.VITE_DEV_HOST ?? "127.0.0.1",
     port: 5173,
     strictPort: true,
     proxy: {
@@ -30,14 +30,13 @@ export default defineConfig({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
-      ...(process.env.TAURI_DEV_HOST ? [process.env.TAURI_DEV_HOST] : []),
       ...(process.env.VITE_DEV_HOST ? [process.env.VITE_DEV_HOST] : []),
     ],
   },
-  envPrefix: ["VITE_", "TAURI_"],
+  envPrefix: ["VITE_"],
   build: {
     target: "esnext",
-    minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
-    sourcemap: !!process.env.TAURI_DEBUG,
+    minify: "esbuild",
+    sourcemap: false,
   },
 })
