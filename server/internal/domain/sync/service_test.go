@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -291,7 +292,7 @@ func TestSyncNowAiSettingsRemoteWins(t *testing.T) {
 		BaseURL:   "https://remote.example.com",
 		Model:     "remote-model",
 		APIKey:    "sk-remote-key",
-		UpdatedAt: "2026-09-11T00:00:00Z",
+		UpdatedAt: time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
 	}
 	blob, err := EncryptToBlob("webdav-secret", &remotePayload, dekArr)
 	if err != nil {
