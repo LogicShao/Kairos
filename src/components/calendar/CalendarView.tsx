@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react"
 import { useEffect, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import type { CalendarEvent, CalendarWeekCmd, CalendarWeekResponse } from "@/types/schedule"
+import { getCalendarWeek } from "@/lib/api/calendar"
 import { cn } from "@/lib/utils"
 import {
   BookOpen,
@@ -831,9 +831,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
           week_index: 1,
           week_start_date: weekStartDate,
         }
-        const res = await invoke<CalendarWeekResponse>("get_calendar_week", {
-          cmd,
-        })
+        const res = await getCalendarWeek(cmd)
         if (cancelled) return
         setWeekData(res)
       } catch (e) {
@@ -865,9 +863,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
         const weekStarts = getMonthWeekStarts(year, month)
         const results = await Promise.all(
           weekStarts.map((ws) =>
-            invoke<CalendarWeekResponse>("get_calendar_week", {
-              cmd: { semester, week_index: 1, week_start_date: ws } satisfies CalendarWeekCmd,
-            }),
+            getCalendarWeek({ semester, week_index: 1, week_start_date: ws } satisfies CalendarWeekCmd),
           ),
         )
         if (!cancelled) {

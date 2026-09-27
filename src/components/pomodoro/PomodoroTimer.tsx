@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from "react"
-import { invoke } from "@tauri-apps/api/core"
-import type {
-  PomodoroState,
-  PomodoroConfig,
-  PomodoroPhase,
-  ResolvePomodoroInterruptionRequest,
-} from "@/types/pomodoro"
-import type { SyncFinishedEvent } from "@/types/sync"
+import { useState, useEffect, useCallback, useRef } from "react"
+import type { PomodoroState, PomodoroPhase } from "@/types/pomodoro"
+import {
+  getState,
+  start,
+  pause,
+  reset,
+  getConfig,
+  updateConfig,
+  interrupt,
+  finishPhase,
+} from "@/lib/api/pomodoro"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
-import { listenWithCleanup } from "@/lib/tauri-events"
 import { Button } from "@/components/ui/button"
 import { Stepper } from "@/components/ui/stepper"
 import { Modal } from "@/components/shared/modal"
@@ -40,10 +42,24 @@ const RANGES = {
   sessions: { min: 1, max: 10, default: 4, step: 1 },
 }
 
+/** 后端不可用时展示的离线占位状态。 */
+const OFFLINE_STATE: PomodoroState = {
+  phase: "work",
+  remaining_seconds: 1500,
+  total_seconds: 1500,
+  is_running: false,
+  completed_sessions: 0,
+  interrupted: false,
+  interrupted_session_id: null,
+  last_seen_at: null,
+}
+
 export function PomodoroTimer() {
   const [state, setState] = useState<PomodoroState | null>(null)
+  const [remaining, setRemaining] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
+  const finishingRef = useRef(false)
 
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -55,117 +71,126 @@ export function PomodoroTimer() {
   const [savingConfig, setSavingConfig] = useState(false)
   const [configLoading, setConfigLoading] = useState(false)
 
+  const applyState = useCallback((next: PomodoroState) => {
+    setState(next)
+    setRemaining(next.remaining_seconds)
+  }, [])
+
   useEffect(() => {
     let disposed = false
-    let cleanupTick: (() => void) | undefined
-    let cleanupSyncFinished: (() => void) | undefined
 
-    async function refreshState() {
-      const nextState = await invoke<PomodoroState>("get_pomodoro_state")
-      if (disposed) return
-      setState(nextState)
-    }
-
-    async function init() {
-      try {
-        await refreshState()
-      } catch {
+    getState()
+      .then((nextState) => {
         if (disposed) return
-        setState({
-          phase: "work",
-          remaining_seconds: 1500,
-          total_seconds: 1500,
-          is_running: false,
-          completed_sessions: 0,
-          interrupted: false,
-          interrupted_session_id: null,
-          last_seen_at: null,
-        })
-        setError("Tauri 不可用 — 展示离线 UI")
-        return
-      }
-
-      if (disposed) return
-
-      cleanupTick = listenWithCleanup<PomodoroState>(
-        "pomodoro-tick",
-        (event) => {
-          // 状态未变化时跳过重渲染（暂停阶段每秒也会收到 tick 事件）。
-          setState((prev) => {
-            if (!prev) return event.payload
-            const next = event.payload
-            if (
-              prev.phase === next.phase &&
-              prev.remaining_seconds === next.remaining_seconds &&
-              prev.total_seconds === next.total_seconds &&
-              prev.is_running === next.is_running &&
-              prev.completed_sessions === next.completed_sessions &&
-              prev.interrupted === next.interrupted
-            ) {
-              return prev
-            }
-            return next
-          })
-        },
-        () => {
-          setError("无法监听计时器事件")
-        },
-      )
-
-      cleanupSyncFinished = listenWithCleanup<SyncFinishedEvent>(
-        "sync-finished",
-        () => {
-          refreshState().catch(() => {
-            if (!disposed) {
-              setError("无法刷新同步后的专注状态")
-            }
-          })
-        },
-        () => {
-          setError("无法监听同步事件")
-        },
-      )
-    }
-
-    init()
+        applyState(nextState)
+        setError(null)
+      })
+      .catch(() => {
+        if (disposed) return
+        applyState(OFFLINE_STATE)
+        setError("后端不可用 — 展示离线 UI")
+      })
 
     return () => {
       disposed = true
-      cleanupTick?.()
-      cleanupSyncFinished?.()
     }
-  }, [])
+  }, [applyState])
+
+  // 浏览器后台会节流 setInterval，重新聚焦时以服务端状态校准本地剩余时间。
+  useEffect(() => {
+    let disposed = false
+
+    function calibrate() {
+      if (document.visibilityState === "hidden") return
+      getState()
+        .then((nextState) => {
+          if (disposed) return
+          applyState(nextState)
+        })
+        .catch((err) => {
+          if (disposed) return
+          setError(userErrorMessage(err, "无法刷新专注状态"))
+        })
+    }
+
+    window.addEventListener("focus", calibrate)
+    document.addEventListener("visibilitychange", calibrate)
+
+    return () => {
+      disposed = true
+      window.removeEventListener("focus", calibrate)
+      document.removeEventListener("visibilitychange", calibrate)
+    }
+  }, [applyState])
+
+  const isRunning = state?.is_running ?? false
+
+  // 本地时钟：仅运行中每秒递减展示值，到 0 后由 finishPhase 上报。
+  useEffect(() => {
+    if (!isRunning) return
+    const id = window.setInterval(() => {
+      setRemaining((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [isRunning])
+
+  useEffect(() => {
+    if (!state || !state.is_running) return
+    if (remaining > 0) return
+    if (finishingRef.current) return
+    finishingRef.current = true
+    finishPhase({ phase: state.phase, completed_at: new Date().toISOString() })
+      .then((nextState) => {
+        applyState(nextState)
+        setError(null)
+      })
+      .catch((err) => {
+        setError(userErrorMessage(err, "结束番茄钟阶段失败"))
+      })
+      .finally(() => {
+        finishingRef.current = false
+      })
+  }, [state, remaining, applyState])
 
   const handleStartPause = useCallback(() => {
     if (!state) return
     if (state.is_running) {
-      invoke("pause_pomodoro")
-        .then(() => setError(null))
+      pause()
+        .then((nextState) => {
+          applyState(nextState)
+          setError(null)
+        })
         .catch((err) => {
           setError(userErrorMessage(err, "暂停番茄钟失败"))
         })
     } else {
-      invoke("start_pomodoro")
-        .then(() => setError(null))
+      start()
+        .then((nextState) => {
+          applyState(nextState)
+          setError(null)
+        })
         .catch((err) => {
           setError(userErrorMessage(err, "启动番茄钟失败"))
         })
     }
-  }, [state])
+  }, [state, applyState])
 
   const handleReset = useCallback(() => {
-    invoke("reset_pomodoro")
-      .then(() => setError(null))
+    reset()
+      .then((nextState) => {
+        applyState(nextState)
+        setError(null)
+      })
       .catch((err) => {
         setError(userErrorMessage(err, "重置番茄钟失败"))
       })
-  }, [])
+  }, [applyState])
 
   const handleOpenSettings = useCallback(async () => {
     setSettingsOpen(true)
     setConfigLoading(true)
     try {
-      const config = await invoke<PomodoroConfig>("get_pomodoro_config")
+      const config = await getConfig()
       setWorkMinutes(Math.floor(config.work_seconds / 60))
       setShortBreakMinutes(Math.floor(config.short_break_seconds / 60))
       setLongBreakMinutes(Math.floor(config.long_break_seconds / 60))
@@ -190,42 +215,36 @@ export function PomodoroTimer() {
 
     setSavingConfig(true)
     try {
-      await invoke("update_pomodoro_config", {
-        config: {
-          work_seconds: workMinutes * 60,
-          short_break_seconds: shortBreakMinutes * 60,
-          long_break_seconds: longBreakMinutes * 60,
-          sessions_before_long_break: sessionsBeforeLongBreak,
-          auto_start_next_phase: autoStartNextPhase,
-        },
+      const nextState = await updateConfig({
+        work_seconds: workMinutes * 60,
+        short_break_seconds: shortBreakMinutes * 60,
+        long_break_seconds: longBreakMinutes * 60,
+        sessions_before_long_break: sessionsBeforeLongBreak,
+        auto_start_next_phase: autoStartNextPhase,
       })
       setSettingsOpen(false)
-      const newState = await invoke<PomodoroState>("get_pomodoro_state")
-      setState(newState)
+      applyState(nextState)
       setError(null)
     } catch (e) {
       setError(userErrorMessage(e, "保存番茄钟设置失败"))
     } finally {
       setSavingConfig(false)
     }
-  }, [workMinutes, shortBreakMinutes, longBreakMinutes, sessionsBeforeLongBreak, autoStartNextPhase])
+  }, [workMinutes, shortBreakMinutes, longBreakMinutes, sessionsBeforeLongBreak, autoStartNextPhase, applyState])
 
   /** 处理中断操作 */
   const handleResolveInterruption = useCallback(async (action: "continue" | "discard" | "complete") => {
     setResolving(true)
     try {
-      const request: ResolvePomodoroInterruptionRequest = { action }
-      const newState = await invoke<PomodoroState>("resolve_pomodoro_interruption", {
-        request,
-      })
-      setState(newState)
+      const newState = await interrupt(action)
+      applyState(newState)
       setError(null)
     } catch (e) {
       setError(userErrorMessage(e, "处理中断状态失败"))
     } finally {
       setResolving(false)
     }
-  }, [])
+  }, [applyState])
 
   if (!state) {
     return (
@@ -237,7 +256,7 @@ export function PomodoroTimer() {
 
   const progress =
     state.total_seconds > 0
-      ? 1 - state.remaining_seconds / state.total_seconds
+      ? 1 - remaining / state.total_seconds
       : 0
   const offset = CIRCUMFERENCE * (1 - progress)
   const isWork = state.phase === "work"
@@ -296,7 +315,7 @@ export function PomodoroTimer() {
 
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-4xl md:text-5xl font-mono font-medium tabular-nums tracking-tight text-foreground">
-            {formatTime(state.remaining_seconds)}
+            {formatTime(remaining)}
           </span>
           <span
             className={cn(

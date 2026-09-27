@@ -1,17 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import { ArrowLeft, RefreshCw, Check, X } from "lucide-react"
-import type {
-  SyncConfig,
-  SyncFinishedEvent,
-  SyncResult,
-  UpdateSyncConfigRequest,
-} from "@/types/sync"
+import type { SyncConfig, SyncResult, UpdateSyncConfigRequest } from "@/types/sync"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
-import { listenWithCleanup } from "@/lib/tauri-events"
+import { getSyncConfig, updateSyncConfig, testSyncConnection, syncNow } from "@/lib/api/sync"
 
 interface SyncSettingsProps {
   onNavigate: (key: string) => void
@@ -95,7 +89,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
   useEffect(() => {
     let disposed = false
 
-    invoke<SyncConfig>("get_sync_config")
+    getSyncConfig()
       .then((cfg) => {
         if (disposed) return
         applyConfig(cfg, true)
@@ -107,35 +101,6 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
 
     return () => {
       disposed = true
-    }
-  }, [applyConfig])
-
-  // ── 监听后端同步完成事件（手动 + 自动） ──────────────────
-  useEffect(() => {
-    let disposed = false
-    const cleanup = listenWithCleanup<SyncFinishedEvent>(
-      "sync-finished",
-      (event) => {
-        if (disposed) return
-        setLastSyncAt(event.payload.last_sync_at)
-        invoke<SyncConfig>("get_sync_config")
-          .then((cfg) => {
-            if (disposed) return
-            applyConfig(cfg, false)
-          })
-          .catch((err) => {
-            if (disposed) return
-            setSyncError(userErrorMessage(err, "无法刷新同步状态"))
-          })
-      },
-      (err) => {
-        setSyncError(userErrorMessage(err, "无法监听同步事件"))
-      },
-    )
-
-    return () => {
-      disposed = true
-      cleanup()
     }
   }, [applyConfig])
 
@@ -159,8 +124,8 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
         request.password = password
       }
 
-      await invoke("update_sync_config", { config: request })
-      const saved = await invoke<SyncConfig>("get_sync_config")
+      await updateSyncConfig(request)
+      const saved = await getSyncConfig()
       applyConfig(saved, true)
       return saved
     },
@@ -197,7 +162,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
         request.password = passwordDraftRef.current
       }
 
-      void invoke("update_sync_config", { config: request })
+      void updateSyncConfig(request)
         .then(() => {
           lastPersistedRef.current = draft
         })
@@ -211,7 +176,7 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
     setTestMessage("")
     try {
       await saveConfig()
-      const ok = await invoke<boolean>("test_sync_connection")
+      const ok = await testSyncConnection()
       setTestStatus(ok ? "ok" : "fail")
       setTestMessage(ok ? "连接成功" : "无法连接到服务器")
     } catch (err) {
@@ -227,11 +192,11 @@ export function SyncSettings({ onNavigate }: SyncSettingsProps) {
     setSyncError(null)
     try {
       await saveConfig()
-      const result = await invoke<SyncResult>("sync_now")
+      const result = await syncNow()
       setSyncResult(result)
       setSyncStatus("done")
       // 同步成功后重新读取 last_sync_at（避免前端猜测时间）
-      const cfg = await invoke<SyncConfig>("get_sync_config")
+      const cfg = await getSyncConfig()
       applyConfig(cfg, false)
     } catch (err) {
       setSyncError(userErrorMessage(err, "同步失败"))

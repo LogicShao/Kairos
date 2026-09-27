@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { AiBriefCard } from "@/pages/today/AiBriefCard"
 import type { TodayBriefingResponse } from "@/types/briefing"
+import { getTodayBriefing } from "@/lib/api/briefing"
 
 const PHASE_LABELS: Record<TodayBriefingResponse["phase"]["phase_type"], string> = {
   unknown: "未识别阶段",
@@ -20,7 +20,7 @@ export function TodayPage({ onNavigate }: TodayPageProps) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    invoke<TodayBriefingResponse>("get_today_briefing")
+    getTodayBriefing()
       .then(setBriefing)
       .catch((err: string) => setError(err))
   }, [])

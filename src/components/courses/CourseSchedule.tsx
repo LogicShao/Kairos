@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
-import { readText } from "@tauri-apps/plugin-clipboard-manager"
 import type { Course, CreateCourseRequest, UpdateCourseRequest, CourseFilterParams } from "@/types/course"
+import {
+  listCourses,
+  getWeekSchedule,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  importCoursesFromText,
+  resetSemesterDates,
+} from "@/lib/api/courses"
 import type { ImportTextResult } from "@/types/course-import"
 import type { WeekScheduleItem, WeekScheduleResponse } from "@/types/schedule"
 import { Button } from "@/components/ui/button"
@@ -113,7 +120,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
   async function getCourses(targetSemester: string): Promise<Course[]> {
     const filters: CourseFilterParams = {}
     if (targetSemester) filters.semester = targetSemester
-    return invoke<Course[]>("get_all_courses", { filters })
+    return listCourses(filters)
   }
 
   async function fetchCourses(targetSemester = semesterFilter) {
@@ -156,8 +163,9 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
       setWeekLoading(true)
       setWeekError(null)
       try {
-        const res = await invoke<WeekScheduleResponse>("get_week_schedule", {
-          cmd: { semester: semesterFilter, week_index: weekIndex },
+        const res = await getWeekSchedule({
+          semester: semesterFilter,
+          week_index: weekIndex,
         })
         if (cancelled) return
         setWeekData(res)
@@ -226,7 +234,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
           color: form.color,
           semester: form.semester,
         }
-        await invoke("update_course", { id: editingCourse.id, cmd: payload })
+        await updateCourse(editingCourse.id, payload)
       } else {
         const payload: CreateCourseRequest = {
           name: form.name,
@@ -240,7 +248,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
           color: form.color || undefined,
           semester: form.semester || undefined,
         }
-        await invoke("create_course", { cmd: payload })
+        await createCourse(payload)
       }
       setShowForm(false)
       setEditingCourse(null)
@@ -255,7 +263,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
 
   async function handleDelete(id: number) {
     try {
-      await invoke("delete_course", { id })
+      await deleteCourse(id)
       refreshAll()
     } catch (e) {
       setActionError(userErrorMessage(e, "删除课程失败"))
@@ -267,12 +275,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
     try {
       // 给 Android 一点时间完成剪贴板权限切换
       await new Promise((r) => setTimeout(r, 150))
-      let text: string
-      try {
-        text = await readText()
-      } catch {
-        text = await navigator.clipboard.readText()
-      }
+      const text = await navigator.clipboard.readText()
       if (!text.trim()) {
         setImportError("剪贴板为空，请先从教务系统复制课表表格。")
         return
@@ -293,12 +296,10 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
     setImportError(null)
     setImportFeedback(null)
     try {
-      const result = await invoke<ImportTextResult>("import_courses_from_text", {
-        cmd: {
-          text: importText,
-          semester: importSemester.trim(),
-          semester_start_date: importStartDate.trim(),
-        },
+      const result = await importCoursesFromText({
+        text: importText,
+        semester: importSemester.trim(),
+        semester_start_date: importStartDate.trim(),
       })
       setImportFeedback(result)
 
@@ -360,7 +361,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
     if (!resetDate.trim()) return
     setResetting(true)
     try {
-      await invoke<number>("reset_all_semester_start_dates", { date: resetDate.trim() })
+      await resetSemesterDates(resetDate.trim())
       setShowResetDate(false)
       setResetDate("")
       refreshAll()

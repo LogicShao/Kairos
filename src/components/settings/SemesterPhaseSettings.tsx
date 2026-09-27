@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import { ArrowLeft, Bell, BookOpen, Pencil, Plus, Save, Trash2, X } from "lucide-react"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
@@ -14,6 +13,20 @@ import type {
 } from "@/types/notification"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
+import {
+  createProfile,
+  deleteProfile,
+  listProfiles,
+  updateProfile,
+} from "@/lib/api/pomodoro"
+import {
+  createTermPhase,
+  deleteTermPhase,
+  getCurrentPhaseStatus,
+  listSemesterContexts,
+  listTermPhases,
+  updateTermPhase,
+} from "@/lib/api/semester"
 
 interface SemesterPhaseSettingsProps {
   onNavigate: (key: string) => void
@@ -96,7 +109,7 @@ function seconds(minutesValue: number): number {
 
 async function fetchTermPhases(termLabel: string): Promise<TermPhase[]> {
   if (!termLabel) return []
-  return invoke<TermPhase[]>("get_term_phases", { termLabel })
+  return listTermPhases(termLabel)
 }
 
 export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps) {
@@ -124,9 +137,9 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
     async function loadInitialData() {
       try {
         const [contextList, profileList, status] = await Promise.all([
-          invoke<SemesterContext[]>("get_semester_contexts"),
-          invoke<PomodoroProfile[]>("get_pomodoro_profiles"),
-          invoke<CurrentPhaseStatus>("get_current_phase_status", { source: "manual" }),
+          listSemesterContexts(),
+          listProfiles(),
+          getCurrentPhaseStatus("manual"),
         ])
         if (!active) return
 
@@ -177,9 +190,9 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
     setSaving(true)
     try {
       if (editingPhaseId === null) {
-        await invoke<number>("create_term_phase", { req: phaseDraft })
+        await createTermPhase(phaseDraft)
       } else {
-        await invoke("update_term_phase", { id: editingPhaseId, req: phaseDraft })
+        await updateTermPhase(editingPhaseId, phaseDraft)
       }
       const result = await fetchTermPhases(phaseDraft.term_label)
       setPhases(result)
@@ -206,7 +219,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
   async function handleDeletePhase(id: number) {
     setSaving(true)
     try {
-      await invoke("delete_term_phase", { id })
+      await deleteTermPhase(id)
       const result = await fetchTermPhases(selectedTerm)
       setPhases(result)
       if (editingPhaseId === id) setEditingPhaseId(null)
@@ -224,11 +237,11 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
     setSaving(true)
     try {
       if (editingProfileId === null) {
-        await invoke<number>("create_pomodoro_profile", { req: profileDraft })
+        await createProfile(profileDraft)
       } else {
-        await invoke("update_pomodoro_profile", { id: editingProfileId, req: profileDraft })
+        await updateProfile(editingProfileId, profileDraft)
       }
-      const profileList = await invoke<PomodoroProfile[]>("get_pomodoro_profiles")
+      const profileList = await listProfiles()
       setProfiles(profileList)
       setEditingProfileId(null)
       setProfileDraft(defaultProfile())
@@ -253,8 +266,8 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
   async function handleDeleteProfile(id: number) {
     setSaving(true)
     try {
-      await invoke("delete_pomodoro_profile", { id })
-      const profileList = await invoke<PomodoroProfile[]>("get_pomodoro_profiles")
+      await deleteProfile(id)
+      const profileList = await listProfiles()
       setProfiles(profileList)
       if (editingProfileId === id) setEditingProfileId(null)
       setProfileDraft(defaultProfile())

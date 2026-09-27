@@ -10,20 +10,15 @@ import {
   Timer,
   Wand2,
 } from "lucide-react"
-import { Channel, invoke } from "@tauri-apps/api/core"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
-import { listenWithCleanup } from "@/lib/tauri-events"
+import { generateMorningBriefStream } from "@/lib/api/sse"
+import { getAiConfig, getMorningBrief } from "@/lib/api/ai"
 import { cleanLines, renderInline, renderLines } from "@/lib/markdown-inline"
 import type { AiConfig, AiMorningBrief } from "@/types/ai"
 import type { TodayBriefingResponse } from "@/types/briefing"
-
-/** 后端流式推送的增量片段（与 commands/ai.rs 的 StreamChunk 对齐）。 */
-interface StreamChunk {
-  delta: string
-}
 
 // ─── 固定 5 分节 markdown → 结构化分节 ────────────────────────────────────────
 
@@ -249,13 +244,13 @@ export function AiBriefCard({ briefing, onNavigate }: AiBriefCardProps) {
 
     async function load() {
       try {
-        const cfg = await invoke<AiConfig>("get_ai_config")
+        const cfg = await getAiConfig()
         if (disposed) return
         setConfig(cfg)
         if (!cfg.enabled || !cfg.api_key_configured) {
           return
         }
-        const cached = await invoke<AiMorningBrief | null>("get_ai_morning_brief")
+        const cached = await getMorningBrief()
         if (disposed) return
         setBrief(cached)
       } catch (err) {
@@ -270,18 +265,6 @@ export function AiBriefCard({ briefing, onNavigate }: AiBriefCardProps) {
     }
   }, [])
 
-  // ── 监听 7:00 自动生成事件：页面打开时自动刷新 ──
-  useEffect(() => {
-    return listenWithCleanup<AiMorningBrief>(
-      "ai-brief-generated",
-      (event) => {
-        setBrief(event.payload)
-        setError(null)
-      },
-      () => undefined,
-    )
-  }, [])
-
   // ── 手动生成 / 重新生成（流式）──
   const mountedRef = useRef(true)
   useEffect(() => {
@@ -294,17 +277,17 @@ export function AiBriefCard({ briefing, onNavigate }: AiBriefCardProps) {
     setGenerating(true)
     setError(null)
     setStreamingText("")
-    const channel = new Channel<StreamChunk>()
-    channel.onmessage = (chunk) => {
-      // 卸载后不再追加文本，避免空转 IPC 触发 setState
-      if (!mountedRef.current) return
-      setStreamingText((prev) => prev + chunk.delta)
-    }
     try {
-      const result = await invoke<AiMorningBrief>("generate_ai_morning_brief_streaming", {
+      await generateMorningBriefStream({
         force,
-        channel,
+        onDelta: (delta) => {
+          // 卸载后不再追加文本，避免空转更新触发 setState
+          if (!mountedRef.current) return
+          setStreamingText((prev) => (prev ?? "") + delta)
+        },
       })
+      if (!mountedRef.current) return
+      const result = await getMorningBrief()
       if (!mountedRef.current) return
       setBrief(result)
       setStreamingText(null)

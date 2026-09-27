@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react"
-import { invoke } from "@tauri-apps/api/core"
-import { readText } from "@tauri-apps/plugin-clipboard-manager"
 import type { Exam, CreateExamRequest, UpdateExamRequest } from "@/types/exam"
 import type { ImportTextResult } from "@/types/course-import"
+import {
+  listExams,
+  createExam,
+  updateExam,
+  deleteExam,
+  importExamsFromText,
+} from "@/lib/api/exams"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
@@ -114,7 +119,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
   const [importFeedback, setImportFeedback] = useState<ImportTextResult | null>(null)
 
   async function fetchExams() {
-    const result = await invoke<Exam[]>("get_all_exams")
+    const result = await listExams()
     const enriched = result.map((e) => ({ ...e, days_until: computeDaysUntil(e.exam_datetime) }))
     setExams(enriched)
     setError(null)
@@ -124,7 +129,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
     let cancelled = false
     async function load() {
       try {
-        const result = await invoke<Exam[]>("get_all_exams")
+        const result = await listExams()
         const enriched = result.map((e) => ({ ...e, days_until: computeDaysUntil(e.exam_datetime) }))
         if (!cancelled) {
           setExams(enriched)
@@ -176,7 +181,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
           semester: form.semester,
           course_id: form.course_id,
         }
-        await invoke("update_exam", { id: editingExam.id, cmd: payload })
+        await updateExam(editingExam.id, payload)
       } else {
         const payload: CreateExamRequest = {
           course_name: form.course_name,
@@ -187,7 +192,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
           semester: form.semester || undefined,
           course_id: form.course_id || undefined,
         }
-        await invoke("create_exam", { cmd: payload })
+        await createExam(payload)
       }
       setShowForm(false)
       setEditingExam(null)
@@ -202,7 +207,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
 
   async function handleDelete(id: number) {
     try {
-      await invoke("delete_exam", { id })
+      await deleteExam(id)
       await fetchExams()
       setActionError(null)
     } catch (e) {
@@ -214,12 +219,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
     setImportError(null)
     try {
       await new Promise((r) => setTimeout(r, 150))
-      let text: string
-      try {
-        text = await readText()
-      } catch {
-        text = await navigator.clipboard.readText()
-      }
+      const text = await navigator.clipboard.readText()
       if (!text.trim()) {
         setImportError("剪贴板为空，请先从教务系统复制考试安排表格。")
         return
@@ -240,8 +240,9 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
     setImportError(null)
     setImportFeedback(null)
     try {
-      const result = await invoke<ImportTextResult>("import_exams_from_text", {
-        cmd: { text: importText, semester: importSemester.trim() },
+      const result = await importExamsFromText({
+        text: importText,
+        semester: importSemester.trim(),
       })
       setImportFeedback(result)
       await fetchExams()

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import { ArrowLeft, Eye, EyeOff, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
+import { getAiConfig, updateAiConfig, getAiRecoveryKey, setAiRecoveryKey } from "@/lib/api/ai"
+import { getSyncConfig } from "@/lib/api/sync"
 import type { AiConfig, UpdateAiConfigRequest } from "@/types/ai"
-import type { SyncConfig } from "@/types/sync"
 
 interface AiSettingsProps {
   onNavigate: (key: string) => void
@@ -80,7 +80,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
 
   useEffect(() => {
     let disposed = false
-    invoke<AiConfig>("get_ai_config")
+    getAiConfig()
       .then((cfg) => {
         if (disposed) return
         applyConfig(cfg, true)
@@ -90,7 +90,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
         setError(userErrorMessage(err, "无法加载 AI 配置"))
       })
     // 探测 WebDAV 是否已配置，用于禁用同步开关 + 提示。
-    invoke<SyncConfig>("get_sync_config")
+    getSyncConfig()
       .then((cfg) => {
         if (disposed) return
         setWebdavConfigured(!!cfg.server_url)
@@ -122,8 +122,8 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
       if (apiKeyDirty) {
         request.api_key = apiKey
       }
-      await invoke("update_ai_config", { req: request })
-      const saved = await invoke<AiConfig>("get_ai_config")
+      await updateAiConfig(request)
+      const saved = await getAiConfig()
       applyConfig(saved, true)
       return saved
     },
@@ -143,7 +143,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
       if (apiKeyDirtyRef.current) {
         request.api_key = apiKeyDraftRef.current
       }
-      void invoke("update_ai_config", { req: request }).catch(() => undefined)
+      void updateAiConfig(request).catch(() => undefined)
     }
   }, [])
 
@@ -193,7 +193,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
       return
     }
     try {
-      const key = await invoke<string | null>("get_ai_sync_recovery_key")
+      const key = await getAiRecoveryKey()
       setRecoveryKey(key)
       setRecoveryKeyVisible(true)
     } catch (err) {
@@ -206,7 +206,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
     if (!recoveryInput.trim()) return
     setError(null)
     try {
-      await invoke("set_ai_sync_recovery_key", { hexKey: recoveryInput.trim() })
+      await setAiRecoveryKey(recoveryInput.trim())
       setRecoveryInput("")
       setRecoveryKey(recoveryInput.trim())
     } catch (err) {
@@ -227,7 +227,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
   const apiKeyPlaceholder =
     config?.api_key_configured && !apiKeyDirty ? "已保存密钥，留空不变" : "••••••••"
 
-  // 加载中骨架屏：config 初始 null，invoke 返回前三态覆盖。
+  // 加载中骨架屏：config 初始 null，请求返回后覆盖。
   if (!config && !error) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">

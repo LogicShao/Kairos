@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { invoke } from "@tauri-apps/api/core"
 import type { Task, TaskFilterParams, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from "@/types/task"
+import {
+  listTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  completeDailyTask,
+  uncompleteDailyTask,
+} from "@/lib/api/tasks"
 import { Button } from "@/components/ui/button"
 import { TaskForm } from "@/components/todo/TaskForm"
 import { AcrylicPanel } from "@/components/shared/acrylic-panel"
@@ -108,7 +115,7 @@ export function TaskList() {
   const fetchTasks = useCallback(async () => {
     const filters: TaskFilterParams = {}
     if (priorityFilter) filters.priority_filter = priorityFilter
-    const result = await invoke<Task[]>("get_all_tasks", { filters })
+    const result = await listTasks(filters)
     setTasks(result)
     setError(null)
   }, [priorityFilter])
@@ -119,7 +126,7 @@ export function TaskList() {
       try {
         const filters: TaskFilterParams = {}
         if (priorityFilter) filters.priority_filter = priorityFilter
-        const result = await invoke<Task[]>("get_all_tasks", { filters })
+        const result = await listTasks(filters)
         if (!cancelled) {
           setTasks(result)
           setError(null)
@@ -140,7 +147,7 @@ export function TaskList() {
 
   async function handleCreate(data: CreateTaskRequest) {
     try {
-      await invoke("create_task", { cmd: data })
+      await createTask(data)
       setShowForm(false)
       await fetchTasks()
     } catch (e) {
@@ -151,7 +158,7 @@ export function TaskList() {
   async function handleUpdate(data: UpdateTaskRequest) {
     if (!editingTask) return
     try {
-      await invoke("update_task", { id: editingTask.id, cmd: data })
+      await updateTask(editingTask.id, data)
       setEditingTask(null)
       await fetchTasks()
     } catch (e) {
@@ -161,7 +168,7 @@ export function TaskList() {
 
   async function handleDelete(id: number) {
     try {
-      await invoke("delete_task", { id })
+      await deleteTask(id)
       await fetchTasks()
     } catch (e) {
       setError(userErrorMessage(e, "删除任务失败"))
@@ -173,9 +180,9 @@ export function TaskList() {
     const completedToday = task.last_completed_date === today
     try {
       if (completedToday) {
-        await invoke("uncomplete_daily_task", { id: task.id })
+        await uncompleteDailyTask(task.id)
       } else {
-        await invoke("complete_daily_task", { id: task.id })
+        await completeDailyTask(task.id)
       }
       await fetchTasks()
     } catch (e) {
@@ -186,7 +193,7 @@ export function TaskList() {
   // 普通任务一次性完成。
   async function handleComplete(task: Task) {
     try {
-      await invoke("update_task", { id: task.id, cmd: { status: "done" } })
+      await updateTask(task.id, { status: "done" })
       await fetchTasks()
     } catch (e) {
       setError(userErrorMessage(e, "完成任务失败"))
