@@ -34,12 +34,14 @@
 ### 1. DNS
 在 `misaka-net.top` 添加 A 记录：`kairos` → 服务器公网 IP。（不上 CF，直接解析真实 IP。）
 
-### 2. 放置代码
+### 2. 推送代码（本地执行）
+在本机仓库根执行（rsync 直传，服务器无需 git）：
 ```bash
-mkdir -p ~/proj && cd ~/proj
-git clone <你的仓库地址> Kairos      # 或直接把本地仓库同步上来
-cd Kairos
+bash deploy/ali/rsync-push.sh          # 仅推送
+bash deploy/ali/rsync-push.sh all      # 推送 + 远端部署（一键）
 ```
+默认推送到 `ali:~/proj/Kairos/`，排除 `.git`/`node_modules`/`dist`/`.env` 等。
+`all` 模式会用 `ssh` 触发远端 `deploy/ali/deploy.sh`（要求远端 docker 无需交互密码，或已配好权限）。
 
 ### 3. 配置 `.env`
 ```bash
@@ -54,13 +56,13 @@ cp .env.example .env
 
 > `.env` 不要提交；`compose.ali.yml` 会读取仓库根的 `.env`。
 
-### 4. 执行部署脚本
+### 4. 部署（服务器上）
+若第 2 步用了 `all` 模式，本步已自动完成；否则在服务器执行：
 ```bash
-bash deploy/ali/deploy.sh
-# 若提示无 docker 权限：sudo -E bash deploy/ali/deploy.sh
+cd ~/proj/Kairos && bash deploy/ali/deploy.sh
+# 若无 docker 权限：sudo -E bash deploy/ali/deploy.sh
 ```
 脚本会：校验 compose → 构建并启动 → 轮询健康检查（web 200 且 `/api/auth/me` 401）→ 打印结果。
-如需带分支自动更新：`BRANCH=main bash deploy/ali/deploy.sh`。
 
 ### 5. 1Panel 建站 + 反代（关键一步，你手动做）
 1. 1Panel → **网站** → 创建网站 → 类型选**反向代理**
@@ -84,8 +86,8 @@ docker compose -f compose.ali.yml up -d --build # 更新
 ```
 
 - **数据备份**：`kairos_pg_data`（业务数据）与 `kairos_ai_data`（AI key 密文 + 同步 DEK）。
-- **更新**：`git pull` 后重跑 `deploy.sh`（脚本带 `--build`）。
-- **回滚**：切回旧 commit 重跑 `deploy.sh`；数据卷不受影响。
+- **更新**：本机改完后跑 `bash deploy/ali/rsync-push.sh all`（推送 + 重建）。
+- **回滚**：本机切回旧版本后重跑 `bash deploy/ali/rsync-push.sh all`；数据卷不受影响。
 
 ## 注意
 
