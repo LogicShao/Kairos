@@ -22,10 +22,10 @@ command -v curl >/dev/null 2>&1 || fail "缺少 curl"
 
 if docker info >/dev/null 2>&1; then
 	DOCKER=(docker)
-elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+elif command -v sudo >/dev/null 2>&1; then
 	DOCKER=(sudo docker)
 else
-	fail "无 docker 权限：把用户加入 docker 组，或用 sudo -E bash $0 运行"
+	fail "无 docker 权限：把用户加入 docker 组，或用 sudo 运行"
 fi
 
 compose() { "${DOCKER[@]}" compose -f "$COMPOSE_FILE" "$@"; }

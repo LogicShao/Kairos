@@ -5,6 +5,7 @@ MODE="${1:-push}"
 SRC="${SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 DEST="${DEST:-ali:~/proj/Kairos/}"
 SSH_OPTS="${SSH_OPTS:-}"
+SSH_TTY="${SSH_TTY:--t}"
 DELETE="${DELETE:-1}"
 
 REMOTE_HOST="${DEST%%:*}"
@@ -54,7 +55,7 @@ rsync "${RSYNC_ARGS[@]}" "$SRC/" "$DEST"
 
 if [ "$MODE" = "all" ]; then
 	log "远端部署 ${REMOTE_HOST}:${REMOTE_DIR}"
-	ssh ${SSH_OPTS} "$REMOTE_HOST" "cd $REMOTE_DIR && bash deploy/ali/deploy.sh"
+	ssh ${SSH_TTY} ${SSH_OPTS} "$REMOTE_HOST" "cd $REMOTE_DIR && bash deploy/ali/deploy.sh"
 	log "全部完成（.env 需已在远端创建）"
 else
 	log "推送完成。远端 .env 需自行创建（未同步）；随后远端执行 bash deploy/ali/deploy.sh，或用 all 模式一键完成"

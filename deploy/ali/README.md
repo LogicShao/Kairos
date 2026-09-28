@@ -27,7 +27,7 @@
 ## 前置
 
 - 服务器已装 Docker + Compose（已有）。
-- 你对该服务器有 sudo（`docker` 组当前无成员，脚本会自动检测用 `docker` 或 `sudo docker`）。
+- `docker` 组当前无成员，部署会用 `sudo docker`；`all` 模式通过 `ssh -t` 分配终端，**会提示你输入 sudo 密码**（无需预先配免密）。
 
 ## 步骤
 
@@ -41,7 +41,7 @@ bash deploy/ali/rsync-push.sh          # 仅推送
 bash deploy/ali/rsync-push.sh all      # 推送 + 远端部署（一键）
 ```
 默认推送到 `ali:~/proj/Kairos/`，排除 `.git`/`node_modules`/`dist`/`.env` 等。
-`all` 模式会用 `ssh` 触发远端 `deploy/ali/deploy.sh`（要求远端 docker 无需交互密码，或已配好权限）。
+`all` 模式用 `ssh -t` 触发远端 `deploy/ali/deploy.sh`，可**交互输入 sudo 密码**（若已免密则直接跳过）。
 
 ### 3. 配置 `.env`
 ```bash
