@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/shared/modal"
 import { Pencil, Trash2 } from "lucide-react"
 import { DAY_LABELS } from "./utils"
+import { formatSemester } from "@/lib/semester"
 
 interface CourseDetailModalProps {
   open: boolean
@@ -57,7 +58,7 @@ export function CourseDetailModal({
           )}
           <div>
             <div className="text-xs text-muted-foreground">学期</div>
-            <div className="mt-0.5 font-medium">{course.semester || "—"}</div>
+            <div className="mt-0.5 font-medium">{formatSemester(course.semester) || "—"}</div>
           </div>
           <div className="col-span-2">
             <div className="text-xs text-muted-foreground">周次</div>

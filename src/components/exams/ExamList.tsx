@@ -13,10 +13,14 @@ import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
+import { formatSemester } from "@/lib/semester"
 import { ArrowLeft, Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
 
 const FIELD_CLASS =
   "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+
+// 导入入口暂时隐藏：现有解析器面向本科教务 TSV，与研究生系统不兼容；该功能后续可能弃用。恢复/适配后改回 true 即可。
+const ENABLE_EXAM_IMPORT = false
 
 function computeDaysUntil(datetimeStr: string): number {
   const target = new Date(datetimeStr)
@@ -266,10 +270,12 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
           <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
-            <ClipboardPaste className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">从剪贴板导入</span>
-          </Button>
+          {ENABLE_EXAM_IMPORT && (
+            <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
+              <ClipboardPaste className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">从剪贴板导入</span>
+            </Button>
+          )}
           <Button size="sm" onClick={openCreateForm} className="px-2.5 sm:px-3">
             <Plus className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">添加考试</span>
@@ -421,65 +427,66 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
         </div>
       </Modal>
 
-      {/* 导入模态 */}
-      <Modal
-        open={showImport}
-        onOpenChange={(open) => {
-          setShowImport(open)
-          if (!open) {
-            setImportError(null)
-            setImportFeedback(null)
-          }
-        }}
-        title="从剪贴板导入考试"
-        description="从教务系统网页复制考试安排表格后粘贴或读取剪贴板"
-        className="max-w-2xl"
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              考试文本 <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="从教务系统复制考试安排表格后粘贴到这里。"
-              rows={8}
-              className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
-            />
-          </div>
-          <div className="space-y-3">
+      {ENABLE_EXAM_IMPORT && (
+        <Modal
+          open={showImport}
+          onOpenChange={(open) => {
+            setShowImport(open)
+            if (!open) {
+              setImportError(null)
+              setImportFeedback(null)
+            }
+          }}
+          title="从剪贴板导入考试"
+          description="从教务系统网页复制考试安排表格后粘贴或读取剪贴板"
+          className="max-w-2xl"
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
-              <input
-                type="text"
-                value={importSemester}
-                onChange={(e) => setImportSemester(e.target.value)}
-                placeholder="如：2026S1"
-                className={FIELD_CLASS}
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                考试文本 <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="从教务系统复制考试安排表格后粘贴到这里。"
+                rows={8}
+                className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
               />
             </div>
-            <div className="rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground space-y-1">
-              <p>解析与去重在后端完成。</p>
-              <p>重复考试会被自动跳过。</p>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">学期</label>
+                <input
+                  type="text"
+                  value={importSemester}
+                  onChange={(e) => setImportSemester(e.target.value)}
+                  placeholder="如：2026S1"
+                  className={FIELD_CLASS}
+                />
+              </div>
+              <div className="rounded-md border border-border/60 bg-background/60 p-3 text-xs text-muted-foreground space-y-1">
+                <p>解析与去重在后端完成。</p>
+                <p>重复考试会被自动跳过。</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {importError && <p className="mt-3 text-sm text-destructive">{importError}</p>}
-        {importFeedback && <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>}
+          {importError && <p className="mt-3 text-sm text-destructive">{importError}</p>}
+          {importFeedback && <p className="mt-3 text-sm text-muted-foreground">{importFeedback.message}</p>}
 
-        <div className="mt-4 flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => void handleReadClipboard()}>
-            <ClipboardPaste className="mr-1 h-3.5 w-3.5" />
-            读取剪贴板
-          </Button>
-          <Button type="button" size="sm" disabled={importing || !importText.trim()} onClick={() => void handleImport()}>
-            <Upload className="mr-1 h-3.5 w-3.5" />
-            {importing ? "导入中..." : "开始导入"}
-          </Button>
-        </div>
-      </Modal>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => void handleReadClipboard()}>
+              <ClipboardPaste className="mr-1 h-3.5 w-3.5" />
+              读取剪贴板
+            </Button>
+            <Button type="button" size="sm" disabled={importing || !importText.trim()} onClick={() => void handleImport()}>
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {importing ? "导入中..." : "开始导入"}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -509,7 +516,7 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{exam.course_name}</span>
-            {exam.semester && <span className="shrink-0 text-[10px] text-muted-foreground/50">{exam.semester}</span>}
+            {exam.semester && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatSemester(exam.semester)}</span>}
           </div>
 
           <div className="mt-1 flex items-center gap-3">

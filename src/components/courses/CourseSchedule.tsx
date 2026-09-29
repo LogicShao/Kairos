@@ -16,6 +16,7 @@ import { AcrylicPanel } from "@/components/shared/acrylic-panel"
 import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
+import { formatSemester } from "@/lib/semester"
 import {
   Plus,
   Pencil,
@@ -41,6 +42,9 @@ import { WeekGrid } from "./WeekGrid"
 import { CourseFormModal } from "./CourseFormModal"
 import { ImportModal } from "./ImportModal"
 import { CourseDetailModal } from "./CourseDetailModal"
+
+// 导入入口暂时隐藏：现有解析器面向本科教务 TSV，与研究生系统不兼容；该功能后续可能弃用。恢复/适配后改回 true 即可。
+const ENABLE_COURSE_IMPORT = false
 
 const PHASE_LABELS: Record<WeekScheduleResponse["phase_type"], string> = {
   unknown: "未识别阶段",
@@ -482,16 +486,18 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
           </Button>
           {showOverflowMenu && (
             <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-lg border border-border bg-card p-2 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top-right">
-              <button
-                type="button"
-                onClick={() => {
-                  openImportPanel()
-                  setShowOverflowMenu(false)
-                }}
-                className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
-              >
-                导入课表
-              </button>
+              {ENABLE_COURSE_IMPORT && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openImportPanel()
+                    setShowOverflowMenu(false)
+                  }}
+                  className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
+                >
+                  导入课表
+                </button>
+              )}
 
               <button
                 type="button"
@@ -699,8 +705,8 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                           </span>
                         )}
                         {course.semester && (
-                          <span className="text-[10px] text-muted-foreground/50">
-                            {course.semester}
+                          <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                            {formatSemester(course.semester)}
                           </span>
                         )}
                       </div>
@@ -779,28 +785,29 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
         onSave={handleSave}
       />
 
-      {/* ─── Import Modal ─── */}
-      <ImportModal
-        open={showImport}
-        onOpenChange={(open) => {
-          setShowImport(open)
-          if (!open) {
-            setImportError(null)
-            setImportFeedback(null)
-          }
-        }}
-        importText={importText}
-        setImportText={setImportText}
-        importSemester={importSemester}
-        setImportSemester={setImportSemester}
-        importStartDate={importStartDate}
-        setImportStartDate={setImportStartDate}
-        importing={importing}
-        importError={importError}
-        importFeedback={importFeedback}
-        onReadClipboard={handleReadClipboard}
-        onImport={handleImport}
-      />
+      {ENABLE_COURSE_IMPORT && (
+        <ImportModal
+          open={showImport}
+          onOpenChange={(open) => {
+            setShowImport(open)
+            if (!open) {
+              setImportError(null)
+              setImportFeedback(null)
+            }
+          }}
+          importText={importText}
+          setImportText={setImportText}
+          importSemester={importSemester}
+          setImportSemester={setImportSemester}
+          importStartDate={importStartDate}
+          setImportStartDate={setImportStartDate}
+          importing={importing}
+          importError={importError}
+          importFeedback={importFeedback}
+          onReadClipboard={handleReadClipboard}
+          onImport={handleImport}
+        />
+      )}
 
       {/* ─── Reset Semester Start Date Modal ─── */}
       <Modal
