@@ -33,6 +33,7 @@ services:
       context: ./server
       args:
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+    image: kairos-api:${APP_VERSION:-dev}
     container_name: kairos-api
     restart: unless-stopped
     mem_limit: 128m
@@ -58,6 +59,7 @@ services:
       dockerfile: deploy/Dockerfile.web
       args:
         NGINX_CONF: deploy/ali/nginx.conf
+    image: kairos-web:${APP_VERSION:-dev}
     container_name: kairos-web
     restart: unless-stopped
     mem_limit: 64m

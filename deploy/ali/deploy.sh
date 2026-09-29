@@ -30,6 +30,12 @@ fi
 
 compose() { "${DOCKER[@]}" compose -f "$COMPOSE_FILE" "$@"; }
 
+app_version() {
+	local v
+	v="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json 2>/dev/null | head -n1)"
+	printf '%s' "${v:-unknown}"
+}
+
 [[ -f "$COMPOSE_FILE" ]] || fail "缺少 $COMPOSE_FILE"
 [[ -f "$ENV_FILE" ]] || fail "缺少 $ENV_FILE：先 cp .env.example .env 并填写"
 
@@ -47,11 +53,12 @@ else
 	log "非 git 工作区（rsync 直传模式），跳过版本检查与拉取"
 fi
 
+export APP_VERSION="$(app_version)"
 export GOPROXY
 log "校验 compose 配置"
 compose config >/dev/null
 
-log "构建并启动容器"
+log "构建并启动容器（${APP_NAME} v${APP_VERSION}）"
 compose up -d --build --remove-orphans
 
 log "等待健康检查 $HEALTH_URL"
@@ -74,5 +81,5 @@ if [ "$ok" != "1" ]; then
 	fail "健康检查失败"
 fi
 
-log "$APP_NAME 部署完成（本地入口 http://127.0.0.1:${WEB_PORT}）"
-log "下一步：在 1Panel 建站并反代到 http://127.0.0.1:${WEB_PORT}"
+log "${APP_NAME} v${APP_VERSION} 部署完成（本地入口 http://127.0.0.1:${WEB_PORT}）"
+log "健康检查通过：web=$web_code / api=$api_code（$HEALTH_URL）"
