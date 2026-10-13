@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,7 +31,7 @@ func (a *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Username != a.Username || !checkPassword(req.Password, a.PasswordHash) {
+	if !usernameMatches(req.Username, a.Username) || !checkPassword(req.Password, a.PasswordHash) {
 		writeError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
@@ -67,6 +68,10 @@ func (a *Auth) Logout(w http.ResponseWriter, _ *http.Request) {
 func (a *Auth) Me(w http.ResponseWriter, r *http.Request) {
 	username := middleware.UsernameFrom(r.Context())
 	writeJSON(w, http.StatusOK, dto.MeResponse{Username: username})
+}
+
+func usernameMatches(got, want string) bool {
+	return strings.EqualFold(strings.TrimSpace(got), want)
 }
 
 func checkPassword(plain, hash string) bool {

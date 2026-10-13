@@ -70,6 +70,9 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
                 id="login-username"
                 type="text"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 autoFocus
                 required
                 value={username}
@@ -93,6 +96,9 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
                 id="login-password"
                 type="password"
                 autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

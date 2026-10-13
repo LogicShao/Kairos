@@ -90,6 +90,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
 
+  if (res.status === 401 && path === "/api/auth/login") {
+    throw new Error("用户名或密码错误")
+  }
   if (res.status === 401) {
     clearToken()
     window.dispatchEvent(new Event("kairos:unauthorized"))

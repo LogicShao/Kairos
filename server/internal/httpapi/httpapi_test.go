@@ -100,6 +100,24 @@ func TestLoginWrongUsername(t *testing.T) {
 	}
 }
 
+func TestLoginUsernameCaseInsensitive(t *testing.T) {
+	h := testHandler(t)
+	rec := doJSON(t, h, http.MethodPost, "/api/auth/login",
+		dto.LoginRequest{Username: "KAIROS", Password: "correct-horse"}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestLoginUsernameTrimmed(t *testing.T) {
+	h := testHandler(t)
+	rec := doJSON(t, h, http.MethodPost, "/api/auth/login",
+		dto.LoginRequest{Username: "  kairos  ", Password: "correct-horse"}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestMeWithValidToken(t *testing.T) {
 	h := testHandler(t)
 	login := doJSON(t, h, http.MethodPost, "/api/auth/login",
