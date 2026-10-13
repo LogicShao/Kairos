@@ -64,11 +64,12 @@ type Exam struct {
 }
 
 type NotificationConfig struct {
-	ID          int64
-	Enabled     bool
-	ExamOffsets []byte
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
+	ID            int64
+	Enabled       bool
+	ExamOffsets   []byte
+	CourseOffsets []byte
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
 }
 
 type PomodoroConfig struct {

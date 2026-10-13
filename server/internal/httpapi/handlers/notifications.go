@@ -15,6 +15,7 @@ import (
 type NotifyRecomputer interface {
 	RecomputeExams(ctx context.Context)
 	RecomputeTasks(ctx context.Context)
+	RecomputeCourses(ctx context.Context)
 	RecomputeAI(ctx context.Context)
 }
 
@@ -70,11 +71,20 @@ func (h *Notify) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		offsets = []byte(*req.ExamOffsetsJSON)
 	}
+	courseOffsets := cur.CourseOffsets
+	if req.CourseOffsetsJSON != nil {
+		if !validOffsets(*req.CourseOffsetsJSON) {
+			writeError(w, http.StatusBadRequest, "course_offsets_json 必须是正整数组成的 JSON 数组")
+			return
+		}
+		courseOffsets = []byte(*req.CourseOffsetsJSON)
+	}
 
 	// android_channel_created 仅用于前端类型兼容，不入库。
 	if err := h.Q.UpdateNotificationConfig(ctx, store.UpdateNotificationConfigParams{
-		Enabled:     enabled,
-		ExamOffsets: offsets,
+		Enabled:       enabled,
+		ExamOffsets:   offsets,
+		CourseOffsets: courseOffsets,
 	}); err != nil {
 		h.Log.Error("update notification config", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
@@ -86,13 +96,18 @@ func (h *Notify) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	if h.Scheduler != nil && (req.Enabled != nil || req.ExamOffsetsJSON != nil) {
+	if h.Scheduler != nil && (req.Enabled != nil || req.ExamOffsetsJSON != nil || req.CourseOffsetsJSON != nil) {
 		h.Scheduler.RecomputeExams(ctx)
+		h.Scheduler.RecomputeCourses(ctx)
 	}
 	writeJSON(w, http.StatusOK, dto.FromNotificationConfig(updated))
 }
 
 func validExamOffsets(raw string) bool {
+	return validOffsets(raw)
+}
+
+func validOffsets(raw string) bool {
 	var offsets []int
 	if err := json.Unmarshal([]byte(raw), &offsets); err != nil {
 		return false

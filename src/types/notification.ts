@@ -5,6 +5,8 @@ export interface NotificationConfig {
   enabled: boolean
   /** 考试提醒偏移量（JSON 数组，单位分钟），例如 [1440,60] 表示提前 1 天和提前 1 小时。 */
   exam_offsets_json: string
+  /** 课程提醒偏移量（JSON 数组，单位分钟），例如 [10] 表示提前 10 分钟。 */
+  course_offsets_json: string
   /** Android 通知渠道是否已创建（幂等保护）。 */
   android_channel_created: boolean
   /** UTC ISO 8601 创建时间。 */
@@ -17,6 +19,7 @@ export interface NotificationConfig {
 export interface UpdateNotificationConfig {
   enabled?: boolean
   exam_offsets_json?: string
+  course_offsets_json?: string
   android_channel_created?: boolean
 }
 

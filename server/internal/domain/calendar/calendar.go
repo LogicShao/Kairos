@@ -11,6 +11,7 @@ package calendar
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -115,6 +116,7 @@ func segmentMatches(segment string, weekIndex int64) bool {
 	rangePart = strings.TrimPrefix(rangePart, "第")
 
 	var start, end int64
+	var bare string
 	if dash := strings.Index(rangePart, "-"); dash >= 0 {
 		s, err1 := parseInt64(rangePart[:dash])
 		e, err2 := parseInt64(rangePart[dash+1:])
@@ -124,12 +126,21 @@ func segmentMatches(segment string, weekIndex int64) bool {
 		start, end = s, e
 	} else if single, err := parseInt64(rangePart); err == nil {
 		start, end = single, single
+	} else if rangePart == "单" || rangePart == "双" || rangePart == "全" {
+		bare = rangePart
+		start, end = 1, math.MaxInt64
 	} else {
 		return false
 	}
 
 	if weekIndex < start || weekIndex > end {
 		return false
+	}
+	if bare == "单" {
+		return weekIndex%2 == 1
+	}
+	if bare == "双" {
+		return weekIndex%2 == 0
 	}
 	if strings.Contains(tail, "单") {
 		return weekIndex%2 == 1

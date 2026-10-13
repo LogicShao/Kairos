@@ -8,5 +8,5 @@ export function getCalendarWeek(cmd: CalendarWeekCmd): Promise<CalendarWeekRespo
     semester_start_date: cmd.semester_start_date,
     week_start_date: cmd.week_start_date,
   })
-  return apiFetch<CalendarWeekResponse>(`/api/calendar/week${query}`)
+  return apiFetch<CalendarWeekResponse>(`/api/calendar/week-events${query}`)
 }

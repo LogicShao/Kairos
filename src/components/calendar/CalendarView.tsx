@@ -1,6 +1,10 @@
 import type { CSSProperties } from "react"
 import { useEffect, useState } from "react"
-import type { CalendarEvent, CalendarWeekCmd, CalendarWeekResponse } from "@/types/schedule"
+import type {
+  CalendarEvent,
+  CalendarWeekCmd,
+  CalendarWeekResponse,
+} from "@/types/schedule"
 import { getCalendarWeek } from "@/lib/api/calendar"
 import { cn } from "@/lib/utils"
 import {

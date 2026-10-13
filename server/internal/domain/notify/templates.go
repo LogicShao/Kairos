@@ -36,6 +36,15 @@ func ExamEmail(courseName string, offsetMinutes int) (string, string) {
 	return courseName, body
 }
 
+// CourseEmail builds the pre-class reminder subject (the course name) and body.
+func CourseEmail(courseName, location string, offsetMinutes int) (string, string) {
+	body := fmt.Sprintf("课程「%s」将在 %s 后开始", courseName, OffsetDescription(offsetMinutes))
+	if location != "" {
+		body += fmt.Sprintf("（地点：%s）", location)
+	}
+	return courseName, body
+}
+
 // DailyTaskEmail builds the recurring daily-task reminder subject and body.
 func DailyTaskEmail(title string) (string, string) {
 	return "每日任务提醒", fmt.Sprintf("「%s」—— 别忘了今天完成", title)

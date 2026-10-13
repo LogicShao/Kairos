@@ -5,11 +5,13 @@ import (
 )
 
 // NotificationConfig mirrors the frontend src/types/notification.ts. The
-// exam_offsets_json field carries the DB jsonb bytes as a JSON array string.
+// exam_offsets_json and course_offsets_json fields carry the DB jsonb bytes
+// as JSON array strings.
 type NotificationConfig struct {
 	ID                    int64  `json:"id"`
 	Enabled               bool   `json:"enabled"`
 	ExamOffsetsJSON       string `json:"exam_offsets_json"`
+	CourseOffsetsJSON     string `json:"course_offsets_json"`
 	AndroidChannelCreated bool   `json:"android_channel_created"`
 	CreatedAt             string `json:"created_at"`
 	UpdatedAt             string `json:"updated_at"`
@@ -20,6 +22,7 @@ type NotificationConfig struct {
 type UpdateNotificationConfigRequest struct {
 	Enabled               *bool   `json:"enabled"`
 	ExamOffsetsJSON       *string `json:"exam_offsets_json"`
+	CourseOffsetsJSON     *string `json:"course_offsets_json"`
 	AndroidChannelCreated *bool   `json:"android_channel_created"`
 }
 
@@ -31,6 +34,7 @@ func FromNotificationConfig(c store.NotificationConfig) NotificationConfig {
 		ID:                    c.ID,
 		Enabled:               c.Enabled,
 		ExamOffsetsJSON:       string(c.ExamOffsets),
+		CourseOffsetsJSON:     string(c.CourseOffsets),
 		AndroidChannelCreated: false,
 		CreatedAt:             store.TSString(c.CreatedAt),
 		UpdatedAt:             store.TSString(c.UpdatedAt),

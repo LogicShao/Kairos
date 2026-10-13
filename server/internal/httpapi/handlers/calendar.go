@@ -74,6 +74,68 @@ func (h *Calendar) Week(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dto.FromWeekScheduleResponse(resp))
 }
 
+// WeekEvents handles GET /api/calendar/week-events?semester=&week_start_date=&week_index=.
+// It mirrors the Week schedule query but aggregates courses, exams and tasks
+// into calendar events (including todos) for the integrated calendar view.
+func (h *Calendar) WeekEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	semester := strings.TrimSpace(q.Get("semester"))
+	weekIndex, err := strconv.ParseInt(q.Get("week_index"), 10, 64)
+	if err != nil || weekIndex < 1 {
+		writeError(w, http.StatusBadRequest, "week_index must be >= 1")
+		return
+	}
+	var requestedStart *string
+	if v := strings.TrimSpace(q.Get("semester_start_date")); v != "" {
+		requestedStart = &v
+	}
+	var requestedWeekStart *string
+	if v := strings.TrimSpace(q.Get("week_start_date")); v != "" {
+		requestedWeekStart = &v
+	}
+
+	courses, err := h.Q.ListCourses(r.Context(), semesterFilter(semester))
+	if err != nil {
+		h.Log.Error("list courses for calendar week", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	exams, err := h.Q.ListExams(r.Context())
+	if err != nil {
+		h.Log.Error("list exams for calendar week", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	tasks, err := h.Q.ListTasks(r.Context(), store.ListTasksParams{})
+	if err != nil {
+		h.Log.Error("list tasks for calendar week", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	resolvedStart, err := effectiveSemesterStartDate(r.Context(), h.Q, semester, requestedStart)
+	if err != nil {
+		h.Log.Error("resolve semester start date", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	phaseStatus, err := termphase.GetPhaseStatusForTermWeek(r.Context(), h.Q, termphase.DefaultSource, semester, weekIndex)
+	if err != nil {
+		h.Log.Error("get phase status for term week", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	resp, err := calendar.BuildCalendarWeek(
+		courses, exams, tasks, semester, weekIndex, resolvedStart, requestedWeekStart,
+		phaseStatus.PhaseType, phaseStatus.CoursesVisible,
+	)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.FromCalendarWeekResponse(resp))
+}
+
 // Day handles GET /api/calendar/day?date=&semester=.
 func (h *Calendar) Day(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()

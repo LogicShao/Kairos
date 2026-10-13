@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"kairos/server/internal/domain/termphase"
 	"kairos/server/internal/store"
 )
 
@@ -226,6 +227,136 @@ func TestParseExamOffsets(t *testing.T) {
 		if _, err := parseExamOffsets([]byte(raw)); err == nil {
 			t.Errorf("parseExamOffsets(%q) = nil error, want error", raw)
 		}
+	}
+}
+
+func TestParseCourseOffsets(t *testing.T) {
+	offsets, err := parseCourseOffsets([]byte("[10,30]"))
+	if err != nil {
+		t.Fatalf("valid offsets error: %v", err)
+	}
+	if len(offsets) != 2 || offsets[0] != 10 || offsets[1] != 30 {
+		t.Fatalf("offsets = %v, want [10 30]", offsets)
+	}
+	for _, raw := range []string{"", "   ", "not-json", "null"} {
+		if _, err := parseCourseOffsets([]byte(raw)); err == nil {
+			t.Errorf("parseCourseOffsets(%q) = nil error, want error", raw)
+		}
+	}
+}
+
+func sampleCourse(dayOfWeek int32, startClock, semesterStart string) store.Course {
+	start := pgtype.Time{}
+	hour := int32(startClock[0]-'0')*10 + int32(startClock[1]-'0')
+	minute := int32(startClock[3]-'0')*10 + int32(startClock[4]-'0')
+	start.Microseconds = int64(hour*3600+minute*60) * 1000000
+	start.Valid = true
+	return store.Course{
+		ID:                1,
+		Name:              "高等数学",
+		DayOfWeek:         dayOfWeek,
+		StartTime:         start,
+		WeekPattern:       "",
+		Semester:          "2025-2026-2",
+		SemesterStartDate: pgtype.Date{Time: parseTestDate(semesterStart), Valid: true},
+	}
+}
+
+func parseTestDate(s string) time.Time {
+	t, err := time.ParseInLocation("2006-01-02", s, chinaTZ())
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func TestNextCourseStartSameWeek(t *testing.T) {
+	s := &Scheduler{}
+	course := sampleCourse(3, "08:00", "2026-03-02") // 周一开学，周三上课
+	now := cst(2026, time.March, 2, 9, 0, 0)          // 周一上午
+
+	start, ok := s.nextCourseStart(course, nil, now, nil)
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if want := cst(2026, time.March, 4, 8, 0, 0); !start.Equal(want) {
+		t.Errorf("start = %v, want %v", start, want)
+	}
+}
+
+func TestNextCourseStartSkipsPastClassToday(t *testing.T) {
+	s := &Scheduler{}
+	course := sampleCourse(3, "08:00", "2026-03-02")
+	now := cst(2026, time.March, 4, 9, 0, 0) // 周三，今天的课已过
+
+	start, ok := s.nextCourseStart(course, nil, now, nil)
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if want := cst(2026, time.March, 11, 8, 0, 0); !start.Equal(want) {
+		t.Errorf("start = %v, want next Wednesday %v", start, want)
+	}
+}
+
+func TestNextCourseStartOddWeekPattern(t *testing.T) {
+	s := &Scheduler{}
+	course := sampleCourse(3, "08:00", "2026-03-02")
+	course.WeekPattern = "单周"
+	// 2026-03-04 是第 1 周（单周），应该命中
+	now := cst(2026, time.March, 2, 9, 0, 0)
+	start, ok := s.nextCourseStart(course, nil, now, nil)
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if want := cst(2026, time.March, 4, 8, 0, 0); !start.Equal(want) {
+		t.Errorf("odd week start = %v, want %v", start, want)
+	}
+
+	// 2026-03-09 是第 2 周（双周），单周模式应跳过本周，指向 3/18（第 3 周周三）
+	now = cst(2026, time.March, 9, 9, 0, 0)
+	start, ok = s.nextCourseStart(course, nil, now, nil)
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if want := cst(2026, time.March, 18, 8, 0, 0); !start.Equal(want) {
+		t.Errorf("after even week start = %v, want %v", start, want)
+	}
+}
+
+func TestNextCourseStartSemesterContextTakesPrecedence(t *testing.T) {
+	s := &Scheduler{}
+	course := sampleCourse(3, "08:00", "2026-03-02")
+	// semester_context 的锚点晚一周：2026-03-09，第 1 周从 3/9 起
+	contexts := []store.SemesterContext{
+		{Source: termphase.DefaultSource, TermLabel: "2025-2026-2", StartDate: pgtype.Date{Time: parseTestDate("2026-03-09"), Valid: true}},
+	}
+	now := cst(2026, time.March, 9, 9, 0, 0)
+
+	start, ok := s.nextCourseStart(course, contexts, now, nil)
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if want := cst(2026, time.March, 11, 8, 0, 0); !start.Equal(want) {
+		t.Errorf("start = %v, want %v", start, want)
+	}
+}
+
+func TestNextCourseStartPhaseGate(t *testing.T) {
+	s := &Scheduler{}
+	course := sampleCourse(3, "08:00", "2026-03-02")
+	now := cst(2026, time.March, 2, 9, 0, 0)
+
+	blocked, _ := s.nextCourseStart(course, nil, now, func(int64) bool { return false })
+	if blocked != (time.Time{}) {
+		t.Error("phaseOK=false should block all course days")
+	}
+
+	allowed, ok := s.nextCourseStart(course, nil, now, func(int64) bool { return true })
+	if !ok {
+		t.Fatal("phaseOK=true should allow, ok=false")
+	}
+	if want := cst(2026, time.March, 4, 8, 0, 0); !allowed.Equal(want) {
+		t.Errorf("start = %v, want %v", allowed, want)
 	}
 }
 

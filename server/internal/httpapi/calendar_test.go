@@ -57,6 +57,52 @@ func TestCalendarWeekRejectsInvalidWeekIndex(t *testing.T) {
 	}
 }
 
+func TestCalendarWeekEventsAggregatesCourseAndTask(t *testing.T) {
+	h, token := newCoreTestRouter(t)
+
+	rec := doJSON(t, h, http.MethodPost, "/api/courses", dto.CreateCourseRequest{
+		Name: "自动控制原理", DayOfWeek: 3, StartTime: "10:00", EndTime: "11:40",
+		WeekPattern: strPtr("1-16周单周"), SemesterStartDate: strPtr("2026-02-24"),
+		Semester: strPtr("2026S1"),
+	}, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create course status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, h, http.MethodPost, "/api/tasks", dto.CreateTaskRequest{
+		Title: "提交作业", DueDate: strPtr("2026-02-24"),
+	}, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create task status = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, h, http.MethodGet,
+		"/api/calendar/week-events?semester=2026S1&week_index=1&semester_start_date=2026-02-24&week_start_date=2026-02-23", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("week-events status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var resp dto.CalendarWeekResponse
+	decodeBody(t, rec, &resp)
+	if resp.WeekStartDate != "2026-02-23" {
+		t.Fatalf("week_start_date = %q, want 2026-02-23", resp.WeekStartDate)
+	}
+	var courseCount, taskCount int
+	for _, e := range resp.Events {
+		switch e.Kind {
+		case "course":
+			courseCount++
+		case "task":
+			taskCount++
+		}
+	}
+	if courseCount != 1 {
+		t.Fatalf("course events = %d, want 1; events=%+v", courseCount, resp.Events)
+	}
+	if taskCount != 1 {
+		t.Fatalf("task events = %d, want 1; events=%+v", taskCount, resp.Events)
+	}
+}
+
 func TestCalendarDayIncludesDueTask(t *testing.T) {
 	h, token := newCoreTestRouter(t)
 

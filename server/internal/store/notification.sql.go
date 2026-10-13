@@ -10,7 +10,7 @@ import (
 )
 
 const getNotificationConfig = `-- name: GetNotificationConfig :one
-SELECT id, enabled, exam_offsets, created_at, updated_at FROM notification_config
+SELECT id, enabled, exam_offsets, course_offsets, created_at, updated_at FROM notification_config
 WHERE id = 1
 `
 
@@ -21,6 +21,7 @@ func (q *Queries) GetNotificationConfig(ctx context.Context) (NotificationConfig
 		&i.ID,
 		&i.Enabled,
 		&i.ExamOffsets,
+		&i.CourseOffsets,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -31,16 +32,18 @@ const updateNotificationConfig = `-- name: UpdateNotificationConfig :exec
 UPDATE notification_config
 SET enabled = $1,
     exam_offsets = $2,
+    course_offsets = $3,
     updated_at = now()
 WHERE id = 1
 `
 
 type UpdateNotificationConfigParams struct {
-	Enabled     bool
-	ExamOffsets []byte
+	Enabled       bool
+	ExamOffsets   []byte
+	CourseOffsets []byte
 }
 
 func (q *Queries) UpdateNotificationConfig(ctx context.Context, arg UpdateNotificationConfigParams) error {
-	_, err := q.db.Exec(ctx, updateNotificationConfig, arg.Enabled, arg.ExamOffsets)
+	_, err := q.db.Exec(ctx, updateNotificationConfig, arg.Enabled, arg.ExamOffsets, arg.CourseOffsets)
 	return err
 }

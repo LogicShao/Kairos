@@ -56,8 +56,8 @@ func TestUpCreatesAllTablesAndSeeds(t *testing.T) {
 	if err := conn.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrationCount != 6 {
-		t.Fatalf("expected 6 migration records, got %d", migrationCount)
+	if migrationCount != 7 {
+		t.Fatalf("expected 7 migration records, got %d", migrationCount)
 	}
 
 	var profiles int
@@ -110,8 +110,8 @@ func TestUpIsIdempotent(t *testing.T) {
 	if err := conn.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrationCount != 6 {
-		t.Fatalf("expected 6 migration records after second run, got %d", migrationCount)
+	if migrationCount != 7 {
+		t.Fatalf("expected 7 migration records after second run, got %d", migrationCount)
 	}
 
 	var profiles int

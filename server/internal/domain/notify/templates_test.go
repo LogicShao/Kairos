@@ -45,6 +45,21 @@ func TestExamEmail(t *testing.T) {
 	}
 }
 
+func TestCourseEmail(t *testing.T) {
+	subject, body := CourseEmail("线性代数", "秦岭堂A114", 10)
+	if subject != "线性代数" {
+		t.Errorf("subject = %q, want 线性代数", subject)
+	}
+	if want := "课程「线性代数」将在 10分钟 后开始（地点：秦岭堂A114）"; body != want {
+		t.Errorf("body = %q, want %q", body, want)
+	}
+
+	_, bodyNoLocation := CourseEmail("线性代数", "", 10)
+	if want := "课程「线性代数」将在 10分钟 后开始"; bodyNoLocation != want {
+		t.Errorf("body without location = %q, want %q", bodyNoLocation, want)
+	}
+}
+
 func TestDailyTaskEmail(t *testing.T) {
 	subject, body := DailyTaskEmail("背单词")
 	if subject != "每日任务提醒" {

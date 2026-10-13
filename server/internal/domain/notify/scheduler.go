@@ -4,30 +4,37 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"kairos/server/internal/domain/calendar"
 	"kairos/server/internal/domain/pomodoro"
 	"kairos/server/internal/domain/termphase"
 	"kairos/server/internal/store"
 )
 
-var errEmptyOffsets = errors.New("exam_offsets 为空")
-
 const (
-	categoryExams = "exams"
-	categoryTasks = "tasks"
-	categoryAI    = "ai"
+	categoryExams   = "exams"
+	categoryTasks   = "tasks"
+	categoryCourses = "courses"
+	categoryAI      = "ai"
 
 	taskRetryInterval = time.Hour
 	oneshotGrace      = time.Minute
 )
 
 var defaultExamOffsets = []int{1440, 60}
+
+var defaultCourseOffsets = []int{30}
+
+// courseScanDays bounds the day-by-day search for the next course occurrence.
+// A semester spans at most ~20 weeks, so 140 days always covers one full pass.
+const courseScanDays = 140
 
 // BriefGenerator is the subset of ai.Generator the scheduler needs. The
 // integration layer passes *ai.Generator; the interface keeps this domain free
@@ -92,6 +99,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	s.clearExpiredRemindAts(ctx)
 	s.RecomputeExams(ctx)
 	s.RecomputeTasks(ctx)
+	s.RecomputeCourses(ctx)
 	s.RecomputeAI(ctx)
 }
 
@@ -133,6 +141,154 @@ func (s *Scheduler) RecomputeTasks(ctx context.Context) {
 			s.RecomputeTasks(baseCtx)
 		}),
 	}})
+}
+
+// RecomputeCourses cancels the course timers and re-arms them for the next
+// upcoming class occurrence of every active course. A fired timer sends the
+// reminder email and re-plans so the following week's class is covered.
+func (s *Scheduler) RecomputeCourses(ctx context.Context) {
+	s.register(categoryCourses, s.planCourseTimers(ctx))
+}
+
+func (s *Scheduler) planCourseTimers(ctx context.Context) []scheduled {
+	cfg, err := s.q.GetNotificationConfig(ctx)
+	if err != nil {
+		s.logger().Warn("读取通知配置失败，跳过课程提醒调度", "error", err)
+		return nil
+	}
+	if !cfg.Enabled {
+		s.logger().Debug("通知已禁用，取消课程提醒")
+		return nil
+	}
+
+	offsets, err := parseCourseOffsets(cfg.CourseOffsets)
+	if err != nil {
+		s.logger().Warn("course_offsets 解析失败，回退默认 [30]", "error", err, "raw", string(cfg.CourseOffsets))
+		offsets = append([]int(nil), defaultCourseOffsets...)
+	}
+	if len(offsets) == 0 {
+		return nil
+	}
+
+	courses, err := s.q.ListCourses(ctx, pgtype.Text{})
+	if err != nil {
+		s.logger().Warn("读取课程列表失败，跳过课程提醒调度", "error", err)
+		return nil
+	}
+	contexts, err := s.q.ListSemesterContexts(ctx)
+	if err != nil {
+		s.logger().Warn("读取学期上下文失败，跳过课程提醒调度", "error", err)
+		return nil
+	}
+
+	now := s.now()
+	baseCtx := s.baseCtx()
+	var items []scheduled
+	for _, course := range courses {
+		start, ok := s.nextCourseStart(course, contexts, now, func(weekIndex int64) bool {
+			status, err := termphase.GetPhaseStatusForTermWeek(s.ctx, s.q, termphase.DefaultSource, course.Semester, weekIndex)
+			if err != nil {
+				s.logger().Warn("读取学期阶段失败，跳过该课程", "course", course.Name, "error", err)
+				return false
+			}
+			return status.CoursesVisible
+		})
+		if !ok {
+			continue
+		}
+		for _, offset := range offsets {
+			fire := start.Add(-time.Duration(offset) * time.Minute)
+			if !fire.After(now) {
+				continue
+			}
+			courseName := course.Name
+			location := course.Location
+			items = append(items, scheduled{
+				fire: fire,
+				fn: s.wrapped(baseCtx, func() {
+					subject, body := CourseEmail(courseName, location, offset)
+					s.sendSync(baseCtx, Message{Subject: subject, Body: body})
+					s.RecomputeCourses(baseCtx)
+				}),
+			})
+		}
+	}
+	return items
+}
+
+// nextCourseStart finds the next class start time of a course after now,
+// scanning day by day. The semester-context start date (source=manual) takes
+// precedence over the course's own semester_start_date, matching the calendar
+// briefing logic. A day counts only when the ISO weekday matches and the week
+// pattern matches the teaching week index; the term-phase visibility check is
+// delegated to the caller via phaseOK so tests can run without a database.
+func (s *Scheduler) nextCourseStart(course store.Course, contexts []store.SemesterContext, now time.Time, phaseOK func(weekIndex int64) bool) (time.Time, bool) {
+	weekday := int64(course.DayOfWeek)
+	startDates := semesterContextStartDates(contexts)
+	day := now.AddDate(0, 0, 1)
+	for range courseScanDays {
+		if isoWeekday(day) != weekday {
+			day = day.AddDate(0, 0, 1)
+			continue
+		}
+		weekIndex, err := courseWeekIndex(course, startDates, day)
+		if err != nil || weekIndex < 1 {
+			day = day.AddDate(0, 0, 1)
+			continue
+		}
+		if !calendar.MatchesWeekPattern(course.WeekPattern, weekIndex) {
+			day = day.AddDate(0, 0, 1)
+			continue
+		}
+		if phaseOK != nil && !phaseOK(weekIndex) {
+			day = day.AddDate(0, 0, 1)
+			continue
+		}
+		start, err := courseClockOnDate(course.StartTime, day)
+		if err != nil {
+			return time.Time{}, false
+		}
+		if start.After(now) {
+			return start, true
+		}
+		day = day.AddDate(0, 0, 1)
+	}
+	return time.Time{}, false
+}
+
+func semesterContextStartDates(contexts []store.SemesterContext) map[string]string {
+	out := map[string]string{}
+	for _, c := range contexts {
+		if c.Source != termphase.DefaultSource {
+			continue
+		}
+		if d := store.DateString(c.StartDate); strings.TrimSpace(d) != "" {
+			out[c.TermLabel] = strings.TrimSpace(d)
+		}
+	}
+	return out
+}
+
+func courseWeekIndex(c store.Course, startDates map[string]string, day time.Time) (int64, error) {
+	if startDate, ok := startDates[c.Semester]; ok {
+		if weekIndex, err := calendar.CurrentWeekIndexFromStart(startDate, day); err == nil {
+			return weekIndex, nil
+		}
+	}
+	return calendar.CurrentWeekIndexFromStart(store.DateString(c.SemesterStartDate), day)
+}
+
+func courseClockOnDate(t pgtype.Time, date time.Time) (time.Time, error) {
+	if !t.Valid {
+		return time.Time{}, fmt.Errorf("invalid clock")
+	}
+	hour := t.Microseconds / 3600e6
+	minute := (t.Microseconds % 3600e6) / 60e6
+	return time.Date(date.Year(), date.Month(), date.Day(), int(hour), int(minute), 0, 0, chinaTZ()), nil
+}
+
+func isoWeekday(t time.Time) int64 {
+	return int64((int(t.Weekday()) + 6) % 7 + 1)
 }
 
 // RecomputeAI cancels the AI timer and re-arms the next 07:00 (+08:00) run when
@@ -543,15 +699,23 @@ func reminderClock(clock pgtype.Time) (int, int, bool) {
 }
 
 func parseExamOffsets(raw []byte) ([]int, error) {
+	return parseOffsets(raw, "exam_offsets")
+}
+
+func parseCourseOffsets(raw []byte) ([]int, error) {
+	return parseOffsets(raw, "course_offsets")
+}
+
+func parseOffsets(raw []byte, name string) ([]int, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return nil, errEmptyOffsets
+		return nil, fmt.Errorf("%s 为空", name)
 	}
 	var offsets []int
 	if err := json.Unmarshal(raw, &offsets); err != nil {
 		return nil, err
 	}
 	if offsets == nil {
-		return nil, errEmptyOffsets
+		return nil, fmt.Errorf("%s 为空", name)
 	}
 	return offsets, nil
 }

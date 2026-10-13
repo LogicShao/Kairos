@@ -20,10 +20,11 @@ import (
 )
 
 type recordingRecomputer struct {
-	mu    sync.Mutex
-	exams int
-	tasks int
-	ai    int
+	mu      sync.Mutex
+	exams   int
+	tasks   int
+	courses int
+	ai      int
 }
 
 func (r *recordingRecomputer) RecomputeExams(context.Context) {
@@ -38,10 +39,22 @@ func (r *recordingRecomputer) RecomputeTasks(context.Context) {
 	r.tasks++
 }
 
+func (r *recordingRecomputer) RecomputeCourses(context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.courses++
+}
+
 func (r *recordingRecomputer) RecomputeAI(context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ai++
+}
+
+func (r *recordingRecomputer) courseCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.courses
 }
 
 func (r *recordingRecomputer) examCalls() int {

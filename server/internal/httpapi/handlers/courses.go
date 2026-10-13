@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -13,8 +14,9 @@ import (
 
 // Courses implements the /api/courses endpoints.
 type Courses struct {
-	Q   *store.Queries
-	Log *slog.Logger
+	Q         *store.Queries
+	Log       *slog.Logger
+	Scheduler NotifyRecomputer
 }
 
 // List handles GET /api/courses?semester=.
@@ -84,6 +86,7 @@ func (h *Courses) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	h.recomputeCourses(r.Context())
 	writeJSON(w, http.StatusCreated, dto.FromCourse(course))
 }
 
@@ -165,6 +168,7 @@ func (h *Courses) Update(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	h.recomputeCourses(r.Context())
 	writeJSON(w, http.StatusOK, dto.FromCourse(updated))
 }
 
@@ -178,6 +182,7 @@ func (h *Courses) Delete(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	h.recomputeCourses(r.Context())
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -198,6 +203,7 @@ func (h *Courses) ImportText(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	h.recomputeCourses(r.Context())
 	writeJSON(w, http.StatusOK, dto.ImportTextResult{
 		Parsed:   result.Parsed,
 		Imported: result.Imported,
@@ -228,7 +234,14 @@ func (h *Courses) ResetSemesterDates(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	h.recomputeCourses(r.Context())
 	writeJSON(w, http.StatusOK, dto.ResetSemesterDatesResponse{Updated: courseCount})
+}
+
+func (h *Courses) recomputeCourses(ctx context.Context) {
+	if h.Scheduler != nil {
+		h.Scheduler.RecomputeCourses(ctx)
+	}
 }
 
 func strOr(p *string, fallback string) string {

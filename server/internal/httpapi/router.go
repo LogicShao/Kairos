@@ -93,7 +93,7 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 		rt.Post("/{id}/uncomplete", tasks.Uncomplete)
 	})
 
-	courses := &handlers.Courses{Q: opts.Store, Log: opts.Log}
+	courses := &handlers.Courses{Q: opts.Store, Log: opts.Log, Scheduler: opts.NotifyScheduler}
 	protected.Route("/courses", func(rt chi.Router) {
 		rt.Get("/", courses.List)
 		rt.Post("/", courses.Create)
@@ -125,6 +125,7 @@ func registerCoreRoutes(protected chi.Router, opts Options) {
 	calendar := &handlers.Calendar{Q: opts.Store, Log: opts.Log}
 	protected.Route("/calendar", func(rt chi.Router) {
 		rt.Get("/week", calendar.Week)
+		rt.Get("/week-events", calendar.WeekEvents)
 		rt.Get("/day", calendar.Day)
 	})
 
