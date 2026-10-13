@@ -12,6 +12,7 @@ WEB_PORT="${KAIROS_WEB_PORT:-18081}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${WEB_PORT}/}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-2}"
+HEALTH_START_DELAY="${HEALTH_START_DELAY:-3}"
 
 log() { printf '[INFO] %s\n' "$*"; }
 fail() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
@@ -61,17 +62,30 @@ compose config >/dev/null
 log "构建并启动容器（${APP_NAME} v${APP_VERSION}）"
 compose up -d --build --remove-orphans
 
-log "等待健康检查 $HEALTH_URL"
+log "等待健康检查 $HEALTH_URL（${HEALTH_RETRIES} 次 × ${HEALTH_INTERVAL}s，首轮前等待 ${HEALTH_START_DELAY}s）"
 ok=0
+sleep "$HEALTH_START_DELAY"
 for i in $(seq 1 "$HEALTH_RETRIES"); do
-	web_code="$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || true)"
+	web_code="$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$HEALTH_URL" || true)"
 	# /api/auth/me 无 token 期望 401：同时验证 web 与 api 链路
-	api_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_PORT}/api/auth/me" || true)"
+	api_code="$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_PORT}/api/auth/me" || true)"
 	if [ "$web_code" = "200" ] && [ "$api_code" = "401" ]; then
 		ok=1
 		break
 	fi
-	log "未就绪（web=$web_code api=$api_code, ${i}/${HEALTH_RETRIES}）"
+	reason="web=$web_code"
+	[ "$web_code" = "000" ] && reason="web 未就绪（nginx 尚未监听 80）"
+	[ "$web_code" != "200" ] && [ "$web_code" != "000" ] && reason="web 异常（HTTP $web_code）"
+	if [ "$web_code" = "200" ]; then
+		if [ "$api_code" = "000" ]; then
+			reason="api 链路不通（nginx 已起但反代失败）"
+		elif [ "$api_code" = "502" ]; then
+			reason="api 后端未就绪（nginx 502，Go 尚未监听）"
+		else
+			reason="api 返回 $api_code（期望 401）"
+		fi
+	fi
+	log "未就绪（${i}/${HEALTH_RETRIES}）：$reason"
 	sleep "$HEALTH_INTERVAL"
 done
 
