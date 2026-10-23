@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.25-alpine AS build
+FROM golang:1.27.3-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache ca-certificates tzdata
 ARG GOPROXY=https://proxy.golang.org,direct
@@ -9,7 +9,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/kairos-api ./cmd/api
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata
 ENV TZ=Asia/Shanghai
 WORKDIR /app
