@@ -14,10 +14,10 @@ import { Modal } from "@/components/shared/modal"
 import { cn } from "@/lib/utils"
 import { userErrorMessage } from "@/lib/errors"
 import { formatSemester } from "@/lib/semester"
-import { ArrowLeft, Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, ClipboardPaste, Upload } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Pencil, Save, Clock, MapPin, FileText, CalendarClock, ClipboardPaste, Upload } from "lucide-react"
 
 const FIELD_CLASS =
-  "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+  "w-full h-11 md:h-9 rounded-lg border border-input bg-background/60 px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
 
 // 导入入口暂时隐藏：现有解析器面向本科教务 TSV，与研究生系统不兼容；该功能后续可能弃用。恢复/适配后改回 true 即可。
 const ENABLE_EXAM_IMPORT = false
@@ -29,18 +29,11 @@ function computeDaysUntil(datetimeStr: string): number {
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
 }
 
-function daysBadgeClass(days: number): string {
-  if (days < 0) return "bg-muted text-muted-foreground"
-  if (days <= 7) return "bg-red-500/15 text-red-400 border-red-500/30"
-  if (days <= 14) return "bg-amber-500/15 text-amber-400 border-amber-500/30"
-  return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-}
-
-function daysLabel(days: number): string {
-  if (days < 0) return `已过 ${Math.abs(days)} 天`
-  if (days === 0) return "今天"
-  if (days === 1) return "明天"
-  return `剩余 ${days} 天`
+function examToneClass(days: number): string {
+  if (days < 0) return "border-border/50 bg-muted/30 text-muted-foreground"
+  if (days <= 7) return "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400"
+  if (days <= 14) return "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+  return "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
 }
 
 function formatDate(datetimeStr: string): string {
@@ -262,21 +255,34 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Button size="icon-sm" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onNavigate("kairos")}
+            aria-label="返回"
+            className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-heading font-medium text-foreground">考试倒计时</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+              {exams.length > 0
+                ? `${upcomingExams.length} 场即将到来 · ${pastExams.length} 场已结束`
+                : "记录考试时间与考场"}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {ENABLE_EXAM_IMPORT && (
-            <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="px-2.5 sm:px-3">
+            <Button size="sm" variant="outline" onClick={openImportPanel} disabled={importing} className="min-h-11 px-2.5 md:min-h-7 sm:px-3">
               <ClipboardPaste className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">从剪贴板导入</span>
             </Button>
           )}
-          <Button size="sm" onClick={openCreateForm} className="px-2.5 sm:px-3">
+          <Button size="sm" onClick={openCreateForm} className="min-h-11 px-2.5 md:min-h-7 sm:px-3">
             <Plus className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">添加考试</span>
           </Button>
@@ -294,19 +300,44 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
       )}
 
       {!loading && error && exams.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted-foreground">{error}</p>
+        <AcrylicPanel className="p-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <CalendarClock className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-foreground">无法加载考试</p>
+              <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void fetchExams()}>
+              重试
+            </Button>
+          </div>
+        </AcrylicPanel>
       )}
 
       {!loading && exams.length === 0 && !error && (
-        <AcrylicPanel className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">暂无考试</p>
-          <p className="mt-1 text-xs text-muted-foreground/60">点击"添加考试"按钮添加第一个考试</p>
-        </AcrylicPanel>
+        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <CalendarClock className="h-5 w-5" strokeWidth={1.5} />
+          </span>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">暂无考试</p>
+            <p className="text-xs text-muted-foreground">添加考试后，这里会显示倒计时和考场信息。</p>
+          </div>
+          <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateForm}>
+            <Plus className="mr-1 h-4 w-4" />添加考试
+          </Button>
+        </div>
       )}
 
       {!loading && upcomingExams.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">即将到来</h3>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+            <h3 className="text-[11px] font-medium text-foreground">即将到来</h3>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{upcomingExams.length}</span>
+          </div>
           {upcomingExams.map((exam) => (
             <ExamCard key={exam.id} exam={exam} onEdit={() => openEditForm(exam)} onDelete={() => void handleDelete(exam.id)} />
           ))}
@@ -315,7 +346,11 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
 
       {!loading && pastExams.length > 0 && (
         <div className="space-y-2">
-          <h3 className="mt-6 text-xs font-medium uppercase tracking-wider text-muted-foreground">已结束</h3>
+          <div className="mb-2 mt-6 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" aria-hidden="true" />
+            <h3 className="text-[11px] font-medium text-muted-foreground">已结束</h3>
+            <span className="text-[10px] text-muted-foreground/70 tabular-nums">{pastExams.length}</span>
+          </div>
           {pastExams.map((exam) => (
             <ExamCard key={exam.id} exam={exam} onEdit={() => openEditForm(exam)} onDelete={() => void handleDelete(exam.id)} />
           ))}
@@ -398,7 +433,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="考试注意事项（可选）"
               rows={2}
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className="w-full resize-none rounded-lg border border-input bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
             />
           </div>
         </div>
@@ -451,7 +486,7 @@ export function ExamList({ onNavigate }: { onNavigate: (key: string) => void }) 
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder="从教务系统复制考试安排表格后粘贴到这里。"
                 rows={8}
-                className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+                className="w-full resize-y rounded-lg border border-input bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
               />
             </div>
             <div className="space-y-3">
@@ -499,61 +534,96 @@ function ExamCard({ exam, onEdit, onDelete }: { exam: Exam; onEdit: () => void; 
   return (
     <AcrylicPanel
       className={cn(
-        "bg-card p-3 transition-all hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
-        isPast && "opacity-50",
+        "group relative flex items-start gap-3 bg-card/70 p-3 transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-md",
+        isPast && "bg-card/50",
       )}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "inline-flex shrink-0 items-center rounded-md border px-2 py-1 text-xs font-semibold tabular-nums",
-            daysBadgeClass(days),
-          )}
-        >
-          {daysLabel(days)}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{exam.course_name}</span>
-            {exam.semester && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatSemester(exam.semester)}</span>}
-          </div>
-
-          <div className="mt-1 flex items-center gap-3">
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              {formatDate(exam.exam_datetime)}
-              {endTime && `–${endTime}`}
+      <div
+        className={cn(
+          "flex w-16 shrink-0 flex-col items-center justify-center rounded-xl border px-1 py-2.5 text-center",
+          examToneClass(days),
+        )}
+      >
+        {days < 0 ? (
+          <>
+            <span className="text-[10px] font-medium leading-none">已结束</span>
+            <span className="mt-1.5 text-[9px] leading-none opacity-70 tabular-nums">
+              {Math.abs(days)} 天前
             </span>
-            {exam.location && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MapPin className="h-3 w-3" />
-                {exam.location}
-              </span>
-            )}
-          </div>
+          </>
+        ) : days === 0 ? (
+          <>
+            <span className="font-heading text-lg font-semibold leading-none">今天</span>
+            <span className="mt-1.5 text-[9px] leading-none opacity-70">考试</span>
+          </>
+        ) : days === 1 ? (
+          <>
+            <span className="font-heading text-lg font-semibold leading-none">明天</span>
+            <span className="mt-1.5 text-[9px] leading-none opacity-70">考试</span>
+          </>
+        ) : (
+          <>
+            <span className="font-heading text-2xl font-semibold leading-none tabular-nums">
+              {days}
+            </span>
+            <span className="mt-1 text-[9px] leading-none opacity-70">天后</span>
+          </>
+        )}
+      </div>
 
-          {exam.notes && (
-            <div className="mt-1 flex items-start gap-1">
-              <FileText className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/50" />
-              <p className="text-xs text-muted-foreground/70">{exam.notes}</p>
-            </div>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[13px] font-semibold text-foreground">
+            {exam.course_name}
+          </span>
+          {exam.semester && (
+            <span className="shrink-0 text-[9px] text-muted-foreground/60">
+              {formatSemester(exam.semester)}
+            </span>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
-            <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-          </Button>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1 tabular-nums">
+            <Clock className="h-3 w-3" />
+            {formatDate(exam.exam_datetime)}
+            {endTime && `–${endTime}`}
+          </span>
+          {exam.location && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {exam.location}
+            </span>
+          )}
         </div>
+
+        {exam.notes && (
+          <div className="mt-1.5 flex items-start gap-1">
+            <FileText className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/50" />
+            <p className="text-[11px] leading-relaxed text-muted-foreground/70">{exam.notes}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 text-muted-foreground hover:text-foreground md:h-7 md:w-7"
+          aria-label={`编辑考试 ${exam.course_name}`}
+          onClick={onEdit}
+        >
+          <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+          aria-label={`删除考试 ${exam.course_name}`}
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+        </Button>
       </div>
     </AcrylicPanel>
   )

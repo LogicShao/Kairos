@@ -234,11 +234,11 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           <div className="flex items-start gap-2">
             <Button
-              size="icon-sm"
+              size="icon"
               variant="ghost"
               onClick={() => onNavigate("kairos")}
               aria-label="返回 Kairos"
-              className="mt-0.5 shrink-0"
+              className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -262,11 +262,11 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
         <div className="flex items-start gap-2">
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
             onClick={() => onNavigate("kairos")}
             aria-label="返回 Kairos"
-            className="mt-0.5 shrink-0"
+            className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -278,7 +278,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
           </div>
         </div>
 
-        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+        <AcrylicPanel className="border-border/50 bg-card/70 p-4 sm:p-6">
           <div className="flex items-center justify-between pb-4">
             <span className="text-sm text-foreground">启用 AI 每日摘要</span>
             <button
@@ -353,7 +353,7 @@ export function AiSettings({ onNavigate }: AiSettingsProps) {
         </AcrylicPanel>
 
         {/* ── WebDAV 加密同步 ───────────────────────────── */}
-        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+        <AcrylicPanel className="border-border/50 bg-card/70 p-4 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             WebDAV 同步
           </h2>

@@ -21,14 +21,30 @@ import { Bell, Calendar, CheckCircle2, Circle, ListTodo, Plus, Repeat, Trash2 } 
 
 interface PriorityConfig {
   label: string
-  className: string
-  dotClassName: string
+  textClass: string
+  dotClass: string
+  spineClass: string
 }
 
 const PRIORITY_CONFIG: Record<TaskPriority, PriorityConfig> = {
-  high: { label: "高", className: "bg-red-500/15 text-red-400 border-red-500/30", dotClassName: "bg-red-400" },
-  medium: { label: "中", className: "bg-amber-500/15 text-amber-400 border-amber-500/30", dotClassName: "bg-amber-400" },
-  low: { label: "低", className: "bg-muted text-muted-foreground border-border", dotClassName: "bg-muted-foreground" },
+  high: {
+    label: "高",
+    textClass: "text-red-500 dark:text-red-400",
+    dotClass: "bg-red-500/80",
+    spineClass: "bg-red-400/80",
+  },
+  medium: {
+    label: "中",
+    textClass: "text-amber-600 dark:text-amber-400",
+    dotClass: "bg-amber-500/80",
+    spineClass: "bg-amber-400/80",
+  },
+  low: {
+    label: "低",
+    textClass: "text-muted-foreground",
+    dotClass: "bg-muted-foreground/50",
+    spineClass: "bg-border",
+  },
 }
 
 const STATUS_OPTIONS = [
@@ -70,6 +86,18 @@ function formatDueDate(dateStr: string | null): { text: string; urgent: boolean 
   if (diff === -1) return { text: "昨天", urgent: true }
   if (diff < 0) return { text: `逾期 ${Math.abs(diff)} 天`, urgent: true }
   return { text: dateStr, urgent: false }
+}
+
+function parseTaskTags(tags: string): string[] {
+  if (!tags) return []
+  try {
+    const parsed: unknown = JSON.parse(tags)
+    return Array.isArray(parsed)
+      ? parsed.filter((tag): tag is string => typeof tag === "string")
+      : []
+  } catch {
+    return []
+  }
 }
 
 export function TaskList() {
@@ -205,8 +233,17 @@ export function TaskList() {
     setShowForm(true)
   }
 
+  const taskSummary = dailyTasks.length > 0
+    ? `${normalTasks.length} 项任务 · 每日 ${dailyCompleted}/${dailyTasks.length} 已完成`
+    : `${normalTasks.length} 项任务`
+
   return (
-    <PageShell title="待办事项" width="2xl" titleClassName="text-xl font-heading font-semibold">
+    <PageShell
+      title="待办事项"
+      width="2xl"
+      titleClassName="text-xl font-heading font-semibold"
+      subtitle={taskSummary}
+    >
       <Modal
         open={showForm || editingTask !== null}
         onOpenChange={(open) => {
@@ -233,7 +270,7 @@ export function TaskList() {
       <Fab onClick={openNewForm} />
 
       {/* 胶囊筛选 */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
         <FilterChip
           label="状态"
           options={STATUS_OPTIONS}
@@ -259,19 +296,34 @@ export function TaskList() {
       )}
 
       {!loading && error && tasks.length === 0 && (
-        <p className="text-center text-sm text-muted-foreground py-8">{error}</p>
+        <AcrylicPanel className="p-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <ListTodo className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-foreground">无法加载待办</p>
+              <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void fetchTasks()}>
+              重试
+            </Button>
+          </div>
+        </AcrylicPanel>
       )}
 
       {/* 空状态：无卡片，直接显示在背景上 */}
       {!loading && tasks.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <ListTodo className="h-12 w-12 text-muted-foreground/30" strokeWidth={1.5} />
-          <div className="text-center space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">还没有待办任务</p>
-            <p className="text-xs text-muted-foreground/60">点击下方按钮开始规划</p>
+        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border/60 bg-card/40 px-6 py-14">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <ListTodo className="h-5 w-5" strokeWidth={1.5} />
+          </span>
+          <div className="space-y-1 text-center">
+            <p className="text-sm font-medium text-foreground">还没有待办任务</p>
+            <p className="text-xs text-muted-foreground">把今天要做的事写下来，从一件开始。</p>
           </div>
           <Button size="sm" className="min-h-11 md:min-h-8" onClick={openNewForm}>
-            <Plus className="h-4 w-4 mr-1" />添加任务
+            <Plus className="mr-1 h-4 w-4" />添加任务
           </Button>
         </div>
       )}
@@ -281,28 +333,43 @@ export function TaskList() {
           {/* 每日任务区块 */}
           {dailyTasks.length > 0 && (
             <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Repeat className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-medium text-foreground">每日任务</h3>
-                <span className="text-xs text-muted-foreground">
-                  {dailyCompleted}/{dailyTasks.length} 今日已完成
+              <div className="mb-2.5 flex items-center gap-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Repeat className="h-3.5 w-3.5" />
                 </span>
+                <h3 className="text-[13px] font-semibold text-foreground">每日任务</h3>
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  {dailyCompleted}/{dailyTasks.length}
+                </span>
+                <div className="ml-auto h-1.5 w-20 overflow-hidden rounded-full bg-muted md:w-28">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-300"
+                    style={{
+                      width: `${dailyTasks.length > 0 ? (dailyCompleted / dailyTasks.length) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 {dailyTasks.map((task) => {
                   const completedToday = task.last_completed_date === today
                   const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
+                  const tags = parseTaskTags(task.tags)
                   return (
                     <AcrylicPanel
                       key={task.id}
                       className={cn(
-                        "border-primary/20 bg-card p-3 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md",
-                        completedToday && "opacity-70"
+                        "group relative cursor-pointer overflow-hidden bg-card/70 p-3 pl-4 transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-md",
+                        completedToday && "bg-card/50",
                       )}
                       onClick={() => { setEditingTask(task); setShowForm(false) }}
                     >
+                      <span
+                        className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-primary/70"
+                        aria-hidden="true"
+                      />
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 shrink-0">
+                        <div className="shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -310,76 +377,72 @@ export function TaskList() {
                               void handleToggleDaily(task)
                             }}
                             aria-label={completedToday ? "取消今日完成" : "完成今日任务"}
-                            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-6 md:w-6"
+                            className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-6 md:w-6"
                           >
                             {completedToday ? (
-                              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             ) : (
-                              <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
+                              <Circle
+                                className="h-5 w-5 text-muted-foreground/40 transition-colors hover:text-primary"
+                                strokeWidth={1.5}
+                              />
                             )}
                           </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <span
                               className={cn(
-                                "text-sm font-medium truncate",
-                                completedToday && "line-through text-muted-foreground"
+                                "min-w-0 truncate text-[13px] font-medium",
+                                completedToday && "text-muted-foreground line-through",
                               )}
                             >
                               {task.title}
                             </span>
                             <span
                               className={cn(
-                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
+                                "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-none",
                                 completedToday
-                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                  : "bg-primary/10 text-primary border-primary/20"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-primary/10 text-primary",
                               )}
                             >
                               {completedToday ? "今日已完成" : "今日待完成"}
                             </span>
                             <span
                               className={cn(
-                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
-                                priorityCfg.className
+                                "inline-flex shrink-0 items-center gap-1 text-[10px] font-medium",
+                                priorityCfg.textClass,
                               )}
                             >
-                              <span className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)} />
+                              <span className={cn("h-1.5 w-1.5 rounded-full", priorityCfg.dotClass)} />
                               {priorityCfg.label}
                             </span>
                           </div>
                           {task.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground">
                               {task.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                             {task.reminder_time && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
                                 <Bell className="h-3 w-3" />
                                 每天 {task.reminder_time} 提醒
                               </span>
                             )}
-                            {task.tags && (() => {
-                              try {
-                                const tagArr = JSON.parse(task.tags) as string[]
-                                if (!Array.isArray(tagArr) || tagArr.length === 0) return null
-                                return (
-                                  <span className="text-[10px] text-muted-foreground/60">
-                                    {tagArr.join(" · ")}
-                                  </span>
-                                )
-                              } catch {
-                                return null
-                              }
-                            })()}
+                            {tags.length > 0 && (
+                              <span className="text-muted-foreground/60">
+                                {tags.join(" · ")}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+                          className="h-11 w-11 shrink-0 text-muted-foreground/50 hover:text-destructive md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                          aria-label={`删除任务 ${task.title}`}
                           onClick={(e) => {
                             e.stopPropagation()
                             void handleDelete(task.id)
@@ -399,100 +462,120 @@ export function TaskList() {
           {normalTasks.length > 0 && (
             <div>
               {dailyTasks.length > 0 && (
-                <h3 className="mb-2 text-sm font-medium text-foreground">普通任务</h3>
+                <div className="mb-2.5 flex items-center gap-2.5">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <ListTodo className="h-3.5 w-3.5" />
+                  </span>
+                  <h3 className="text-[13px] font-semibold text-foreground">普通任务</h3>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    {normalTasks.length}
+                  </span>
+                </div>
               )}
               <div className="space-y-2">
                 {normalTasks.map((task) => {
                   const dueInfo = formatDueDate(task.due_date)
                   const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium
+                  const tags = parseTaskTags(task.tags)
+                  const isDone = task.status === "done"
 
                   return (
                     <AcrylicPanel
                       key={task.id}
                       className={cn(
-                        "p-3 cursor-pointer transition-all bg-card hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md",
-                        task.status === "done" && "opacity-60"
+                        "group relative cursor-pointer overflow-hidden bg-card/70 p-3 pl-4 transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-md",
+                        isDone && "bg-card/50",
                       )}
                       onClick={() => { setEditingTask(task); setShowForm(false) }}
                     >
+                      <span
+                        className={cn(
+                          "absolute inset-y-2.5 left-0 w-[3px] rounded-r-full",
+                          priorityCfg.spineClass,
+                        )}
+                        aria-hidden="true"
+                      />
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 shrink-0">
+                        <div className="shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              if (task.status === "done") return
+                              if (isDone) return
                               void handleComplete(task)
                             }}
-                            disabled={task.status === "done"}
-                            aria-label={task.status === "done" ? "已完成" : "完成任务"}
-                            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default md:h-6 md:w-6"
+                            disabled={isDone}
+                            aria-label={isDone ? "已完成" : "完成任务"}
+                            className="flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default md:h-6 md:w-6"
                           >
-                            {task.status === "done" ? (
-                              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                            {isDone ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             ) : (
-                              <Circle className="h-5 w-5 text-muted-foreground/40 hover:text-primary/60 transition-colors" />
+                              <Circle
+                                className="h-5 w-5 text-muted-foreground/40 transition-colors hover:text-primary"
+                                strokeWidth={1.5}
+                              />
                             )}
                           </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             <span
                               className={cn(
-                                "text-sm font-medium truncate",
-                                task.status === "done" && "line-through text-muted-foreground"
+                                "min-w-0 truncate text-[13px] font-medium",
+                                isDone && "text-muted-foreground line-through",
                               )}
                             >
                               {task.title}
                             </span>
+                            {task.status === "in_progress" && (
+                              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium leading-none text-primary">
+                                进行中
+                              </span>
+                            )}
                             <span
                               className={cn(
-                                "inline-flex items-center gap-1 rounded border px-1.5 py-px text-[10px] font-medium shrink-0",
-                                priorityCfg.className
+                                "inline-flex shrink-0 items-center gap-1 text-[10px] font-medium",
+                                priorityCfg.textClass,
                               )}
                             >
                               <span
-                                className={cn("inline-block h-1.5 w-1.5 rounded-full", priorityCfg.dotClassName)}
+                                className={cn("h-1.5 w-1.5 rounded-full", priorityCfg.dotClass)}
                               />
                               {priorityCfg.label}
                             </span>
                           </div>
                           {task.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground">
                               {task.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                             {dueInfo.text && (
                               <span
                                 className={cn(
-                                  "inline-flex items-center gap-1 text-[10px]",
-                                  dueInfo.urgent ? "text-red-400" : "text-muted-foreground"
+                                  "inline-flex items-center gap-1",
+                                  dueInfo.urgent
+                                    ? "text-red-500 dark:text-red-400"
+                                    : "text-muted-foreground",
                                 )}
                               >
                                 <Calendar className="h-3 w-3" />
                                 {dueInfo.text}
                               </span>
                             )}
-                            {task.tags && (() => {
-                              try {
-                                const tagArr = JSON.parse(task.tags) as string[]
-                                if (!Array.isArray(tagArr) || tagArr.length === 0) return null
-                                return (
-                                  <span className="text-[10px] text-muted-foreground/60">
-                                    {tagArr.join(" · ")}
-                                  </span>
-                                )
-                              } catch {
-                                return null
-                              }
-                            })()}
+                            {tags.length > 0 && (
+                              <span className="text-muted-foreground/60">
+                                {tags.join(" · ")}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+                          className="h-11 w-11 shrink-0 text-muted-foreground/50 hover:text-destructive md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                          aria-label={`删除任务 ${task.title}`}
                           onClick={(e) => {
                             e.stopPropagation()
                             void handleDelete(task.id)

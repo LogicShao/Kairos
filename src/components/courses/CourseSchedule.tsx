@@ -22,9 +22,15 @@ import {
   Pencil,
   Trash2,
   ArrowLeft,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   EllipsisVertical,
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  MapPin,
   Save,
 } from "lucide-react"
 import {
@@ -36,6 +42,7 @@ import {
   todayKey,
   computeCurrentWeek,
   dayCellKey,
+  formatWeekRange,
   FIELD_CLASS,
 } from "./utils"
 import { WeekGrid } from "./WeekGrid"
@@ -381,81 +388,112 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
     ? computeCurrentWeek(weekData.semester_start_date)
     : null
   const isCurrentWeek = currentWeek !== null && currentWeek === weekIndex
+  const weekRangeLabel = weekData && weekData.week_index === weekIndex
+    ? formatWeekRange(weekData.week_start_date, weekData.week_end_date)
+    : ""
+  const weekMonthLabel =
+    weekData && weekData.week_index === weekIndex && weekData.week_start_date
+      ? `${Number(weekData.week_start_date.slice(5, 7))}月`
+      : ""
+  const semesterLabel = semesterFilter
+    ? `${semesterFilter.slice(0, 4)} ${formatSemester(semesterFilter)}`
+    : ""
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* ─── Header: back + week nav + overflow ─── */}
-      <div className="flex items-center gap-2 px-3 py-2 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5 px-1.5 pb-2 pt-0.5 md:gap-2 md:px-2 md:pt-1">
         <Button
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           onClick={() => onNavigate("kairos")}
           aria-label="返回"
+          className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={handlePrevWeek}
-          aria-label="上一周"
-          className="shrink-0"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
 
-        {/* Week dropdown */}
-        <div className="relative" ref={weekPickerRef}>
-          <button
-            type="button"
-            onClick={() => setShowWeekPicker(!showWeekPicker)}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors h-8",
-              "text-foreground hover:bg-muted/60",
-              showWeekPicker && "bg-muted",
-            )}
+        {/* Week navigation cluster */}
+        <div className="relative z-50 flex items-center rounded-xl border border-border/50 bg-card/60 p-0.5 shadow-sm backdrop-blur-md">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handlePrevWeek}
+            aria-label="上一周"
+            className="h-11 w-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground md:h-9 md:w-9"
           >
-            <span className="tabular-nums">
-              第 {weekIndex} 周
-            </span>
-            {isCurrentWeek && (
-              <span className="text-[11px] text-muted-foreground font-normal">(本周)</span>
-            )}
-            <span className={cn("text-[10px] text-muted-foreground transition-transform ml-0.5", showWeekPicker && "rotate-180")}>▼</span>
-          </button>
-          {showWeekPicker && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-40 max-h-64 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top">
-              {Array.from({ length: 20 }, (_, i) => i + 1).map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => handleSelectWeek(w)}
-                  className={cn(
-                    "w-full text-left rounded-md px-3 py-1.5 text-sm transition-colors tabular-nums",
-                    w === weekIndex
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-muted/60",
-                  )}
-                >
-                  第 {w} 周
-                  {w === currentWeek && w !== weekIndex && (
-                    <span className="ml-1 text-[11px] opacity-70">(本周)</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
 
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={handleNextWeek}
-          aria-label="下一周"
-          className="shrink-0"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+          <div className="relative" ref={weekPickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowWeekPicker(!showWeekPicker)}
+              aria-expanded={showWeekPicker}
+              aria-label={`选择周次，当前第 ${weekIndex} 周`}
+              className={cn(
+                "flex h-11 min-w-[88px] flex-col items-center justify-center rounded-lg px-2 transition-colors md:h-9 md:min-w-[104px]",
+                "hover:bg-muted/60",
+                showWeekPicker && "bg-muted/70",
+              )}
+            >
+              <span className="flex items-center gap-1">
+                <span className="text-sm font-semibold leading-none text-foreground tabular-nums">
+                  第 {weekIndex} 周
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 text-muted-foreground transition-transform",
+                    showWeekPicker && "rotate-180",
+                  )}
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="mt-0.5 text-[10px] leading-none text-muted-foreground tabular-nums">
+                {weekLoading ? "加载中…" : weekRangeLabel || "—"}
+              </span>
+            </button>
+            {showWeekPicker && (
+              <div className="absolute left-1/2 top-full z-50 mt-2 w-44 -translate-x-1/2 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 origin-top">
+                <div className="max-h-64 overflow-y-auto">
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map((w) => {
+                    const isSelected = w === weekIndex
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => handleSelectWeek(w)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors tabular-nums",
+                          isSelected
+                            ? "bg-primary/10 font-semibold text-primary"
+                            : "text-foreground hover:bg-muted/60",
+                        )}
+                      >
+                        <span>第 {w} 周</span>
+                        {w === currentWeek ? (
+                          <span className="text-[10px] font-normal text-muted-foreground">本周</span>
+                        ) : isSelected ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleNextWeek}
+            aria-label="下一周"
+            className="h-11 w-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground md:h-9 md:w-9"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
 
         {!isCurrentWeek && currentWeek !== null && (
           <Button
@@ -465,7 +503,7 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
               setWeekIndex(currentWeek)
               setViewMode("week")
             }}
-            className="shrink-0 h-7 text-[11px] font-medium text-primary hover:bg-primary/10"
+            className="h-11 shrink-0 rounded-lg px-2.5 text-[11px] font-medium text-primary hover:bg-primary/10 md:h-9"
           >
             今天
           </Button>
@@ -473,19 +511,27 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
 
         <div className="flex-1" />
 
+        <span className="hidden text-[10px] font-medium text-muted-foreground/70 tabular-nums lg:inline">
+          {semesterLabel}
+        </span>
+
         {/* Overflow menu */}
         <div className="relative" ref={overflowMenuRef}>
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
             aria-label="更多选项"
+            aria-expanded={showOverflowMenu}
             onClick={() => setShowOverflowMenu(!showOverflowMenu)}
-            className={cn(showOverflowMenu && "bg-muted")}
+            className={cn(
+              "h-11 w-11 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8",
+              showOverflowMenu && "bg-muted",
+            )}
           >
             <EllipsisVertical className="h-4 w-4" />
           </Button>
           {showOverflowMenu && (
-            <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-lg border border-border bg-card p-2 shadow-lg animate-in fade-in-0 zoom-in-95 origin-top-right">
+            <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 origin-top-right">
               {ENABLE_COURSE_IMPORT && (
                 <button
                   type="button"
@@ -493,8 +539,9 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                     openImportPanel()
                     setShowOverflowMenu(false)
                   }}
-                  className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted/60"
                 >
+                  <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
                   导入课表
                 </button>
               )}
@@ -506,22 +553,39 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
                   setResetDate(weekData?.semester_start_date ?? "")
                   setShowResetDate(true)
                 }}
-                className="w-full text-left rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/60 transition-colors"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted/60"
               >
+                <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
                 重置学期起始日
               </button>
+
+              {viewMode === "list" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("week")
+                    setShowOverflowMenu(false)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted/60"
+                >
+                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                  周视图
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={handleShowAllCourses}
                 className={cn(
-                  "w-full text-left rounded-md px-3 py-2 text-sm transition-colors",
+                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
                   viewMode === "list"
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary/10 font-medium text-primary"
                     : "text-foreground hover:bg-muted/60",
                 )}
               >
+                <BookOpen className="h-3.5 w-3.5" />
                 全部课程
+                {viewMode === "list" && <Check className="ml-auto h-3.5 w-3.5" />}
               </button>
             </div>
           )}
@@ -534,113 +598,143 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
         </p>
       )}
 
-      {/* ─── Date strip (desktop: aligned with 48px + 7fr grid) ─── */}
-      <div className="hidden md:block shrink-0 pb-1">
-        <div
-          className="grid select-none"
-          style={{ gridTemplateColumns: "48px repeat(7, minmax(0, 1fr))", minWidth: "680px" }}
-        >
-          <div />
-          {DAY_SHORT.map((day, i) => {
-            const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
-            const dateNum = dateKey ? dateKey.slice(8) : ""
-            const isToday = dateKey === today
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleDayClick(i, dateKey)}
-                className={cn(
-                  "flex flex-col items-center justify-center h-12 text-center transition-colors",
-                  isToday ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/40",
-                )}
-              >
-                <span className="text-[10px] leading-tight font-medium">{day}</span>
-                <span className="text-xs font-semibold leading-tight tabular-nums mt-0.5">{dateNum || "—"}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ─── Date strip (mobile: fit all seven days inside the viewport) ─── */}
-      <div className="shrink-0 overflow-x-hidden pb-1 md:hidden">
-        <div
-          className="grid w-full select-none"
-          style={{ gridTemplateColumns: "28px repeat(7, minmax(0, 1fr))" }}
-        >
-          <div />
-          {DAY_SHORT.map((day, i) => {
-            const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
-            const dateNum = dateKey ? dateKey.slice(8) : ""
-            const isToday = dateKey === today
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleDayClick(i, dateKey)}
-                className={cn(
-                  "flex flex-col items-center justify-center h-12 text-center transition-colors",
-                  isToday ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted/40",
-                )}
-              >
-                <span className="text-[10px] leading-tight font-medium">{day}</span>
-                <span className="text-xs font-semibold leading-tight tabular-nums mt-0.5">{dateNum || "—"}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* ─── Content area ─── */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-0 md:pb-4">
         {/* Week view */}
         {viewMode === "week" && (
           <>
-            {weekLoading && (
+            {weekData && (
+              <div className="sticky top-0 z-40 bg-card/75 pb-1.5 backdrop-blur-xl">
+                <div className="grid select-none grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[48px_repeat(7,minmax(0,1fr))]">
+                  <div className="flex items-start justify-center pt-2.5">
+                    <span className="hidden text-[9px] font-medium leading-none text-muted-foreground/60 tabular-nums md:inline">
+                      {weekMonthLabel}
+                    </span>
+                  </div>
+                  {DAY_SHORT.map((day, i) => {
+                    const dateKey = weekData ? dayCellKey(weekData.week_start_date, i) : ""
+                    const dateNum = dateKey ? dateKey.slice(8) : ""
+                    const isToday = dateKey === today
+                    const isWeekend = i >= 5
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleDayClick(i, dateKey)}
+                        className={cn(
+                          "flex h-14 min-w-0 flex-col items-center justify-center rounded-xl text-center transition-colors",
+                          isToday ? "text-primary" : "text-foreground hover:bg-muted/40",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "text-[10px] font-medium leading-none",
+                            isToday
+                              ? "text-primary"
+                              : isWeekend
+                                ? "text-muted-foreground/60"
+                                : "text-muted-foreground",
+                          )}
+                        >
+                          <span className="md:hidden">{day}</span>
+                          <span className="hidden md:inline">周{day}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "mt-1.5 flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-semibold leading-none tabular-nums",
+                            isToday
+                              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                              : isWeekend
+                                ? "text-muted-foreground"
+                                : "text-foreground",
+                          )}
+                        >
+                          {dateNum || "—"}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {weekLoading && !weekData && (
               <div className="flex items-center justify-center py-12">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             )}
 
             {!weekLoading && weekError && !weekData && (
-              <div className="p-8 text-center">
-                <p className="text-sm text-muted-foreground">{weekError}</p>
-                <p className="mt-1 text-xs text-muted-foreground/60">
-                  请先导入课表（含学期开始日期），或在课程中填写"学期开始日期"。
-                </p>
+              <div className="flex min-h-[280px] items-center justify-center p-6">
+                <div className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-dashed border-border/60 bg-card/50 px-6 py-8 text-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-foreground">无法加载课表</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{weekError}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/60">
+                    请先设置学期开始日期，或添加课程后再试。
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setWeekRefresh((n) => n + 1)}
+                  >
+                    重试
+                  </Button>
+                </div>
               </div>
             )}
 
             {!weekLoading && !weekError && !weekData && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                暂无课表数据
-              </p>
+              <div className="flex min-h-[240px] items-center justify-center p-6 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-foreground">暂无课表数据</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    添加课程并设置学期开始日期后，这里会显示每周安排。
+                  </p>
+                </div>
+              </div>
             )}
 
             {!weekLoading && weekData && !weekData.courses_visible && (
               <div className="flex min-h-[280px] items-center justify-center p-6">
-                <AcrylicPanel className="w-full max-w-sm p-5 text-center">
-                  <p className="text-sm font-semibold text-foreground">
+                <AcrylicPanel className="w-full max-w-sm p-6 text-center">
+                  <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <CalendarClock className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-semibold text-foreground">
                     {PHASE_LABELS[weekData.phase_type]}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     当前阶段不显示课程安排
                   </p>
-                  <p className="mt-2 text-[11px] text-muted-foreground/70">
-                    第 {weekData.week_index} 周 · {weekData.week_start_date} 至 {weekData.week_end_date}
+                  <p className="mt-3 inline-flex rounded-full bg-muted px-2.5 py-1 text-[10px] text-muted-foreground/80 tabular-nums">
+                    第 {weekData.week_index} 周 · {weekRangeLabel}
                   </p>
                 </AcrylicPanel>
               </div>
             )}
 
-            {!weekLoading && weekData && weekData.courses_visible && (
-              <WeekGrid
-                weekData={weekData}
-                today={today}
-                mobileDayIndex={mobileDayIndex}
-                onBlockClick={handleBlockClick}
-              />
+            {weekData && weekData.courses_visible && (
+              <div
+                className={cn(
+                  "transition-opacity duration-200",
+                  weekLoading && "opacity-50",
+                )}
+                aria-busy={weekLoading}
+              >
+                <WeekGrid
+                  weekData={weekData}
+                  today={today}
+                  mobileDayIndex={mobileDayIndex}
+                  onBlockClick={handleBlockClick}
+                />
+              </div>
             )}
           </>
         )}
@@ -655,85 +749,108 @@ export function CourseSchedule({ onNavigate }: { onNavigate: (key: string) => vo
             )}
 
             {!loading && error && courses.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">{error}</p>
+              <div className="flex min-h-[240px] items-center justify-center p-6 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-foreground">无法加载课程</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+                  <Button variant="outline" size="sm" className="mt-4" onClick={refreshAll}>
+                    重试
+                  </Button>
+                </div>
+              </div>
             )}
 
             {!loading && courses.length === 0 && !error && (
-              <div className="p-8 text-center">
-                <p className="text-sm text-muted-foreground">暂无课程</p>
-                <p className="mt-1 text-xs text-muted-foreground/60">
-                  点击右下角 + 按钮创建第一个课程
-                </p>
+              <div className="flex min-h-[240px] items-center justify-center p-6 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-foreground">暂无课程</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    点击右下角 + 按钮创建第一门课程。
+                  </p>
+                </div>
               </div>
             )}
 
             {!loading && courses.length > 0 && (
-              <div className="space-y-2 p-2">
-                {courses.map((course) => (
-                  <AcrylicPanel
-                    key={course.id}
-                    className="flex items-center gap-3 bg-card p-3 transition-all hover:-translate-y-0.5 hover:bg-card/95 hover:shadow-md"
-                  >
-                    <div
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: course.color }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-foreground">
-                          {course.name}
-                        </span>
-                        <span className="shrink-0 text-[10px] text-muted-foreground">
-                          {DAY_LABELS[course.day_of_week - 1]} {course.start_time}-
-                          {course.end_time}
-                        </span>
-                        {course.week_pattern && (
-                          <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                            {course.week_pattern}
+              <>
+                <div className="flex items-baseline justify-between gap-3 px-2.5 pb-1.5 pt-2">
+                  <h3 className="text-[13px] font-semibold text-foreground">全部课程</h3>
+                  <span className="shrink-0 text-[10px] text-muted-foreground/70 tabular-nums">
+                    {courses.length} 门 · {semesterLabel}
+                  </span>
+                </div>
+                <div className="space-y-2 p-1.5 md:p-2">
+                  {courses.map((course) => (
+                    <AcrylicPanel
+                      key={course.id}
+                      className="relative flex items-center gap-3 overflow-hidden bg-card/70 p-3 pl-4 transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-md"
+                    >
+                      <span
+                        className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full"
+                        style={{ backgroundColor: course.color }}
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="truncate text-sm font-semibold text-foreground">
+                            {course.name}
                           </span>
-                        )}
+                          <span className="inline-flex shrink-0 items-center rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+                            {DAY_LABELS[course.day_of_week - 1]} {course.start_time}–{course.end_time}
+                          </span>
+                          {course.week_pattern && (
+                            <span className="shrink-0 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground/80">
+                              {course.week_pattern}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                          {course.teacher && (
+                            <span className="truncate">{course.teacher}</span>
+                          )}
+                          {course.location && (
+                            <span className="flex min-w-0 items-center gap-0.5">
+                              <MapPin className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
+                              <span className="truncate">{course.location}</span>
+                            </span>
+                          )}
+                          {course.semester && (
+                            <span className="shrink-0 text-muted-foreground/60">
+                              {formatSemester(course.semester)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        {course.teacher && (
-                          <span className="text-xs text-muted-foreground">
-                            {course.teacher}
-                          </span>
-                        )}
-                        {course.location && (
-                          <span className="text-xs text-muted-foreground/60">
-                            {course.location}
-                          </span>
-                        )}
-                        {course.semester && (
-                          <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                            {formatSemester(course.semester)}
-                          </span>
-                        )}
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+                          aria-label={`编辑课程 ${course.name}`}
+                          onClick={() => openEditForm(course)}
+                        >
+                          <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 text-muted-foreground hover:text-destructive sm:h-8 sm:w-8"
+                          aria-label={`删除课程 ${course.name}`}
+                          onClick={() => void handleDelete(course.id)}
+                        >
+                          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </Button>
                       </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
-                        aria-label={`编辑课程 ${course.name}`}
-                        onClick={() => openEditForm(course)}
-                      >
-                        <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
-                        aria-label={`删除课程 ${course.name}`}
-                        onClick={() => void handleDelete(course.id)}
-                      >
-                        <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                      </Button>
-                    </div>
-                  </AcrylicPanel>
-                ))}
-              </div>
+                    </AcrylicPanel>
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}

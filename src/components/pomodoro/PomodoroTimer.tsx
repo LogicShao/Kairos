@@ -277,7 +277,17 @@ export function PomodoroTimer() {
     <PageShell title="专注" width="md" centered action={settingsButton}>
       <div className="flex flex-col items-center gap-6">
       <div className="relative w-64 h-64 md:w-72 md:h-72">
-        <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90">
+        <svg viewBox="0 0 300 300" className="w-full h-full -rotate-90" aria-hidden="true">
+          <circle
+            cx="150"
+            cy="150"
+            r="132"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeDasharray="1 8"
+            className="text-border/70"
+          />
           <circle
             cx="150"
             cy="150"
@@ -314,20 +324,28 @@ export function PomodoroTimer() {
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-4xl md:text-5xl font-mono font-medium tabular-nums tracking-tight text-foreground">
+          <span className="font-heading text-5xl font-semibold tabular-nums tracking-tight text-foreground md:text-6xl">
             {formatTime(remaining)}
           </span>
           <span
             className={cn(
-              "text-sm font-medium mt-1",
-              isWork ? "text-primary" : "text-emerald-400",
+              "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium",
+              isWork
+                ? "bg-primary/10 text-primary"
+                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
             )}
           >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isWork ? "bg-primary" : "bg-emerald-500",
+              )}
+            />
             {PHASE_LABELS[state.phase]}
           </span>
           {state.completed_sessions > 0 && (
-            <span className="text-xs text-muted-foreground mt-0.5">
-              {state.completed_sessions} 次完成
+            <span className="mt-1.5 text-[10px] text-muted-foreground tabular-nums">
+              已完成 {state.completed_sessions} 个番茄
             </span>
           )}
         </div>
@@ -339,19 +357,20 @@ export function PomodoroTimer() {
 
       {/* ─── 中断处理提示 ─── */}
       {state.interrupted && (
-        <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-          <p className="text-sm text-amber-500 font-medium">
+        <div className="w-full max-w-xs rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-center">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
             上次专注被中断
-            {state.last_seen_at && (
-              <span className="text-xs text-muted-foreground block">
-                上次运行于 {new Date(state.last_seen_at).toLocaleString("zh-CN")}
-              </span>
-            )}
           </p>
-          <div className="flex gap-2">
+          {state.last_seen_at && (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              上次运行于 {new Date(state.last_seen_at).toLocaleString("zh-CN")}
+            </p>
+          )}
+          <div className="mt-3 flex justify-center gap-2">
             <Button
               variant="outline"
               size="sm"
+              className="min-h-11 md:min-h-7"
               disabled={resolving}
               onClick={() => handleResolveInterruption("continue")}
             >
@@ -360,6 +379,7 @@ export function PomodoroTimer() {
             <Button
               variant="outline"
               size="sm"
+              className="min-h-11 md:min-h-7"
               disabled={resolving}
               onClick={() => handleResolveInterruption("discard")}
             >
@@ -368,6 +388,7 @@ export function PomodoroTimer() {
             <Button
               variant="default"
               size="sm"
+              className="min-h-11 md:min-h-7"
               disabled={resolving}
               onClick={() => handleResolveInterruption("complete")}
             >
@@ -384,7 +405,7 @@ export function PomodoroTimer() {
           <div />
           <Button
             size="icon-lg"
-            className="rounded-full shadow-lg shadow-primary/25 min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
+            className="h-14 w-14 justify-self-center rounded-full shadow-lg shadow-primary/25"
             onClick={handleStartPause}
             aria-label={state.is_running ? "暂停" : "开始"}
           >
@@ -393,7 +414,7 @@ export function PomodoroTimer() {
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-full min-h-11 min-w-11 md:min-h-0 md:min-w-0 justify-self-center"
+            className="h-11 w-11 justify-self-center rounded-full text-muted-foreground hover:text-foreground"
             onClick={handleReset}
             aria-label="重置"
           >

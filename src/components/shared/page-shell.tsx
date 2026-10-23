@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils"
 interface PageShellProps {
   /** 页面标题，显示在顶部居中 */
   title: string
+  /** 标题下方的辅助信息 */
+  subtitle?: ReactNode
   /** 子内容 */
   children: ReactNode
   /** 内容最大宽度：sm (384px), md (448px), lg (512px), 2xl (672px) */
@@ -24,7 +26,15 @@ const WIDTH_CLASS: Record<NonNullable<PageShellProps["width"]>, string> = {
 }
 
 /** 页面外壳：统一标题栏 + 入场动画 + 宽度容器 + 间距。专注/待办/课程/考试/同步均可复用。 */
-export function PageShell({ title, children, width = "2xl", centered = false, action, titleClassName }: PageShellProps) {
+export function PageShell({
+  title,
+  subtitle,
+  children,
+  width = "2xl",
+  centered = false,
+  action,
+  titleClassName,
+}: PageShellProps) {
   return (
     <div
       className={
@@ -32,9 +42,14 @@ export function PageShell({ title, children, width = "2xl", centered = false, ac
       }
     >
       {/* 标题栏 */}
-      <div className="flex items-center justify-between gap-2 min-h-[2rem]">
-        <h2 className={cn("text-lg font-heading font-medium text-foreground", titleClassName)}>{title}</h2>
-        {action && <div className="flex items-center">{action}</div>}
+      <div className="flex items-center justify-between gap-3 min-h-[2rem]">
+        <div className="min-w-0">
+          <h2 className={cn("text-lg font-heading font-medium text-foreground", titleClassName)}>{title}</h2>
+          {subtitle && (
+            <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">{subtitle}</p>
+          )}
+        </div>
+        {action && <div className="flex shrink-0 items-center">{action}</div>}
       </div>
 
       {/* 内容 */}

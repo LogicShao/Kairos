@@ -189,11 +189,11 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
         <div className="mx-auto flex w-full max-w-md flex-col gap-4">
           <div className="flex items-start gap-2">
             <Button
-              size="icon-sm"
+              size="icon"
               variant="ghost"
               onClick={() => onNavigate("kairos")}
               aria-label="返回 Kairos"
-              className="mt-0.5 shrink-0"
+              className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -212,11 +212,11 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
         <div className="flex items-start gap-2">
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
             onClick={() => onNavigate("kairos")}
             aria-label="返回 Kairos"
-            className="mt-0.5 shrink-0"
+            className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -228,7 +228,7 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
           </div>
         </div>
 
-        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+        <AcrylicPanel className="border-border/50 bg-card/70 p-4 sm:p-6">
           <h3 className="mb-4 text-sm font-semibold text-foreground">全局开关</h3>
 
           <div className="flex items-center justify-between">
@@ -264,7 +264,7 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
           </div>
         </AcrylicPanel>
 
-        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+        <AcrylicPanel className="border-border/50 bg-card/70 p-4 sm:p-6">
           <h3 className="mb-4 text-sm font-semibold text-foreground">考试考前提醒</h3>
           <p className="mb-3 text-xs text-muted-foreground">
             选择考试开始前多久发送提醒通知，可多选。
@@ -298,7 +298,7 @@ export function NotificationSettings({ onNavigate }: NotificationSettingsProps) 
           </div>
         </AcrylicPanel>
 
-        <AcrylicPanel className="border-primary/15 p-4 sm:p-6">
+        <AcrylicPanel className="border-border/50 bg-card/70 p-4 sm:p-6">
           <h3 className="mb-4 text-sm font-semibold text-foreground">课前提醒</h3>
           <p className="mb-3 text-xs text-muted-foreground">
             选择每节课开始前多久发送提醒邮件，可多选。

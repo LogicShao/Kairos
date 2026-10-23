@@ -8,7 +8,7 @@ export const END_HOUR = 22
 export const TOTAL_HOURS = END_HOUR - START_HOUR
 
 export const FIELD_CLASS =
-  "w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+  "w-full h-11 md:h-9 rounded-lg border border-input bg-background/60 px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
 
 export const COLOR_OPTIONS = [
   { value: "#B8C9E8", label: "雾蓝" },
@@ -73,27 +73,11 @@ export function minutesToTop(minutes: number): number {
   return ((minutes - START_HOUR * 60) / 60) * HOUR_HEIGHT
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!match) return null
-  return {
-    r: parseInt(match[1], 16),
-    g: parseInt(match[2], 16),
-    b: parseInt(match[3], 16),
-  }
-}
-
-export function isDarkColor(hex: string): boolean {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return false
-  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255
-  return luminance <= 0.55
-}
-
-export function hexToRgba(hex: string, alpha: number): string {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return hex
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
+export function formatWeekRange(startDate: string, endDate: string): string {
+  if (!startDate || !endDate) return ""
+  const start = `${startDate.slice(5, 7)}/${startDate.slice(8, 10)}`
+  const end = `${endDate.slice(5, 7)}/${endDate.slice(8, 10)}`
+  return `${start} – ${end}`
 }
 
 export function todayKey(): string {

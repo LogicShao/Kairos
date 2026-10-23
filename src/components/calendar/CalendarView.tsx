@@ -7,6 +7,8 @@ import type {
 } from "@/types/schedule"
 import { getCalendarWeek } from "@/lib/api/calendar"
 import { cn } from "@/lib/utils"
+import { blendHex, blockPalette, hexToRgba } from "@/lib/color"
+import { useTheme } from "@/hooks/use-theme"
 import {
   BookOpen,
   CalendarDays,
@@ -27,29 +29,6 @@ const TOTAL_HOURS = END_HOUR - START_HOUR
 const COMPACT_TIME_AXIS_WIDTH = 28
 
 type CalendarMode = "month" | "week" | "day"
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!match) return null
-  return {
-    r: parseInt(match[1], 16),
-    g: parseInt(match[2], 16),
-    b: parseInt(match[3], 16),
-  }
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return hex
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
-}
-
-function isDarkColor(hex: string): boolean {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return false
-  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255
-  return luminance <= 0.55
-}
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number)
@@ -371,46 +350,62 @@ function CalendarWeekTimetable({
     ? `${COMPACT_TIME_AXIS_WIDTH}px repeat(7, minmax(0, 1fr))`
     : "48px repeat(7, minmax(0, 1fr))"
   const timelineHeight = TOTAL_HOURS * HOUR_HEIGHT
+  const { theme } = useTheme()
+  const dark = theme === "dark"
 
   return (
-    <div className={cn(compact ? "overflow-x-hidden pb-4" : "overflow-x-auto px-1 pb-4")}>
-      <div
-        className={cn(
-          "grid w-full select-none",
-          compact ? "min-w-0" : "min-w-[680px]",
-        )}
-      >
-        <div className="grid" style={{ gridTemplateColumns }}>
-          <div />
-          {DAY_SHORT.map((day, dayIndex) => {
-            const dateKey = dayCellKey(weekData.week_start_date, dayIndex)
-            const dateNum = dateKey ? dateKey.slice(8) : ""
-            const isToday = dateKey === today
+    <div className={cn(compact ? "overflow-x-hidden pb-4" : "overflow-x-auto pb-4")}>
+      <div className="glass-edge overflow-hidden rounded-xl border border-border/40 bg-card/75 backdrop-blur-md">
+        <div
+          className={cn(
+            "grid w-full select-none",
+            compact ? "min-w-0" : "min-w-[680px]",
+          )}
+        >
+          <div className="grid" style={{ gridTemplateColumns }}>
+            <div />
+            {DAY_SHORT.map((day, dayIndex) => {
+              const dateKey = dayCellKey(weekData.week_start_date, dayIndex)
+              const dateNum = dateKey ? dateKey.slice(8) : ""
+              const isToday = dateKey === today
 
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => onDayClick(dayIndex)}
-                className={cn(
-                  "flex h-12 min-w-0 flex-col items-center justify-center text-center transition-colors",
-                  isToday
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : dayIndex === selectedDayIndex
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground hover:bg-muted/40",
-                )}
-              >
-                <span className="text-[10px] font-medium leading-tight">{day}</span>
-                <span className="mt-0.5 text-xs font-semibold leading-tight tabular-nums">
-                  {dateNum || "--"}
-                </span>
-              </button>
-            )
-          })}
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => onDayClick(dayIndex)}
+                  className={cn(
+                    "flex h-14 min-w-0 flex-col items-center justify-center text-center transition-colors",
+                    isToday ? "text-primary" : "text-foreground hover:bg-muted/40",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium leading-none",
+                      isToday ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    <span className="md:hidden">{day}</span>
+                    <span className="hidden md:inline">周{day}</span>
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1.5 flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-semibold leading-none tabular-nums",
+                      isToday
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                        : dayIndex === selectedDayIndex
+                          ? "bg-primary/10 text-primary"
+                          : "text-foreground",
+                    )}
+                  >
+                    {dateNum || "--"}
+                  </span>
+                </button>
+              )
+            })}
 
           <div className={cn(
-            "border-y border-border/35 bg-card text-[10px] font-medium text-muted-foreground",
+            "border-y border-border/30 bg-muted/20 text-[10px] font-medium text-muted-foreground",
             compact ? "px-1 py-2 text-center" : "px-1.5 py-2",
           )}>
             {compact ? "每" : "每日"}
@@ -428,7 +423,7 @@ function CalendarWeekTimetable({
               <div
                 key={`daily-${day}`}
                 className={cn(
-                  "min-h-12 border-y border-l border-border/35 px-1 py-1.5",
+                  "min-h-12 border-y border-l border-border/30 px-1 py-1.5",
                   isToday && "bg-primary/[0.04]",
                 )}
               >
@@ -447,7 +442,7 @@ function CalendarWeekTimetable({
                       {dailyEvents.map((event) => {
                         const isDone = event.tags.includes("完成")
                         const dailyStyle: CSSProperties = {
-                          borderColor: event.color,
+                          borderColor: hexToRgba(event.color, 0.35),
                           backgroundColor: hexToRgba(event.color, 0.10),
                         }
 
@@ -480,7 +475,7 @@ function CalendarWeekTimetable({
           })}
 
           <div className={cn(
-            "border-y border-border/35 bg-card text-[10px] font-medium text-muted-foreground",
+            "border-y border-border/30 bg-muted/20 text-[10px] font-medium text-muted-foreground",
             compact ? "px-1 py-2 text-center" : "px-1.5 py-2",
           )}>
             {compact ? "截" : "截止"}
@@ -496,7 +491,7 @@ function CalendarWeekTimetable({
               <div
                 key={`tasks-${day}`}
                 className={cn(
-                  "min-h-12 border-y border-l border-border/35 px-1 py-1.5",
+                  "min-h-12 border-y border-l border-border/30 px-1 py-1.5",
                   isToday && "bg-primary/[0.04]",
                 )}
               >
@@ -509,7 +504,7 @@ function CalendarWeekTimetable({
                     {taskEvents.map((event) => {
                       const isDone = event.tags.includes("完成")
                       const taskStyle: CSSProperties = {
-                        borderColor: event.color,
+                        borderColor: hexToRgba(event.color, 0.35),
                         backgroundColor: hexToRgba(event.color, 0.12),
                       }
 
@@ -536,21 +531,26 @@ function CalendarWeekTimetable({
             )
           })}
 
-          <div className="relative bg-card" style={{ height: `${timelineHeight}px` }}>
+          <div className="relative" style={{ height: `${timelineHeight}px` }}>
             {Array.from({ length: TOTAL_HOURS }, (_, i) => {
-              if (i === 0) return <div key={i} style={{ height: `${HOUR_HEIGHT}px` }} />
+              const top = i * HOUR_HEIGHT
               return (
-                <div
-                  key={i}
-                  className={cn(
-                    "absolute text-muted-foreground/70 tabular-nums",
-                    compact ? "right-1 text-[9px]" : "right-1.5 text-[10px]",
-                  )}
-                  style={{ top: `${i * HOUR_HEIGHT - (compact ? 5 : 6)}px` }}
-                >
-                  {compact
-                    ? String(START_HOUR + i).padStart(2, "0")
-                    : `${String(START_HOUR + i).padStart(2, "0")}:00`}
+                <div key={i} className="absolute inset-x-0" style={{ top: `${top}px` }}>
+                  <span
+                    className={cn("absolute right-0 h-px bg-border/60", compact ? "w-1" : "w-1.5")}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={cn(
+                      "absolute text-muted-foreground tabular-nums",
+                      i === 0 ? "top-0.5" : "-translate-y-1/2",
+                      compact ? "right-1.5 text-[9px]" : "right-2.5 text-[10px]",
+                    )}
+                  >
+                    {compact
+                      ? String(START_HOUR + i).padStart(2, "0")
+                      : `${String(START_HOUR + i).padStart(2, "0")}:00`}
+                  </span>
                 </div>
               )
             })}
@@ -560,6 +560,7 @@ function CalendarWeekTimetable({
             const dateKey = dayCellKey(weekData.week_start_date, dayIndex)
             const isToday = dateKey === today
             const isSelected = dayIndex === selectedDayIndex
+            const isWeekend = dayIndex >= 5
             const timedEvents = allEvents.filter(
               (event) => event.kind !== "task" && event.day_of_week === dayIndex + 1,
             )
@@ -568,7 +569,8 @@ function CalendarWeekTimetable({
               <div
                 key={`timeline-${day}`}
                 className={cn(
-                  "relative border-l border-border/25",
+                  "relative border-l border-border/40",
+                  isWeekend && !isToday && "bg-muted/30",
                   isToday && "bg-primary/[0.04]",
                   isSelected && !isToday && "bg-primary/[0.02]",
                 )}
@@ -577,7 +579,7 @@ function CalendarWeekTimetable({
                 {Array.from({ length: TOTAL_HOURS }, (_, i) => (
                   <div
                     key={i}
-                    className="absolute inset-x-0 border-t border-border/25"
+                    className="absolute inset-x-0 border-t border-border/30"
                     style={{ top: `${i * HOUR_HEIGHT}px` }}
                   />
                 ))}
@@ -585,12 +587,20 @@ function CalendarWeekTimetable({
                 {timedEvents.map((event) => {
                   const { top, height } = getEventBlockMetrics(event, compact ? 26 : 28)
                   const isExam = event.kind === "exam"
-                  const dark = isDarkColor(event.color)
+                  const palette = blockPalette(event.color, dark)
+                  const background = isExam
+                    ? blendHex(event.color, dark ? "#3d3d3d" : "#ffffff", 0.9)
+                    : palette.background
+                  const border = isExam
+                    ? blendHex(event.color, dark ? "#3d3d3d" : "#ffffff", 0.25)
+                    : palette.border
                   const blockStyle: CSSProperties = {
                     top: `${top}px`,
                     height: `${height}px`,
-                    backgroundColor: isExam ? hexToRgba(event.color, 0.16) : event.color,
-                    borderColor: isExam ? event.color : undefined,
+                    backgroundColor: background,
+                    borderColor: border,
+                    borderLeftColor: isExam ? border : palette.accent,
+                    color: palette.ink,
                   }
 
                   return (
@@ -600,10 +610,11 @@ function CalendarWeekTimetable({
                       onClick={() => onEventClick(event)}
                       title={`${event.title} — ${event.start_time}${event.location ? ` — ${event.location}` : ""}`}
                       className={cn(
-                        "absolute overflow-hidden rounded-lg text-left transition-all active:brightness-90",
-                        compact ? "left-px right-px px-1.5 py-1" : "left-0.5 right-0.5 px-2 py-1.5",
-                        isExam ? "border-2 border-dashed" : "hover:z-20 hover:brightness-105 hover:shadow-lg",
-                        !isExam && dark ? "text-white" : "text-foreground",
+                        "absolute cursor-pointer overflow-hidden rounded-lg border text-left transition-all",
+                        compact ? "left-px right-px px-1.5 py-1" : "left-1 right-1 px-2 py-1.5",
+                        isExam
+                          ? "border-[1.5px] border-dashed"
+                          : "border-l-[3px] hover:z-20 hover:-translate-y-px hover:shadow-md",
                       )}
                       style={blockStyle}
                     >
@@ -613,7 +624,7 @@ function CalendarWeekTimetable({
                             {event.title}
                           </span>
                           {height >= 36 && (
-                            <span className="block truncate text-[9px] leading-tight opacity-70">
+                            <span className="block truncate text-[9px] leading-tight opacity-75">
                               {event.start_time}
                             </span>
                           )}
@@ -626,11 +637,11 @@ function CalendarWeekTimetable({
                               {event.title}
                             </span>
                           </span>
-                          <span className="block text-[9px] leading-tight opacity-70">
+                          <span className="block text-[9px] leading-tight opacity-75">
                             {event.start_time}
                           </span>
-                          {event.location && (
-                            <span className="block truncate text-[10px] leading-tight opacity-70">
+                          {event.location && height >= 46 && (
+                            <span className="block truncate text-[10px] leading-tight opacity-75">
                               {event.location}
                             </span>
                           )}
@@ -642,6 +653,7 @@ function CalendarWeekTimetable({
               </div>
             )
           })}
+          </div>
         </div>
       </div>
     </div>
@@ -993,58 +1005,60 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={handlePrevNav}
-          aria-label={viewMode === "month" ? "上一月" : "上一周"}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+        <div className="flex items-center rounded-xl border border-border/50 bg-card/60 p-0.5 shadow-sm backdrop-blur-md">
+          <button
+            type="button"
+            onClick={handlePrevNav}
+            aria-label={viewMode === "month" ? "上一月" : "上一周"}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground md:h-9 md:w-9"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (viewMode === "month") {
-              const now = new Date()
-              const todayMonth = toDateKey(now.getFullYear(), now.getMonth() + 1, 1)
-              setVisibleMonthKey(todayMonth)
-              setSelectedDateKey(todayKey())
-            } else if (!isCurrentWeek) {
-              setWeekStartDate(currentWeekStart)
-            } else {
-              setWeekRefresh((n) => n + 1)
-            }
-          }}
-          className="inline-flex min-h-11 items-center rounded-md px-2.5 text-left transition-colors hover:bg-muted/60"
-        >
-          {viewMode === "month" ? (
-            <span className="text-sm font-semibold text-foreground">{monthTitle}</span>
-          ) : (
-            <span className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-foreground">{monthLabel}</span>
-              <span className="mt-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                {weekRangeLabel}
-                {isCurrentWeek ? " · 本周" : ""}
-              </span>
-            </span>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (viewMode === "month") {
+                const now = new Date()
+                const todayMonth = toDateKey(now.getFullYear(), now.getMonth() + 1, 1)
+                setVisibleMonthKey(todayMonth)
+                setSelectedDateKey(todayKey())
+              } else if (!isCurrentWeek) {
+                setWeekStartDate(currentWeekStart)
+              } else {
+                setWeekRefresh((n) => n + 1)
+              }
+            }}
+            className="inline-flex min-h-11 flex-col items-start justify-center rounded-lg px-2.5 text-left transition-colors hover:bg-muted/60 md:min-h-9"
+          >
+            {viewMode === "month" ? (
+              <span className="text-sm font-semibold text-foreground">{monthTitle}</span>
+            ) : (
+              <>
+                <span className="text-sm font-semibold leading-tight text-foreground">{monthLabel}</span>
+                <span className="mt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                  {weekRangeLabel}
+                  {isCurrentWeek ? " · 本周" : ""}
+                </span>
+              </>
+            )}
+          </button>
 
-        <button
-          type="button"
-          onClick={handleNextNav}
-          aria-label={viewMode === "month" ? "下一月" : "下一周"}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          <button
+            type="button"
+            onClick={handleNextNav}
+            aria-label={viewMode === "month" ? "下一月" : "下一周"}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground md:h-9 md:w-9"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
 
         {viewMode !== "month" && !isCurrentWeek && (
           <button
             type="button"
             onClick={() => setWeekStartDate(currentWeekStart)}
-            className="h-9 shrink-0 rounded-md px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+            className="h-11 shrink-0 rounded-lg px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 md:h-9"
           >
             今天
           </button>
@@ -1058,7 +1072,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               setVisibleMonthKey(todayMonth)
               setSelectedDateKey(todayKey())
             }}
-            className="h-9 shrink-0 rounded-md px-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+            className="h-11 shrink-0 rounded-lg px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 md:h-9"
           >
             今天
           </button>
@@ -1066,7 +1080,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
 
         <div className="min-w-full flex-1 sm:min-w-0" />
 
-        <div className="grid h-9 grid-cols-3 rounded-lg bg-muted p-1 text-xs font-medium">
+        <div className="grid h-11 grid-cols-3 rounded-xl bg-muted/70 p-1 text-xs font-medium md:h-9">
           {(["month", "week", "day"] as CalendarMode[]).map((mode) => (
             <button
               key={mode}
@@ -1074,7 +1088,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               onClick={() => setViewMode(mode)}
               aria-current={viewMode === mode ? "page" : undefined}
               className={cn(
-                "rounded-md px-2 transition-colors",
+                "rounded-lg px-2 transition-colors",
                 viewMode === mode
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -1105,16 +1119,28 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                   type="button"
                   onClick={() => handleDayClick(i)}
                   className={cn(
-                    "flex h-12 min-w-11 flex-col items-center justify-center text-center transition-colors",
-                    isToday
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : isSelected
-                        ? "bg-primary/10 text-primary"
-                        : "text-foreground hover:bg-muted/40",
+                    "flex h-14 min-w-11 flex-col items-center justify-center rounded-xl text-center transition-colors",
+                    isToday ? "text-primary" : isSelected ? "text-primary" : "text-foreground hover:bg-muted/40",
                   )}
                 >
-                  <span className="text-[10px] font-medium leading-tight">{day}</span>
-                  <span className="mt-0.5 text-xs font-semibold leading-tight tabular-nums">
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium leading-none",
+                      isToday || isSelected ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {day}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1.5 flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-[15px] font-semibold leading-none tabular-nums",
+                      isToday
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                        : isSelected
+                          ? "bg-primary/10 text-primary"
+                          : "text-foreground",
+                    )}
+                  >
                     {dateNum || "--"}
                   </span>
                 </button>
@@ -1132,27 +1158,43 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
         )}
 
         {viewMode !== "month" && !loading && error && !weekData && (
-          <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">
-              请先导入课表，或先创建带截止日期的待办。
-            </p>
-            <button
-              type="button"
-              onClick={() => setWeekRefresh((n) => n + 1)}
-              className="mt-3 inline-flex h-9 items-center rounded-md px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-            >
-              重试
-            </button>
+          <div className="p-6">
+            <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-2xl border border-dashed border-border/60 bg-card/40 px-6 py-10 text-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-foreground">无法加载日历</p>
+                <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">
+                  请先导入课表，或创建带截止日期的待办。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeekRefresh((n) => n + 1)}
+                className="mt-1 inline-flex min-h-11 items-center rounded-lg border border-border/60 px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 md:min-h-8"
+              >
+                重试
+              </button>
+            </div>
           </div>
         )}
 
         {viewMode !== "month" && !loading && !error && !weekData && (
-          <p className="py-8 text-center text-sm text-muted-foreground">暂无日历数据</p>
+          <div className="flex min-h-[240px] items-center justify-center p-6 text-center">
+            <div className="flex flex-col items-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-sm font-medium text-foreground">暂无日历数据</p>
+              <p className="mt-1 text-xs text-muted-foreground">课程、考试和待办会汇总到这里。</p>
+            </div>
+          </div>
         )}
 
         {viewMode !== "month" && !loading && weekData && allEvents.length === 0 && (
-          <div className="mx-auto max-w-sm px-6 py-10 text-center">
+          <div className="mx-auto max-w-sm rounded-2xl border border-dashed border-border/60 bg-card/40 px-6 py-10 text-center">
             <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
             <p className="mt-3 text-sm font-medium text-foreground">本周暂无安排</p>
             <p className="mt-1 text-xs text-muted-foreground">

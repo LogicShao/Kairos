@@ -22,6 +22,12 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "已完成" },
 ]
 
+const FIELD_CLASS =
+  "w-full h-11 md:h-9 rounded-lg border border-input bg-background/60 px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
+
+const TEXTAREA_CLASS =
+  "w-full resize-none rounded-lg border border-input bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
+
 export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title ?? "")
   const [description, setDescription] = useState(task?.description ?? "")
@@ -90,7 +96,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             onChange={(e) => setTitle(e.target.value)}
             required
             placeholder="任务标题"
-            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            className={FIELD_CLASS}
           />
         </div>
 
@@ -103,7 +109,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             onChange={(e) => setDescription(e.target.value)}
             placeholder="任务描述（可选）"
             rows={2}
-            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring resize-none"
+            className={TEXTAREA_CLASS}
           />
         </div>
 
@@ -115,7 +121,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className={FIELD_CLASS}
             >
               {PRIORITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -130,7 +136,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className={FIELD_CLASS}
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -148,7 +154,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className={FIELD_CLASS}
             />
           </div>
         )}
@@ -162,7 +168,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
               type="datetime-local"
               value={remindAt}
               onChange={(e) => setRemindAt(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className={FIELD_CLASS}
             />
             <p className="mt-1 text-[11px] text-muted-foreground/70">
               到点系统通知提醒你（可选，完成后自动清除）
@@ -171,14 +177,14 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
         )}
 
         <div>
-          <label className="flex cursor-pointer items-center gap-2 pt-1">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1 transition-colors hover:bg-muted/40">
             <input
               type="checkbox"
               checked={isDaily}
               onChange={(e) => setIsDaily(e.target.checked)}
               className="h-4 w-4 shrink-0 accent-primary"
             />
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-foreground">
               每日任务
             </span>
           </label>
@@ -196,7 +202,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
               type="time"
               value={reminderTime}
               onChange={(e) => setReminderTime(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+              className={FIELD_CLASS}
             />
             <p className="mt-1 text-[11px] text-muted-foreground/70">
               到点会系统通知提醒你完成（可选，留空则不提醒）
@@ -213,7 +219,7 @@ export function TaskForm({ task, onCreate, onUpdate, onCancel }: TaskFormProps) 
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             placeholder="如：学习, 工作, 个人"
-            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            className={FIELD_CLASS}
           />
         </div>
       </div>

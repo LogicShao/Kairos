@@ -42,7 +42,7 @@ export function ClipboardImportPanel({
             onChange={(e) => setImportText(e.target.value)}
             placeholder="先从教务系统网页复制课表表格，再点击「读取剪贴板」或直接粘贴到这里。"
             rows={8}
-            className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            className="w-full resize-y rounded-lg border border-input bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring"
           />
         </div>
         <div className="space-y-3">

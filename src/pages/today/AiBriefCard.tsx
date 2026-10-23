@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   BookOpen,
   CalendarClock,
+  ChevronRight,
   ListTodo,
   RefreshCw,
   Sparkles,
@@ -47,12 +48,14 @@ function isFooterOrSeparator(block: string): boolean {
 function Tile({
   icon: Icon,
   iconClass,
+  iconBgClass,
   title,
   onClick,
   children,
 }: {
   icon: LucideIcon
   iconClass: string
+  iconBgClass: string
   title: string
   onClick: () => void
   children: ReactNode
@@ -62,15 +65,18 @@ function Tile({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-[3.25rem] flex-col gap-0.5 rounded-lg border border-border/50 bg-card/50 px-3 py-2.5 text-left",
-        "transition-colors hover:bg-card active:bg-muted/60",
+        "group flex min-h-[4.5rem] flex-col gap-2 rounded-xl border border-border/50 bg-card/60 p-3 text-left",
+        "transition-all hover:-translate-y-0.5 hover:border-border hover:bg-card hover:shadow-sm",
       )}
     >
-      <span className="flex items-center gap-1.5">
-        <Icon className={cn("h-4 w-4 shrink-0", iconClass)} />
-        <span className="truncate text-xs font-semibold text-foreground">{title}</span>
+      <span className="flex items-center gap-2">
+        <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", iconBgClass)}>
+          <Icon className={cn("h-3.5 w-3.5", iconClass)} />
+        </span>
+        <span className="truncate text-[11px] font-medium text-muted-foreground">{title}</span>
+        <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
       </span>
-      <span className="min-w-0 text-xs leading-snug text-muted-foreground">{children}</span>
+      <span className="min-w-0 text-xs font-medium leading-snug text-foreground">{children}</span>
     </button>
   )
 }
@@ -91,7 +97,13 @@ function CourseTile({
         ? `下一节 ${courses.next_course.title} ${courses.next_course.start_time}`
         : `今日共 ${courses.today_count} 节`
   return (
-    <Tile icon={BookOpen} iconClass="text-blue-500" title="课程" onClick={() => onNavigate("courses")}>
+    <Tile
+      icon={BookOpen}
+      iconClass="text-primary"
+      iconBgClass="bg-primary/10"
+      title="课程"
+      onClick={() => onNavigate("courses")}
+    >
       {line}
     </Tile>
   )
@@ -115,7 +127,13 @@ function TaskTile({
     ? `${counts.join("，")}${spotlight ? ` · ${spotlight}` : ""}`
     : spotlight ?? "暂无到期待办"
   return (
-    <Tile icon={ListTodo} iconClass="text-amber-500" title="待办" onClick={() => onNavigate("todo")}>
+    <Tile
+      icon={ListTodo}
+      iconClass="text-amber-600 dark:text-amber-400"
+      iconBgClass="bg-amber-500/10"
+      title="待办"
+      onClick={() => onNavigate("todo")}
+    >
       {line}
     </Tile>
   )
@@ -133,7 +151,13 @@ function ExamTile({
     ? `${exam.course_name}${exam.days_until === 0 ? " · 今天考试" : ` · 剩余 ${exam.days_until} 天`}`
     : "近期没有考试"
   return (
-    <Tile icon={CalendarClock} iconClass="text-purple-500" title="考试" onClick={() => onNavigate("exams")}>
+    <Tile
+      icon={CalendarClock}
+      iconClass="text-destructive"
+      iconBgClass="bg-destructive/10"
+      title="考试"
+      onClick={() => onNavigate("exams")}
+    >
       {line}
     </Tile>
   )
@@ -151,7 +175,13 @@ function PomodoroTile({
     ? `专注中 · 已完成 ${pomodoro.completed_sessions} 个番茄钟`
     : `可以开始今天的第一轮专注${pomodoro.completed_sessions > 0 ? `（已累计 ${pomodoro.completed_sessions} 个）` : ""}`
   return (
-    <Tile icon={Timer} iconClass="text-emerald-500" title="专注" onClick={() => onNavigate("pomodoro")}>
+    <Tile
+      icon={Timer}
+      iconClass="text-emerald-600 dark:text-emerald-400"
+      iconBgClass="bg-emerald-500/10"
+      title="专注"
+      onClick={() => onNavigate("pomodoro")}
+    >
       {line}
     </Tile>
   )
@@ -159,10 +189,7 @@ function PomodoroTile({
 
 // ─── AI 今日重点 ──────────────────────────────────────────────────────────────
 
-const FOCUS_STYLE: { icon: LucideIcon; iconClass: string } = {
-  icon: Target,
-  iconClass: "text-primary",
-}
+const FOCUS_STYLE = { icon: Target }
 
 /**
  * 从 5 分节 markdown 提取「今日重点」分节（AI 唯一增值内容）。
@@ -186,12 +213,19 @@ function extractFocusSection(md: string): BriefSection | null {
 function FocusTile({ section }: { section: BriefSection }) {
   const Icon = FOCUS_STYLE.icon
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+    <div className="relative overflow-hidden rounded-xl border border-primary/15 bg-primary/[0.04] p-3 pl-4">
+      <span
+        className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-primary"
+        aria-hidden="true"
+      />
       <div className="flex items-center gap-1.5">
-        <Icon className={cn("h-4 w-4 shrink-0 text-primary")} />
+        <Icon className="h-4 w-4 shrink-0 text-primary" />
         <span className="truncate text-xs font-semibold text-foreground">{section.title}</span>
+        <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium leading-none text-primary">
+          AI
+        </span>
       </div>
-      <div className="mt-1 break-words text-xs leading-snug text-foreground/90">
+      <div className="mt-1.5 break-words text-xs leading-relaxed text-foreground/90">
         <SectionBody blocks={section.blocks} />
       </div>
     </div>

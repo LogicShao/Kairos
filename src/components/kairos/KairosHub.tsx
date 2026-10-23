@@ -4,6 +4,7 @@ import {
   BookOpen,
   CalendarClock,
   Check,
+  ChevronRight,
   Cloud,
   Flag,
   LogOut,
@@ -31,6 +32,7 @@ interface HubEntry {
   label: string
   description: string
   icon: typeof BookOpen
+  toneClass: string
 }
 
 const HUB_ENTRIES: HubEntry[] = [
@@ -39,36 +41,42 @@ const HUB_ENTRIES: HubEntry[] = [
     label: "课程表",
     description: "管理课程、周次与上课地点",
     icon: BookOpen,
+    toneClass: "bg-primary/10 text-primary",
   },
   {
     key: "exams",
     label: "考试倒计时",
     description: "查看考试时间、地点与剩余天数",
     icon: CalendarClock,
+    toneClass: "bg-destructive/10 text-destructive",
   },
   {
     key: "notifications",
     label: "通知设置",
     description: "管理番茄钟提醒与考试考前通知",
     icon: Bell,
+    toneClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   {
     key: "semester-phases",
     label: "学期阶段",
     description: "管理教学周、考试周与假期行为",
     icon: Flag,
+    toneClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   },
   {
     key: "ai-settings",
     label: "AI 设置",
     description: "配置每日摘要与 API Key",
     icon: Sparkles,
+    toneClass: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
   },
   {
     key: "sync",
     label: "同步设置",
     description: "配置 WebDAV 与本地数据同步",
     icon: Cloud,
+    toneClass: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
 ]
 
@@ -159,17 +167,17 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
         </AcrylicPanel>
 
         <div className="grid gap-3">
-          {HUB_ENTRIES.map(({ key, label, description, icon: Icon }) => (
+          {HUB_ENTRIES.map(({ key, label, description, icon: Icon, toneClass }) => (
             <button
               key={key}
               type="button"
               onClick={() => onNavigate(key)}
               className={cn(
-                "flex min-h-16 w-full items-center gap-3 rounded-lg border border-border/60 bg-card/70 px-4 py-3 text-left",
-                "transition-colors hover:bg-card active:bg-muted/60",
+                "group flex min-h-16 w-full items-center gap-3 rounded-xl border border-border/50 bg-card/70 px-4 py-3 text-left",
+                "transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-sm active:bg-muted/60",
               )}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", toneClass)}>
                 <Icon className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">
@@ -178,6 +186,7 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
                   {description}
                 </span>
               </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/30 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
             </button>
           ))}
         </div>
@@ -187,8 +196,8 @@ export function KairosHub({ onNavigate, className }: KairosHubProps) {
           onClick={() => void handleLogout()}
           disabled={loggingOut}
           className={cn(
-            "flex min-h-16 w-full items-center gap-3 rounded-lg border border-border/60 bg-card/70 px-4 py-3 text-left",
-            "transition-colors hover:bg-card active:bg-muted/60 disabled:pointer-events-none disabled:opacity-60",
+            "flex min-h-16 w-full items-center gap-3 rounded-xl border border-border/50 bg-card/70 px-4 py-3 text-left",
+            "transition-all hover:bg-card hover:shadow-sm active:bg-muted/60 disabled:pointer-events-none disabled:opacity-60",
           )}
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">

@@ -283,7 +283,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
     <div className="min-h-0 flex-1 overflow-y-auto pb-4">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <div className="flex items-center gap-2">
-          <Button size="icon-sm" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回">
+          <Button size="icon" variant="ghost" onClick={() => onNavigate("kairos")} aria-label="返回" className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground md:h-8 md:w-8">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
@@ -293,19 +293,19 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
         </div>
 
         {error && (
-          <AcrylicPanel className="border-destructive/30 bg-card p-3">
+          <AcrylicPanel className="border-destructive/30 bg-destructive/5 p-3">
             <p className="text-sm text-destructive">{error}</p>
           </AcrylicPanel>
         )}
 
         {loading ? (
-          <AcrylicPanel className="bg-card p-5">
+          <AcrylicPanel className="bg-card/70 p-5">
             <div className="h-5 w-36 animate-pulse rounded bg-muted" />
             <div className="mt-4 h-24 animate-pulse rounded-lg bg-muted/60" />
           </AcrylicPanel>
         ) : (
           <>
-            <AcrylicPanel className="bg-card p-4">
+            <AcrylicPanel className="bg-card/70 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -343,7 +343,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
               )}
             </AcrylicPanel>
 
-            <AcrylicPanel className="bg-card p-4">
+            <AcrylicPanel className="bg-card/70 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">阶段列表</h2>
                 <span className="text-xs text-muted-foreground">{phases.length} 个阶段</span>
@@ -478,7 +478,7 @@ export function SemesterPhaseSettings({ onNavigate }: SemesterPhaseSettingsProps
               </div>
             </AcrylicPanel>
 
-            <AcrylicPanel className="bg-card p-4">
+            <AcrylicPanel className="bg-card/70 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">番茄钟配置</h2>
                 <span className="text-xs text-muted-foreground">{profiles.length} 个配置</span>
